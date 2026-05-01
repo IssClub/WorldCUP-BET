@@ -3,9 +3,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
-import { Trophy, Swords, BarChart2, Globe } from 'lucide-react';
+import MyBetsPage from './pages/MyBetsPage';
+import { Trophy, Swords, BarChart2, Globe, Ticket } from 'lucide-react';
 
-type Tab = 'bets' | 'leaderboard' | 'tournament' | 'admin';
+type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
 function AppShell() {
   const { user, profile, loading } = useAuth();
@@ -25,6 +26,7 @@ function AppShell() {
 
   const tabs = [
     { key: 'bets' as Tab, label: 'הימורים', icon: Swords },
+    { key: 'mybets' as Tab, label: 'שלי', icon: Ticket },
     { key: 'leaderboard' as Tab, label: 'טבלה', icon: BarChart2 },
     { key: 'tournament' as Tab, label: 'מונדיאל', icon: Globe },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'ניהול', icon: Trophy }] : []),
@@ -35,6 +37,7 @@ function AppShell() {
       {/* Page content */}
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}
+        {tab === 'mybets' && <MyBetsPage />}
         {tab === 'leaderboard' && <PlaceholderPage icon="🏆" title="טבלת דירוג" subtitle="בקרוב" />}
         {tab === 'tournament' && <PlaceholderPage icon="🌍" title="מונדיאל 2026" subtitle="טבלאות וסטטיסטיקות — בקרוב" />}
         {tab === 'admin' && isAdmin && <AdminPage />}

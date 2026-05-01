@@ -10,12 +10,12 @@
   --green: #00C853;
   --green-dark: #007B33;
   --gold: #FFD600;
-  --bg: #0a0e1a;
-  --surface: #111827;
-  --surface2: #1a2235;
-  --border: #1e2d45;
-  --text: #f0f4ff;
-  --text-muted: #6b7fa3;
+  --bg: #0b1e2d;
+  --surface: #132840;
+  --surface2: #1b3352;
+  --border: rgba(255,255,255,0.1);
+  --text: #ffffff;
+  --text-muted: #7da0c0;
 }
 
 body {
@@ -27,16 +27,32 @@ body {
 .bebas { font-family: 'Bebas Neue', cursive; }
 
 .pitch-bg {
-  background: 
-    radial-gradient(ellipse at 50% 0%, rgba(0,200,83,0.12) 0%, transparent 60%),
-    radial-gradient(ellipse at 50% 100%, rgba(0,200,83,0.06) 0%, transparent 50%),
-    var(--bg);
+  background:
+    radial-gradient(ellipse 100% 50% at 50% -5%, rgba(0,210,90,0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 20% 60%, rgba(0,120,255,0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 40% at 80% 60%, rgba(0,200,83,0.06) 0%, transparent 55%),
+    linear-gradient(180deg, #0b1e2d 0%, #071524 100%);
+  min-height: 100vh;
 }
 
+.pitch-bg::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255,255,255,0.015) 80px, rgba(255,255,255,0.015) 81px),
+    repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255,255,255,0.01) 80px, rgba(255,255,255,0.01) 81px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pitch-bg > * { position: relative; z-index: 1; }
+
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: rgba(19, 40, 64, 0.85);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
 }
 
 .card-hover {
@@ -188,18 +204,24 @@ body {
 
 /* ── Game card ───────────────────────────────────────────── */
 .gc {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: 18px;
+  background: rgba(19, 40, 64, 0.7);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
   padding: 18px;
-  transition: border-color 0.25s, box-shadow 0.25s;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
 }
 .gc-picked {
-  border-color: rgba(0,200,83,0.45);
-  box-shadow: 0 0 24px rgba(0,200,83,0.08);
-  background: linear-gradient(160deg, var(--surface), rgba(0,200,83,0.04));
+  border-color: rgba(0,200,83,0.5);
+  box-shadow: 0 4px 30px rgba(0,200,83,0.15);
+  background: rgba(0,80,40,0.3);
 }
-.gc-done { opacity: 0.75; }
+.gc-done {
+  background: rgba(0,30,15,0.5);
+  border-color: rgba(0,200,83,0.25);
+}
 
 /* Teams row */
 .gc-teams {
@@ -207,7 +229,7 @@ body {
   margin-bottom: 14px;
 }
 .gc-team { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-.gc-flag { font-size: 2.8rem; line-height: 1; }
+.gc-flag { font-size: 3.2rem; line-height: 1; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4)); }
 .gc-tname { font-size: 0.75rem; font-weight: 600; text-align: center; color: var(--text); max-width: 90px; }
 .gc-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 10px; }
 .gc-time { font-size: 0.7rem; color: var(--text-muted); }
@@ -217,10 +239,10 @@ body {
 .gc-picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .gc-pick {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
-  padding: 11px 6px;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
-  background: var(--surface2);
+  padding: 12px 6px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
   cursor: pointer;
   transition: all 0.18s ease;
   color: var(--text);
@@ -229,8 +251,8 @@ body {
 .gc-pick:active { transform: scale(0.95); }
 .gc-pick-on {
   border-color: var(--green);
-  background: rgba(0,200,83,0.14);
-  box-shadow: 0 0 0 1px rgba(0,200,83,0.3), 0 4px 14px rgba(0,200,83,0.18);
+  background: rgba(0,200,83,0.2);
+  box-shadow: 0 0 0 1px rgba(0,200,83,0.4), 0 4px 16px rgba(0,200,83,0.25);
 }
 .gc-pick-label { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
 .gc-pick-on .gc-pick-label { color: var(--green); }
@@ -353,14 +375,67 @@ body {
   color: var(--green); font-weight: 700; font-size: 1rem;
 }
 
+/* ── My Bets page ────────────────────────────────────────── */
+.mb-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 16px;
+}
+.mb-stat {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 10px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.mb-stat-val { font-family: 'Bebas Neue', cursive; font-size: 1.4rem; color: var(--text); }
+.mb-stat-lbl { font-size: 0.65rem; color: var(--text-muted); }
+
+.mb-card {
+  background: rgba(19,40,64,0.75);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px; padding: 14px;
+  backdrop-filter: blur(10px);
+}
+.mb-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.mb-game { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; flex-wrap: wrap; }
+.mb-team { font-weight: 600; color: var(--text); }
+.mb-vs { font-size: 0.7rem; color: var(--text-muted); }
+.mb-status { font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+.mb-date { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px; }
+.mb-details { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mb-pick {
+  background: rgba(0,200,83,0.15); border: 1px solid rgba(0,200,83,0.3);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 0.78rem; font-weight: 700; color: var(--green);
+  flex-shrink: 0;
+}
+.mb-nums { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mb-num-item { display: flex; flex-direction: column; align-items: center; }
+.mb-num-lbl { font-size: 0.6rem; color: var(--text-muted); }
+.mb-num-val { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.mb-sep { font-size: 0.85rem; color: var(--text-muted); }
+.mb-exact {
+  margin-top: 8px; font-size: 0.75rem;
+  background: rgba(255,214,0,0.1); border: 1px solid rgba(255,214,0,0.25);
+  border-radius: 20px; padding: 2px 10px; display: inline-block; color: var(--gold);
+}
+.mb-cancel {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; margin-top: 10px; padding: 8px 12px;
+  border-radius: 10px; border: 1px dashed rgba(248,113,113,0.4);
+  background: rgba(248,113,113,0.06); color: #f87171;
+  font-size: 0.78rem; cursor: pointer; transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mb-cancel:hover { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.6); }
+.mb-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Bottom nav ──────────────────────────────────────────── */
 .bottom-nav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
   display: flex;
-  background: rgba(10,14,26,0.97);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border);
+  background: rgba(8,20,35,0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255,255,255,0.08);
   padding-bottom: env(safe-area-inset-bottom, 8px);
 }
 .bnav-btn {
