@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
-import { Trophy, LogOut, Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
+import { Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -393,17 +392,11 @@ export default function PlayerPage() {
       {/* ── Header ── */}
       <header className="hdr">
         <div className="hdr-inner">
-          <div className="flex items-center gap-2">
-            <Trophy size={19} style={{ color: 'var(--green)' }} />
-            <span className="font-bold tracking-wide">מונדיאל הימורים</span>
-          </div>
+          <span className="font-bold tracking-wide">הימורים</span>
           <div className="flex items-center gap-3">
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
             <button onClick={() => loadData()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
               <RefreshCw size={14} />
-            </button>
-            <button onClick={signOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-              <LogOut size={15} />
             </button>
           </div>
         </div>
