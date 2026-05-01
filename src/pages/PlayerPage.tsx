@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
+import { flagUrl } from '../lib/flagMap';
 import { Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
@@ -25,35 +26,20 @@ interface BetState {
   showExact: boolean;
 }
 
-// ── Flags ─────────────────────────────────────────────────
-const FLAGS: Record<string, string> = {
-  'Mexico': '🇲🇽', 'South Africa': '🇿🇦', 'United States': '🇺🇸',
-  'Canada': '🇨🇦', 'Brazil': '🇧🇷', 'Argentina': '🇦🇷',
-  'Germany': '🇩🇪', 'France': '🇫🇷', 'Spain': '🇪🇸',
-  'England': '🏴󠁧󠁢󠁥󠁮󠁬󠁿', 'Portugal': '🇵🇹', 'Netherlands': '🇳🇱',
-  'Belgium': '🇧🇪', 'Italy': '🇮🇹', 'Croatia': '🇭🇷',
-  'Switzerland': '🇨🇭', 'Denmark': '🇩🇰', 'Poland': '🇵🇱',
-  'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺',
-  'Saudi Arabia': '🇸🇦', 'Iran': '🇮🇷', 'Morocco': '🇲🇦',
-  'Senegal': '🇸🇳', 'Ghana': '🇬🇭', 'Nigeria': '🇳🇬',
-  'Cameroon': '🇨🇲', 'Egypt': '🇪🇬', 'Tunisia': '🇹🇳',
-  'Ecuador': '🇪🇨', 'Uruguay': '🇺🇾', 'Colombia': '🇨🇴',
-  'Costa Rica': '🇨🇷', 'Panama': '🇵🇦', 'Jamaica': '🇯🇲',
-  'Serbia': '🇷🇸', 'Ukraine': '🇺🇦', 'Sweden': '🇸🇪',
-  'Qatar': '🇶🇦', "Côte d'Ivoire": '🇨🇮', 'Ivory Coast': '🇨🇮',
-  'New Zealand': '🇳🇿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  'Austria': '🇦🇹', 'Hungary': '🇭🇺', 'Turkey': '🇹🇷',
-  'Albania': '🇦🇱', 'Uzbekistan': '🇺🇿', 'Indonesia': '🇮🇩',
-  'Venezuela': '🇻🇪', 'Chile': '🇨🇱', 'Peru': '🇵🇪',
-  'Honduras': '🇭🇳', 'Paraguay': '🇵🇾', 'Bolivia': '🇧🇴',
-  'Slovakia': '🇸🇰', 'Czech Republic': '🇨🇿', 'Greece': '🇬🇷',
-  'Romania': '🇷🇴', 'Norway': '🇳🇴', 'Finland': '🇫🇮',
-  'Iceland': '🇮🇸', 'Algeria': '🇩🇿', 'Jordan': '🇯🇴',
-  'El Salvador': '🇸🇻', 'Trinidad and Tobago': '🇹🇹',
-  'Cuba': '🇨🇺', 'Guatemala': '🇬🇹', 'Russia': '🇷🇺',
-  'Cape Verde': '🇨🇻', 'Mali': '🇲🇱', 'Guinea': '🇬🇳',
-};
-const flag = (c: string) => FLAGS[c] ?? '🏳️';
+// ── Flag component ────────────────────────────────────────
+function Flag({ team, size = 56 }: { team: string; size?: number }) {
+  const url = flagUrl(team, 'w80');
+  if (!url) return <span style={{ fontSize: size * 0.6, lineHeight: 1 }}>🏳️</span>;
+  return (
+    <img
+      src={url}
+      alt={team}
+      width={size}
+      height={Math.round(size * 0.6)}
+      style={{ borderRadius: 4, objectFit: 'cover', display: 'block', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
+    />
+  );
+}
 
 // ── Time utils ────────────────────────────────────────────
 const TZ = 'Asia/Jerusalem';
@@ -132,7 +118,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
       <div className="gc gc-done">
         <div className="gc-teams">
           <div className="gc-team">
-            <span className="gc-flag">{flag(game.home_team)}</span>
+            <Flag team={game.home_team} />
             <span className="gc-tname">{game.home_team}</span>
           </div>
           <div className="gc-mid">
@@ -140,7 +126,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
             <span className="gc-vs">VS</span>
           </div>
           <div className="gc-team">
-            <span className="gc-flag">{flag(game.away_team)}</span>
+            <Flag team={game.away_team} />
             <span className="gc-tname">{game.away_team}</span>
           </div>
         </div>
@@ -165,7 +151,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
       {/* Teams */}
       <div className="gc-teams">
         <div className="gc-team">
-          <span className="gc-flag">{flag(game.home_team)}</span>
+          <Flag team={game.home_team} />
           <span className="gc-tname">{game.home_team}</span>
         </div>
         <div className="gc-mid">
@@ -173,7 +159,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
           <span className="gc-vs">VS</span>
         </div>
         <div className="gc-team">
-          <span className="gc-flag">{flag(game.away_team)}</span>
+          <Flag team={game.away_team} />
           <span className="gc-tname">{game.away_team}</span>
         </div>
       </div>
@@ -241,7 +227,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
 
           {bet.showExact && (
             <div className="gc-exact-inputs fade-in">
-              <div className="gc-exact-team">{flag(game.home_team)}</div>
+              <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
               <input
                 type="number" min="0" max="20"
                 className="gc-score-input"
@@ -257,7 +243,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
                 onChange={e => onChange({ exactAway: e.target.value })}
                 placeholder="0"
               />
-              <div className="gc-exact-team">{flag(game.away_team)}</div>
+              <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
             </div>
           )}
         </div>

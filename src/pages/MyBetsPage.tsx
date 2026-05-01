@@ -2,24 +2,14 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Bet } from '../lib/supabase';
+import { flagUrl } from '../lib/flagMap';
 import { Trash2 } from 'lucide-react';
 
-const FLAGS: Record<string, string> = {
-  'Mexico': '🇲🇽', 'South Africa': '🇿🇦', 'United States': '🇺🇸',
-  'Canada': '🇨🇦', 'Brazil': '🇧🇷', 'Argentina': '🇦🇷',
-  'Germany': '🇩🇪', 'France': '🇫🇷', 'Spain': '🇪🇸',
-  'England': '🏴󠁧󠁢󠁥󠁮󠁬󠁿', 'Portugal': '🇵🇹', 'Netherlands': '🇳🇱',
-  'Belgium': '🇧🇪', 'Italy': '🇮🇹', 'Croatia': '🇭🇷',
-  'Switzerland': '🇨🇭', 'Denmark': '🇩🇰', 'Poland': '🇵🇱',
-  'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺',
-  'Saudi Arabia': '🇸🇦', 'Iran': '🇮🇷', 'Morocco': '🇲🇦',
-  'Senegal': '🇸🇳', 'Ghana': '🇬🇭', 'Nigeria': '🇳🇬',
-  'Ecuador': '🇪🇨', 'Uruguay': '🇺🇾', 'Colombia': '🇨🇴',
-  'Serbia': '🇷🇸', 'Qatar': '🇶🇦', "Côte d'Ivoire": '🇨🇮',
-  'Cameroon': '🇨🇲', 'Tunisia': '🇹🇳', 'Costa Rica': '🇨🇷',
-  'Panama': '🇵🇦', 'Jamaica': '🇯🇲', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-};
-const flag = (c: string) => FLAGS[c] ?? '🏳️';
+function Flag({ team }: { team: string }) {
+  const url = flagUrl(team, 'w40');
+  if (!url) return <span>🏳️</span>;
+  return <img src={url} alt={team} width={28} height={17} style={{ borderRadius: 2, objectFit: 'cover' }} />;
+}
 
 const TZ = 'Asia/Jerusalem';
 const fmtDate = (iso: string) =>
@@ -121,11 +111,11 @@ export default function MyBetsPage() {
                   {/* Header row */}
                   <div className="mb-card-top">
                     <div className="mb-game">
-                      <span>{flag(bet.home_team)}</span>
+                      <Flag team={bet.home_team} />
                       <span className="mb-team">{bet.home_team}</span>
                       <span className="mb-vs">vs</span>
                       <span className="mb-team">{bet.away_team}</span>
-                      <span>{flag(bet.away_team)}</span>
+                      <Flag team={bet.away_team} />
                     </div>
                     <span className="mb-status" style={{ color: statusColor }}>{statusLabel}</span>
                   </div>
