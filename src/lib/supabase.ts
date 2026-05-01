@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://thzcfbnvgsabvzzzsudh.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoemNmYm52Z3NhYnZ6enpzdWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2Mjg4MDcsImV4cCI6MjA5MzIwNDgwN30.DWYsvvj5Oa35Yz6rt7-kwTOr0VnsxPtl1We9HwiOY2c';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -47,14 +47,17 @@ export type Odds = {
 export type Bet = {
   id: string;
   player_id: string;
-  game_id: string;
-  odds_id: string;
+  external_game_id: string;
+  home_team: string;
+  away_team: string;
+  kickoff_at: string;
   pick: 'home' | 'draw' | 'away';
   amount: number;
   odds_value: number;
+  exact_home: number | null;
+  exact_away: number | null;
   status: 'pending' | 'won' | 'lost' | 'cancelled';
   payout: number | null;
-  is_auto: boolean;
   created_at: string;
 };
 

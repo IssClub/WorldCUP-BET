@@ -1,60 +1,485 @@
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../lib/auth';
-import { Trophy, LogOut, Coins, TrendingUp, Calendar } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import type { Settings, Bet } from '../lib/supabase';
+import { Trophy, LogOut, Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
 
+// ── Types ─────────────────────────────────────────────────
+type Pick = 'home' | 'draw' | 'away';
+
+interface Game {
+  id: string;
+  home_team: string;
+  away_team: string;
+  commence_time: string;
+  home_win: number;
+  draw: number;
+  away_win: number;
+}
+
+interface BetState {
+  pick: Pick | null;
+  amount: number;
+  exactHome: string;
+  exactAway: string;
+  showExact: boolean;
+}
+
+// ── Flags ─────────────────────────────────────────────────
+const FLAGS: Record<string, string> = {
+  'Mexico': '🇲🇽', 'South Africa': '🇿🇦', 'United States': '🇺🇸',
+  'Canada': '🇨🇦', 'Brazil': '🇧🇷', 'Argentina': '🇦🇷',
+  'Germany': '🇩🇪', 'France': '🇫🇷', 'Spain': '🇪🇸',
+  'England': '🏴󠁧󠁢󠁥󠁮󠁬󠁿', 'Portugal': '🇵🇹', 'Netherlands': '🇳🇱',
+  'Belgium': '🇧🇪', 'Italy': '🇮🇹', 'Croatia': '🇭🇷',
+  'Switzerland': '🇨🇭', 'Denmark': '🇩🇰', 'Poland': '🇵🇱',
+  'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺',
+  'Saudi Arabia': '🇸🇦', 'Iran': '🇮🇷', 'Morocco': '🇲🇦',
+  'Senegal': '🇸🇳', 'Ghana': '🇬🇭', 'Nigeria': '🇳🇬',
+  'Cameroon': '🇨🇲', 'Egypt': '🇪🇬', 'Tunisia': '🇹🇳',
+  'Ecuador': '🇪🇨', 'Uruguay': '🇺🇾', 'Colombia': '🇨🇴',
+  'Costa Rica': '🇨🇷', 'Panama': '🇵🇦', 'Jamaica': '🇯🇲',
+  'Serbia': '🇷🇸', 'Ukraine': '🇺🇦', 'Sweden': '🇸🇪',
+  'Qatar': '🇶🇦', "Côte d'Ivoire": '🇨🇮', 'Ivory Coast': '🇨🇮',
+  'New Zealand': '🇳🇿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'Austria': '🇦🇹', 'Hungary': '🇭🇺', 'Turkey': '🇹🇷',
+  'Albania': '🇦🇱', 'Uzbekistan': '🇺🇿', 'Indonesia': '🇮🇩',
+  'Venezuela': '🇻🇪', 'Chile': '🇨🇱', 'Peru': '🇵🇪',
+  'Honduras': '🇭🇳', 'Paraguay': '🇵🇾', 'Bolivia': '🇧🇴',
+  'Slovakia': '🇸🇰', 'Czech Republic': '🇨🇿', 'Greece': '🇬🇷',
+  'Romania': '🇷🇴', 'Norway': '🇳🇴', 'Finland': '🇫🇮',
+  'Iceland': '🇮🇸', 'Algeria': '🇩🇿', 'Jordan': '🇯🇴',
+  'El Salvador': '🇸🇻', 'Trinidad and Tobago': '🇹🇹',
+  'Cuba': '🇨🇺', 'Guatemala': '🇬🇹', 'Russia': '🇷🇺',
+  'Cape Verde': '🇨🇻', 'Mali': '🇲🇱', 'Guinea': '🇬🇳',
+};
+const flag = (c: string) => FLAGS[c] ?? '🏳️';
+
+// ── Time utils ────────────────────────────────────────────
+const TZ = 'Asia/Jerusalem';
+const dayKey = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
+const todayKey = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const fmtDateHe = (iso: string) =>
+  new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
+
+// ── Odds extraction ───────────────────────────────────────
+function extractOdds(g: any): { home_win: number; draw: number; away_win: number } | null {
+  const preferred = ['bet365', 'pinnacle', 'unibet_eu', 'betfair_ex_eu', 'marathonbet', 'coolbet'];
+  for (const key of preferred) {
+    const bm = g.bookmakers?.find((b: any) => b.key === key);
+    if (!bm) continue;
+    const mkt = bm.markets?.find((m: any) => m.key === 'h2h');
+    if (!mkt) continue;
+    const home = mkt.outcomes.find((o: any) => o.name === g.home_team);
+    const away = mkt.outcomes.find((o: any) => o.name === g.away_team);
+    const draw = mkt.outcomes.find((o: any) => o.name === 'Draw');
+    if (home && away && draw)
+      return { home_win: home.price, draw: draw.price, away_win: away.price };
+  }
+  // average fallback
+  const totals: Record<string, number[]> = { home: [], draw: [], away: [] };
+  for (const bm of (g.bookmakers || [])) {
+    const mkt = bm.markets?.find((m: any) => m.key === 'h2h');
+    if (!mkt) continue;
+    const home = mkt.outcomes.find((o: any) => o.name === g.home_team);
+    const away = mkt.outcomes.find((o: any) => o.name === g.away_team);
+    const draw = mkt.outcomes.find((o: any) => o.name === 'Draw');
+    if (home) totals.home.push(home.price);
+    if (away) totals.away.push(away.price);
+    if (draw) totals.draw.push(draw.price);
+  }
+  if (!totals.home.length) return null;
+  const avg = (arr: number[]) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 100) / 100;
+  return { home_win: avg(totals.home), draw: avg(totals.draw), away_win: avg(totals.away) };
+}
+
+// ── GameCard ──────────────────────────────────────────────
+function GameCard({ game, settings, bet, existingBet, onChange }: {
+  game: Game;
+  settings: Settings;
+  bet: BetState;
+  existingBet: Bet | null;
+  onChange: (b: Partial<BetState>) => void;
+}) {
+  const odds: Record<Pick, number> = { home: game.home_win, draw: game.draw, away: game.away_win };
+
+  const pickLabel = (p: Pick) => {
+    if (p === 'draw') return 'תיקו';
+    const team = p === 'home' ? game.home_team : game.away_team;
+    return team.split(' ').slice(-1)[0];
+  };
+
+  const potential = bet.pick && bet.amount > 0
+    ? Math.floor(bet.amount * odds[bet.pick]) : 0;
+  const bonusPotential = bet.showExact && potential > 0
+    ? Math.floor(potential * 1.5) : 0;
+
+  const presets = [
+    settings.min_bet,
+    Math.round(settings.max_bet * 0.33 / 25) * 25,
+    Math.round(settings.max_bet * 0.66 / 25) * 25,
+    settings.max_bet,
+  ].filter((v, i, a) => a.indexOf(v) === i && v >= settings.min_bet && v <= settings.max_bet);
+
+  // ── Already bet ──
+  if (existingBet) {
+    const label = existingBet.pick === 'home' ? existingBet.home_team
+      : existingBet.pick === 'away' ? existingBet.away_team : 'תיקו';
+    const pot = Math.floor(existingBet.amount * existingBet.odds_value);
+    return (
+      <div className="gc gc-done">
+        <div className="gc-teams">
+          <div className="gc-team">
+            <span className="gc-flag">{flag(game.home_team)}</span>
+            <span className="gc-tname">{game.home_team}</span>
+          </div>
+          <div className="gc-mid">
+            <span className="gc-time">{fmtTime(game.commence_time)}</span>
+            <span className="gc-vs">VS</span>
+          </div>
+          <div className="gc-team">
+            <span className="gc-flag">{flag(game.away_team)}</span>
+            <span className="gc-tname">{game.away_team}</span>
+          </div>
+        </div>
+        <div className="gc-submitted">
+          <CheckCircle2 size={14} />
+          <span>{label} × {existingBet.odds_value.toFixed(2)}</span>
+          <span className="gc-submitted-sep">•</span>
+          <span>{existingBet.amount} נק׳</span>
+          <span className="gc-submitted-sep">→</span>
+          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{pot} נק׳</span>
+          {existingBet.exact_home !== null && (
+            <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Betting card ──
+  return (
+    <div className={`gc ${bet.pick ? 'gc-picked' : ''}`}>
+      {/* Teams */}
+      <div className="gc-teams">
+        <div className="gc-team">
+          <span className="gc-flag">{flag(game.home_team)}</span>
+          <span className="gc-tname">{game.home_team}</span>
+        </div>
+        <div className="gc-mid">
+          <span className="gc-time">{fmtTime(game.commence_time)}</span>
+          <span className="gc-vs">VS</span>
+        </div>
+        <div className="gc-team">
+          <span className="gc-flag">{flag(game.away_team)}</span>
+          <span className="gc-tname">{game.away_team}</span>
+        </div>
+      </div>
+
+      {/* Pick buttons */}
+      <div className="gc-picks">
+        {(['home', 'draw', 'away'] as Pick[]).map(p => (
+          <button
+            key={p}
+            className={`gc-pick ${bet.pick === p ? 'gc-pick-on' : ''}`}
+            onClick={() => onChange({ pick: p, amount: bet.amount || settings.min_bet })}
+          >
+            <span className="gc-pick-label">{pickLabel(p)}</span>
+            <span className="gc-pick-odds">{odds[p].toFixed(2)}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Amount — only after pick */}
+      {bet.pick && (
+        <div className="gc-amount fade-in">
+          {/* Presets */}
+          <div className="gc-presets">
+            {presets.map(v => (
+              <button
+                key={v}
+                className={`gc-preset ${bet.amount === v ? 'gc-preset-on' : ''}`}
+                onClick={() => onChange({ amount: v })}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
+          {/* Stepper */}
+          <div className="gc-stepper">
+            <button className="gc-step" onClick={() => onChange({ amount: Math.max(settings.min_bet, bet.amount - 25) })}>−</button>
+            <div className="gc-amount-val">
+              <span className="gc-amount-num">{bet.amount}</span>
+              <span className="gc-amount-u">נק׳</span>
+            </div>
+            <button className="gc-step" onClick={() => onChange({ amount: Math.min(settings.max_bet, bet.amount + 25) })}>+</button>
+          </div>
+
+          {/* Potential winnings */}
+          <div className="gc-potential">
+            <Zap size={13} style={{ color: 'var(--gold)' }} />
+            <span className="gc-pot-label">תרוויח</span>
+            <span className="gc-pot-val">
+              {bet.showExact && bonusPotential > 0 ? bonusPotential : potential}
+            </span>
+            <span className="gc-pot-u">נק׳</span>
+            {bet.showExact && bonusPotential > 0 && (
+              <span className="gc-pot-bonus">+50% בונוס</span>
+            )}
+          </div>
+
+          {/* Exact score toggle */}
+          <button
+            className={`gc-exact-toggle ${bet.showExact ? 'gc-exact-on' : ''}`}
+            onClick={() => onChange({ showExact: !bet.showExact })}
+          >
+            🎯 {bet.showExact ? 'תוצאה מדויקת — בונוס ×1.5' : 'הוסף תוצאה מדויקת לבונוס'}
+          </button>
+
+          {bet.showExact && (
+            <div className="gc-exact-inputs fade-in">
+              <div className="gc-exact-team">{flag(game.home_team)}</div>
+              <input
+                type="number" min="0" max="20"
+                className="gc-score-input"
+                value={bet.exactHome}
+                onChange={e => onChange({ exactHome: e.target.value })}
+                placeholder="0"
+              />
+              <span className="gc-score-colon">:</span>
+              <input
+                type="number" min="0" max="20"
+                className="gc-score-input"
+                value={bet.exactAway}
+                onChange={e => onChange({ exactAway: e.target.value })}
+                placeholder="0"
+              />
+              <div className="gc-exact-team">{flag(game.away_team)}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PlayerPage ────────────────────────────────────────────
 export default function PlayerPage() {
-  const { profile } = useAuth();
+  const { profile, refresh } = useAuth();
+  const [games, setGames] = useState<Game[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [existingBets, setExistingBets] = useState<Bet[]>([]);
+  const [bets, setBets] = useState<Record<string, BetState>>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [justSubmitted, setJustSubmitted] = useState(false);
+
+  const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
+
+  useEffect(() => { loadData(); }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [gamesRes, settingsRes, betsRes] = await Promise.all([
+        fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`),
+        supabase.from('settings').select('*').single(),
+        supabase.from('bets').select('*').eq('player_id', profile!.id),
+      ]);
+
+      if (gamesRes.ok) {
+        const raw: any[] = await gamesRes.json();
+        const processed = raw.map(g => {
+          const o = extractOdds(g);
+          if (!o) return null;
+          return { id: g.id, home_team: g.home_team, away_team: g.away_team, commence_time: g.commence_time, ...o };
+        }).filter(Boolean) as Game[];
+        setGames(processed);
+      }
+      if (settingsRes.data) setSettings(settingsRes.data);
+      if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
+    } catch {
+      setError('שגיאה בטעינת המשחקים');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Group games by day, find active day
+  const gamesByDay = useMemo(() => {
+    const map = new Map<string, Game[]>();
+    for (const g of games) {
+      const k = dayKey(g.commence_time);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(g);
+    }
+    return map;
+  }, [games]);
+
+  const today = todayKey();
+  const todayGames = gamesByDay.get(today) || [];
+  const firstDay = games[0] ? dayKey(games[0].commence_time) : null;
+  const activeDay = todayGames.length > 0 ? today : firstDay;
+  const activeGames = activeDay ? (gamesByDay.get(activeDay) || []) : [];
+
+  function getBet(id: string): BetState {
+    return bets[id] ?? { pick: null, amount: settings?.min_bet ?? 50, exactHome: '', exactAway: '', showExact: false };
+  }
+
+  function updateBet(id: string, upd: Partial<BetState>) {
+    setBets(prev => ({ ...prev, [id]: { ...getBet(id), ...upd } }));
+  }
+
+  const readyBets = activeGames.filter(g => {
+    const b = bets[g.id];
+    return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
+  });
+
+  const totalCost = readyBets.reduce((s, g) => s + bets[g.id].amount, 0);
+
+  async function submitBets() {
+    if (!profile || !settings || readyBets.length === 0) return;
+    if (totalCost > (profile.bank ?? 0)) { setError('אין מספיק נקודות בבנק'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      for (const g of readyBets) {
+        const b = bets[g.id];
+        const oddsVal = b.pick === 'home' ? g.home_win : b.pick === 'draw' ? g.draw : g.away_win;
+        await supabase.from('bets').insert({
+          player_id: profile.id,
+          external_game_id: g.id,
+          home_team: g.home_team,
+          away_team: g.away_team,
+          kickoff_at: g.commence_time,
+          pick: b.pick,
+          amount: b.amount,
+          odds_value: oddsVal,
+          exact_home: b.showExact && b.exactHome !== '' ? parseInt(b.exactHome) : null,
+          exact_away: b.showExact && b.exactAway !== '' ? parseInt(b.exactAway) : null,
+          status: 'pending',
+        });
+      }
+      await supabase.from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
+      await Promise.all([refresh(), loadData()]);
+      setJustSubmitted(true);
+      setTimeout(() => setJustSubmitted(false), 3000);
+    } catch {
+      setError('שגיאה בשליחת ההימורים');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ── Loading ──
+  if (loading) return (
+    <div className="min-h-screen pitch-bg flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-5xl mb-4 animate-pulse">⚽</div>
+        <div className="bebas text-3xl" style={{ color: 'var(--green)' }}>טוען משחקים...</div>
+        <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>מביאים יחסים עדכניים</div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen pitch-bg">
-      <header className="sticky top-0 z-10" style={{background: 'rgba(10,14,26,0.95)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(10px)'}}>
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Trophy size={22} style={{color: 'var(--green)'}} />
-            <span className="font-bold">מונדיאל הימורים</span>
+    <div className="min-h-screen pitch-bg pb-32">
+
+      {/* ── Header ── */}
+      <header className="hdr">
+        <div className="hdr-inner">
+          <div className="flex items-center gap-2">
+            <Trophy size={19} style={{ color: 'var(--green)' }} />
+            <span className="font-bold tracking-wide">מונדיאל הימורים</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm" style={{color: 'var(--text-muted)'}}>{profile?.display_name}</span>
-            <button onClick={signOut} style={{background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)'}}>
-              <LogOut size={16} />
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
+            <button onClick={() => loadData()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              <RefreshCw size={14} />
+            </button>
+            <button onClick={signOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              <LogOut size={15} />
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="stat-card">
-            <div className="flex items-center justify-center gap-1 mb-1" style={{color: 'var(--text-muted)'}}>
-              <Coins size={14} />
-              <span className="text-xs">בנק</span>
-            </div>
-            <div className="font-bold text-xl" style={{color: 'var(--green)'}}>{profile?.bank.toLocaleString()}</div>
+      <div className="page-wrap">
+        {/* ── Bank ── */}
+        <div className="bank-card">
+          <div className="bank-left">
+            <Coins size={14} style={{ color: 'var(--green)' }} />
+            <span className="bank-label">הבנק שלך</span>
           </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-center gap-1 mb-1" style={{color: 'var(--text-muted)'}}>
-              <TrendingUp size={14} />
-              <span className="text-xs">דירוג</span>
-            </div>
-            <div className="font-bold text-xl">—</div>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-center gap-1 mb-1" style={{color: 'var(--text-muted)'}}>
-              <Calendar size={14} />
-              <span className="text-xs">הימורים</span>
-            </div>
-            <div className="font-bold text-xl">0</div>
+          <div className="bank-right">
+            <span className="bank-val">{(profile?.bank ?? 0).toLocaleString()}</span>
+            <span className="bank-unit">נקודות</span>
           </div>
         </div>
 
-        <div className="card p-6 text-center">
-          <div className="mb-3" style={{color: 'var(--text-muted)'}}>
-            <Calendar size={32} className="mx-auto mb-3" style={{opacity: 0.4}} />
+        {/* ── Day header ── */}
+        {activeGames.length > 0 && (
+          <div className="day-row">
+            <span className="day-dot" />
+            <span className="day-title">
+              {activeDay === today ? 'משחקי היום' : 'משחקים קרובים'}
+            </span>
+            <span className="day-date">{fmtDateHe(activeGames[0].commence_time)}</span>
           </div>
-          <h3 className="font-bold text-lg mb-1">אין משחקים להיום</h3>
-          <p className="text-sm" style={{color: 'var(--text-muted)'}}>כשיהיו משחקים, תוכל להמר עליהם כאן</p>
-        </div>
+        )}
+
+        {/* ── Games ── */}
+        {activeGames.length === 0 ? (
+          <div className="card p-10 text-center mt-2">
+            <div className="text-5xl mb-4">⚽</div>
+            <div className="font-bold text-lg mb-1">אין משחקים בקרוב</div>
+            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
+          </div>
+        ) : (
+          <div className="games-list">
+            {activeGames.map(game => (
+              <GameCard
+                key={game.id}
+                game={game}
+                settings={settings!}
+                bet={getBet(game.id)}
+                existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
+                onChange={upd => updateBet(game.id, upd)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* ── Error ── */}
+        {error && (
+          <div className="err-banner">{error}</div>
+        )}
       </div>
+
+      {/* ── Submit bar ── */}
+      {(readyBets.length > 0 || justSubmitted) && (
+        <div className="submit-bar">
+          <div className="page-wrap">
+            {justSubmitted ? (
+              <div className="success-banner">
+                <CheckCircle2 size={18} />
+                <span>ההימורים נשלחו בהצלחה!</span>
+              </div>
+            ) : (
+              <button className="submit-btn" onClick={submitBets} disabled={submitting}>
+                {submitting
+                  ? 'שולח...'
+                  : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
