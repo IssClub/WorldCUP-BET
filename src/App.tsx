@@ -5,15 +5,14 @@ import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
 import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
-import InfoPage from './pages/InfoPage';
-import { Trophy, Swords, BookOpen, Globe, Ticket } from 'lucide-react';
+import LeaderboardPage from './pages/LeaderboardPage';
+import { Trophy, Swords, BarChart2, Globe, Ticket } from 'lucide-react';
 
-type Tab = 'bets' | 'mybets' | 'info' | 'tournament' | 'admin';
+type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
 function AppShell() {
   const { user, profile, loading } = useAuth();
   const [tab, setTab] = useState<Tab>('bets');
-
   const isAdmin = profile?.role === 'admin';
 
   if (loading) return (
@@ -30,7 +29,7 @@ function AppShell() {
   const tabs = [
     { key: 'bets' as Tab, label: 'הימורים', icon: Swords },
     { key: 'mybets' as Tab, label: 'שלי', icon: Ticket },
-    { key: 'info' as Tab, label: 'חוקים', icon: BookOpen },
+    { key: 'leaderboard' as Tab, label: 'טבלה', icon: BarChart2 },
     { key: 'tournament' as Tab, label: 'מונדיאל', icon: Globe },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'ניהול', icon: Trophy }] : []),
   ];
@@ -41,7 +40,7 @@ function AppShell() {
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}
         {tab === 'mybets' && <MyBetsPage />}
-        {tab === 'info' && <InfoPage />}
+        {tab === 'leaderboard' && <LeaderboardPage />}
         {tab === 'tournament' && <TournamentPage />}
         {tab === 'admin' && isAdmin && <AdminPage />}
       </div>

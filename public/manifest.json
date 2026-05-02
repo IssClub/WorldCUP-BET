@@ -1,0 +1,21 @@
+{
+  "name": "מונדיאל הימורים 2026",
+  "short_name": "WC BET",
+  "description": "טורניר הימורים חברים — FIFA World Cup 2026",
+  "start_url": "/WorldCUP-BET/",
+  "scope": "/WorldCUP-BET/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0a1424",
+  "background_color": "#0a1424",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/WorldCUP-BET/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
-import type { Invite, Profile, Settings } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt } from 'lucide-react';
+import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare } from 'lucide-react';
 import type { TopScorer } from '../lib/supabase';
+import { teamHe } from '../lib/teamNames';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -13,12 +14,18 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results'>('invites');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
   const [savingScorer, setSavingScorer] = useState(false);
+
+  // Settlement state
+  type GameGroup = { external_game_id: string; home_team: string; away_team: string; kickoff_at: string; bets: Bet[] };
+  const [pendingGames, setPendingGames] = useState<GameGroup[]>([]);
+  const [scores, setScores] = useState<Record<string, { home: string; away: string }>>({});
+  const [settling, setSettling] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [players, setPlayers] = useState<Profile[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -53,6 +60,7 @@ export default function AdminPage() {
     loadSettings();
     loadBetCounts();
     loadScorers();
+    loadPendingGames();
   }, [loadInvites, loadPlayers, loadSettings, loadScorers]);
 
   async function upsertScorer() {
@@ -65,6 +73,52 @@ export default function AdminPage() {
     setNewScorer({ player_name: '', team: '', goals: 0, assists: 0 });
     await loadScorers();
     setSavingScorer(false);
+  }
+
+  async function loadPendingGames() {
+    const { data } = await supabase.from('bets').select('*').eq('status', 'pending').order('kickoff_at');
+    if (!data) return;
+    const grouped: Record<string, GameGroup> = {};
+    for (const bet of data as Bet[]) {
+      if (!grouped[bet.external_game_id]) {
+        grouped[bet.external_game_id] = { external_game_id: bet.external_game_id, home_team: bet.home_team, away_team: bet.away_team, kickoff_at: bet.kickoff_at, bets: [] };
+      }
+      grouped[bet.external_game_id].bets.push(bet);
+    }
+    setPendingGames(Object.values(grouped).sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at)));
+  }
+
+  async function settleGame(game: GameGroup) {
+    const sc = scores[game.external_game_id];
+    const homeScore = parseInt(sc?.home ?? '');
+    const awayScore = parseInt(sc?.away ?? '');
+    if (isNaN(homeScore) || isNaN(awayScore)) { alert('הזן תוצאה תקינה'); return; }
+    if (!confirm(`לסגור: ${teamHe(game.home_team)} ${homeScore}:${awayScore} ${teamHe(game.away_team)}?\n${game.bets.length} הימורים יסגרו.`)) return;
+
+    setSettling(game.external_game_id);
+    const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
+    const playerPayouts: Record<string, number> = {};
+
+    for (const bet of game.bets) {
+      const won = bet.pick === winner;
+      let payout = 0;
+      if (won) {
+        payout = Math.floor(bet.amount * bet.odds_value);
+        if (bet.exact_home !== null && bet.exact_home === homeScore && bet.exact_away === awayScore) {
+          payout = Math.floor(payout * 1.5);
+        }
+        playerPayouts[bet.player_id] = (playerPayouts[bet.player_id] || 0) + payout;
+      }
+      await supabase.from('bets').update({ status: won ? 'won' : 'lost', payout: won ? payout : 0 }).eq('id', bet.id);
+    }
+
+    for (const [playerId, totalPayout] of Object.entries(playerPayouts)) {
+      const { data: prof } = await supabase.from('profiles').select('bank').eq('id', playerId).single();
+      if (prof) await supabase.from('profiles').update({ bank: prof.bank + totalPayout }).eq('id', playerId);
+    }
+
+    setSettling(null);
+    await loadPendingGames();
   }
 
   async function deleteScorer(id: string) {
@@ -132,6 +186,7 @@ export default function AdminPage() {
     { key: 'settings', label: 'הגדרות', icon: SettingsIcon },
     { key: 'data', label: 'נתונים', icon: Database },
     { key: 'scorers', label: 'שערים', icon: Shirt },
+    { key: 'results', label: 'תוצאות', icon: CheckSquare },
   ] as const;
 
   return (
@@ -151,7 +206,7 @@ export default function AdminPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
           {tabs.map(t => (
             <button
               key={t.key}
@@ -342,6 +397,69 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'results' && (
+          <div className="fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg">סגירת תוצאות</h2>
+              <button onClick={loadPendingGames} className="p-2 rounded-lg" style={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-muted)',cursor:'pointer'}}>
+                <RefreshCw size={15}/>
+              </button>
+            </div>
+            <div className="text-xs mb-4" style={{color:'var(--text-muted)'}}>
+              הזן תוצאה סופית לכל משחק — כל ההימורים יסגרו אוטומטית והבנקים יתעדכנו.
+            </div>
+
+            {pendingGames.length === 0 && (
+              <div className="card p-8 text-center text-sm" style={{color:'var(--text-muted)'}}>
+                <div className="text-3xl mb-2">✅</div>
+                אין הימורים ממתינים לסגירה
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {pendingGames.map(game => {
+                const sc = scores[game.external_game_id] ?? { home: '', away: '' };
+                const isSettling = settling === game.external_game_id;
+                const kickoff = new Date(game.kickoff_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+                return (
+                  <div key={game.external_game_id} className="card p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs" style={{color:'var(--text-muted)'}}>{kickoff}</span>
+                      <span className="text-xs" style={{color:'var(--gold)'}}>{game.bets.length} הימורים</span>
+                    </div>
+                    <div className="font-semibold text-sm text-center mb-3">
+                      {teamHe(game.home_team)} <span style={{color:'var(--text-muted)'}}>נגד</span> {teamHe(game.away_team)}
+                    </div>
+                    <div className="flex items-center gap-3 justify-center mb-3">
+                      <input
+                        type="number" min="0" max="20" placeholder="0"
+                        value={sc.home}
+                        onChange={e => setScores(p => ({...p, [game.external_game_id]: {...(p[game.external_game_id]??{home:'',away:''}), home: e.target.value}}))}
+                        className="input text-center" style={{width:64, fontSize:'1.3rem', fontWeight:700}}
+                      />
+                      <span className="bebas text-2xl" style={{color:'var(--text-muted)'}}>:</span>
+                      <input
+                        type="number" min="0" max="20" placeholder="0"
+                        value={sc.away}
+                        onChange={e => setScores(p => ({...p, [game.external_game_id]: {...(p[game.external_game_id]??{home:'',away:''}), away: e.target.value}}))}
+                        className="input text-center" style={{width:64, fontSize:'1.3rem', fontWeight:700}}
+                      />
+                    </div>
+                    <button
+                      onClick={() => settleGame(game)}
+                      disabled={isSettling || !sc.home || !sc.away}
+                      className="btn-primary w-full"
+                      style={{fontSize:'0.85rem'}}
+                    >
+                      {isSettling ? 'מעדכן...' : '✓ סגור הימורים'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
