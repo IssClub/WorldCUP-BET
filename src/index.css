@@ -656,16 +656,15 @@ body {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   max-width: 95px;
 }
-.sch-cal-btn {
-  display: flex; align-items: center; gap: 5px;
-  margin-top: 8px; padding: 5px 10px;
-  border-radius: 8px; border: 1px dashed rgba(255,255,255,0.15);
-  background: none; color: var(--text-muted); font-size: 0.68rem;
-  cursor: pointer; transition: all 0.2s; width: 100%;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
+.sch-cal-all-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px 16px;
+  border-radius: 12px; border: 1px solid rgba(0,200,83,0.3);
+  background: rgba(0,200,83,0.08); color: var(--green);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; -webkit-tap-highlight-color: transparent;
 }
-.sch-cal-btn:hover { border-color: var(--green); color: var(--green); }
+.sch-cal-all-btn:hover { background: rgba(0,200,83,0.15); border-color: var(--green); }
 
 /* ── Error ───────────────────────────────────────────────── */
 .err-banner {

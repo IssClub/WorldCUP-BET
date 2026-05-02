@@ -24,23 +24,25 @@ function getChannel(home: string, away: string): string {
   return m?.channel ?? 'Sport 5';
 }
 
-// ── Calendar ICS download ─────────────────────────────────
-function addToCalendar(g: Game) {
+// ── Calendar ICS — כל המשחקים ────────────────────────────
+function addAllToCalendar(games: Game[]) {
   const fmt = (iso: string) => iso.replace(/[-:.]/g, '').slice(0, 15) + 'Z';
-  const start = fmt(g.commence_time);
-  const end = fmt(new Date(new Date(g.commence_time).getTime() + 2 * 3600000).toISOString());
-  const title = `מונדיאל 2026: ${teamHe(g.home_team)} נגד ${teamHe(g.away_team)}`;
+  const events = games.map(g => [
+    'BEGIN:VEVENT',
+    `DTSTART:${fmt(g.commence_time)}`,
+    `DTEND:${fmt(new Date(new Date(g.commence_time).getTime() + 2 * 3600000).toISOString())}`,
+    `SUMMARY:⚽ ${teamHe(g.home_team)} נגד ${teamHe(g.away_team)}`,
+    'DESCRIPTION:FIFA World Cup 2026',
+    'END:VEVENT',
+  ].join('\r\n'));
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorldCup Bets//HE',
-    'BEGIN:VEVENT',
-    `DTSTART:${start}`, `DTEND:${end}`,
-    `SUMMARY:${title}`,
-    'DESCRIPTION:FIFA World Cup 2026',
-    'END:VEVENT', 'END:VCALENDAR',
+    ...events,
+    'END:VCALENDAR',
   ].join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
-  a.download = `wc2026.ics`;
+  a.download = 'worldcup2026.ics';
   a.click();
 }
 
@@ -169,6 +171,12 @@ function ScheduleView({ games, groups }: {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* כפתור הוספה ליומן — כל המשחקים */}
+      <button className="sch-cal-all-btn" onClick={() => addAllToCalendar(games)}>
+        <CalendarPlus size={15} />
+        הוסף את כל המשחקים ליומן
+      </button>
+
       {byDay.map(([dk, dayGames]) => (
         <div key={dk}>
           <div className="sch-day-hdr">{fmtDayFull(dayGames[0].commence_time)}</div>
@@ -198,11 +206,7 @@ function ScheduleView({ games, groups }: {
                     </div>
                   </div>
 
-                  {/* Calendar button */}
-                  <button className="sch-cal-btn" onClick={() => addToCalendar(g)}>
-                    <CalendarPlus size={12} />
-                    הוסף ליומן
-                  </button>
+
                 </div>
               );
             })}
