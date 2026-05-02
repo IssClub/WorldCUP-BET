@@ -508,7 +508,7 @@ export default function PlayerPage() {
         </div>
 
         {/* ── ניחושי טורניר ── */}
-        <SpecialBetsCard playerId={profile!.id} />
+        {profile && <SpecialBetsCard playerId={profile.id} />}
 
 
         {/* ── Day header ── */}

@@ -65,7 +65,7 @@ export default function LoginPage() {
             >הרשמה</button>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
             {mode === 'register' && (
               <div className="relative">
                 <User size={16} className="absolute top-1/2 -translate-y-1/2" style={{left: 'auto', right: '14px', color: 'var(--text-muted)'}} />
@@ -118,10 +118,10 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
+            <button className="btn-primary" type="submit" disabled={loading}>
               {loading ? 'טוען...' : mode === 'login' ? 'כניסה' : 'הרשמה'}
             </button>
-          </div>
+          </form>
         </div>
 
         <p className="text-center mt-4 text-xs" style={{color: 'var(--text-muted)'}}>
