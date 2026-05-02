@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
 import MyBetsPage from './pages/MyBetsPage';
+import TournamentPage from './pages/TournamentPage';
 import { Trophy, Swords, BarChart2, Globe, Ticket } from 'lucide-react';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
@@ -39,7 +40,7 @@ function AppShell() {
         {tab === 'bets' && <PlayerPage />}
         {tab === 'mybets' && <MyBetsPage />}
         {tab === 'leaderboard' && <PlaceholderPage icon="🏆" title="טבלת דירוג" subtitle="בקרוב" />}
-        {tab === 'tournament' && <PlaceholderPage icon="🌍" title="מונדיאל 2026" subtitle="טבלאות וסטטיסטיקות — בקרוב" />}
+        {tab === 'tournament' && <TournamentPage />}
         {tab === 'admin' && isAdmin && <AdminPage />}
       </div>
 
