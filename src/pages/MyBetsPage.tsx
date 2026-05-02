@@ -42,7 +42,8 @@ export default function MyBetsPage() {
   async function cancelBet(bet: Bet) {
     if (!profile) return;
     setCancelling(bet.id);
-    await supabase.from('bets').delete().eq('id', bet.id);
+    const { error: delErr } = await supabase.from('bets').delete().eq('id', bet.id);
+    if (delErr) { alert('שגיאה בביטול: ' + delErr.message); setCancelling(null); return; }
     await supabase.from('profiles').update({ bank: profile.bank + bet.amount }).eq('id', profile.id);
     await refresh();
     await loadBets();

@@ -336,7 +336,7 @@ export default function PlayerPage() {
       for (const g of readyBets) {
         const b = bets[g.id];
         const oddsVal = b.pick === 'home' ? g.home_win : b.pick === 'draw' ? g.draw : g.away_win;
-        await supabase.from('bets').insert({
+        const { error: insertErr } = await supabase.from('bets').insert({
           player_id: profile.id,
           external_game_id: g.id,
           home_team: g.home_team,
@@ -349,13 +349,16 @@ export default function PlayerPage() {
           exact_away: b.showExact && b.exactAway !== '' ? parseInt(b.exactAway) : null,
           status: 'pending',
         });
+        if (insertErr) throw new Error(insertErr.message);
       }
-      await supabase.from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
+      const { error: bankErr } = await supabase
+        .from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
+      if (bankErr) throw new Error(bankErr.message);
       await Promise.all([refresh(), loadData()]);
       setJustSubmitted(true);
       setTimeout(() => setJustSubmitted(false), 3000);
-    } catch {
-      setError('שגיאה בשליחת ההימורים');
+    } catch (e: any) {
+      setError('שגיאה: ' + (e?.message ?? 'נסה שוב'));
     } finally {
       setSubmitting(false);
     }

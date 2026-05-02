@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flagUrl } from '../lib/flagMap';
-import { CalendarDays, LayoutList } from 'lucide-react';
+import { CalendarDays, LayoutList, Tv2 } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -12,20 +12,41 @@ interface Game {
   away_win: number;
 }
 
+// ── Israeli TV channel static map ─────────────────────────
+// עדכן לפי לוח השידורים הרשמי. ברירת מחדל: Sport 5
+const CHANNEL_MAP: { home: string; away: string; channel: string }[] = [
+  // דוגמאות — עדכן לפי הצורך:
+  // { home: 'USA', away: 'Mexico', channel: 'ערוץ 12 + Sport 5' },
+  // { home: 'Argentina', away: 'Brazil', channel: 'ערוץ 13 + Sport 5' },
+];
+
+function getChannel(home: string, away: string): string {
+  const m = CHANNEL_MAP.find(
+    c => (c.home === home && c.away === away) || (c.home === away && c.away === home)
+  );
+  return m?.channel ?? 'Sport 5';
+}
+
 // ── Flag ──────────────────────────────────────────────────
-function Flag({ team, size = 32 }: { team: string; size?: number }) {
+function Flag({ team, size = 28 }: { team: string; size?: number }) {
   const url = flagUrl(team, 'w80');
-  if (!url) return <span style={{ fontSize: 18 }}>🏳️</span>;
-  return <img src={url} alt={team} width={size} height={Math.round(size * 0.65)}
-    style={{ borderRadius: 3, objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }} />;
+  if (!url) return <span style={{ fontSize: 16 }}>🏳️</span>;
+  return (
+    <img
+      src={url} alt={team} width={size} height={Math.round(size * 0.65)}
+      style={{ borderRadius: 3, objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', flexShrink: 0 }}
+    />
+  );
 }
 
 // ── Time utils ────────────────────────────────────────────
 const TZ = 'Asia/Jerusalem';
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-const fmtDateShort = (iso: string) =>
-  new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: TZ });
+const fmtDayFull = (iso: string) =>
+  new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
+const dayKey = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
 
 // ── Odds extraction ───────────────────────────────────────
 function extractOdds(g: any): { home_win: number; draw: number; away_win: number } | null {
@@ -55,9 +76,8 @@ function extractOdds(g: any): { home_win: number; draw: number; away_win: number
   return { home_win: avg(t.h), draw: avg(t.d), away_win: avg(t.a) };
 }
 
-// ── Group inference (connected components) ────────────────
+// ── Group inference (BFS connected components) ────────────
 function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[] }> {
-  // Build adjacency graph
   const adj = new Map<string, Set<string>>();
   for (const g of games) {
     if (!adj.has(g.home_team)) adj.set(g.home_team, new Set());
@@ -65,11 +85,8 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
     adj.get(g.home_team)!.add(g.away_team);
     adj.get(g.away_team)!.add(g.home_team);
   }
-
-  // BFS to find connected components — each = one group
   const visited = new Set<string>();
   const components: string[][] = [];
-
   for (const team of adj.keys()) {
     if (visited.has(team)) continue;
     const component: string[] = [];
@@ -85,14 +102,11 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
     }
     components.push(component);
   }
-
-  // Sort components by earliest game
   components.sort((a, b) => {
     const aDate = games.find(g => a.includes(g.home_team) && a.includes(g.away_team))?.commence_time ?? '';
     const bDate = games.find(g => b.includes(g.home_team) && b.includes(g.away_team))?.commence_time ?? '';
     return aDate.localeCompare(bDate);
   });
-
   const letters = 'ABCDEFGHIJKL'.split('');
   const result = new Map<string, { teams: string[]; games: Game[] }>();
   components.forEach((teams, i) => {
@@ -102,65 +116,86 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
       .sort((a, b) => a.commence_time.localeCompare(b.commence_time));
     result.set(letter, { teams, games: grpGames });
   });
-
   return result;
 }
 
-// ── Standing row (all 0 until we track results) ───────────
-interface Standing {
-  team: string; p: number; w: number; d: number; l: number; pts: number;
-}
+// ── Schedule view (chronological + group badge + channel) ─
+function ScheduleView({ games, groups }: {
+  games: Game[];
+  groups: Map<string, { teams: string[]; games: Game[] }>;
+}) {
+  // Map each game ID → group letter
+  const gameToGroup = new Map<string, string>();
+  for (const [letter, { games: gGames }] of groups) {
+    for (const g of gGames) gameToGroup.set(g.id, letter);
+  }
 
-// ── Schedule view ─────────────────────────────────────────
-function ScheduleView({ groups }: { groups: Map<string, { teams: string[]; games: Game[] }> }) {
-  const [open, setOpen] = useState<string | null>(null);
+  // Group games by calendar day
+  const byDay = useMemo(() => {
+    const map = new Map<string, Game[]>();
+    const sorted = [...games].sort((a, b) => a.commence_time.localeCompare(b.commence_time));
+    for (const g of sorted) {
+      const k = dayKey(g.commence_time);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(g);
+    }
+    return Array.from(map.entries());
+  }, [games]);
+
+  if (byDay.length === 0) return (
+    <div className="card p-8 text-center mt-4">
+      <div className="text-4xl mb-3">📅</div>
+      <div className="font-bold">אין משחקים בלוח</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
+    </div>
+  );
 
   return (
-    <div className="flex flex-col gap-3">
-      {Array.from(groups.entries()).map(([letter, { teams, games }]) => {
-        const isOpen = open === letter;
-        return (
-          <div key={letter} className="trn-group-card">
-            {/* Group header */}
-            <button className="trn-group-hdr" onClick={() => setOpen(isOpen ? null : letter)}>
-              <span className="trn-group-letter">בית {letter}</span>
-              <div className="trn-group-flags">
-                {teams.map(t => <Flag key={t} team={t} size={24} />)}
-              </div>
-              <span className="trn-group-arrow">{isOpen ? '▲' : '▼'}</span>
-            </button>
-
-            {/* Games */}
-            {isOpen && (
-              <div className="trn-group-body fade-in">
-                {games.map(g => (
-                  <div key={g.id} className="trn-row">
-                    <div className="trn-row-date">{fmtDateShort(g.commence_time)}<br />{fmtTime(g.commence_time)}</div>
-                    <div className="trn-row-home">
-                      <span className="trn-row-tname">{g.home_team}</span>
-                      <Flag team={g.home_team} size={28} />
+    <div className="flex flex-col gap-4">
+      {byDay.map(([dk, dayGames]) => (
+        <div key={dk}>
+          <div className="sch-day-hdr">{fmtDayFull(dayGames[0].commence_time)}</div>
+          <div className="flex flex-col gap-2">
+            {dayGames.map(g => {
+              const grp = gameToGroup.get(g.id);
+              const ch = getChannel(g.home_team, g.away_team);
+              return (
+                <div key={g.id} className="sch-row">
+                  <div className="sch-row-top">
+                    {grp && <span className="sch-badge">בית {grp}</span>}
+                    <span className="sch-time">{fmtTime(g.commence_time)}</span>
+                    <span className="sch-channel"><Tv2 size={10} />{ch}</span>
+                  </div>
+                  <div className="sch-match">
+                    <div className="sch-team sch-team-home">
+                      <Flag team={g.home_team} size={26} />
+                      <span className="sch-tname">{g.home_team}</span>
                     </div>
-                    <div className="trn-row-odds">
-                      <span className="trn-row-odd">{g.home_win.toFixed(2)}</span>
-                      <span className="trn-row-odd trn-row-draw">{g.draw.toFixed(2)}</span>
-                      <span className="trn-row-odd">{g.away_win.toFixed(2)}</span>
+                    <div className="sch-odds">
+                      <span className="sch-odd">{g.home_win.toFixed(2)}</span>
+                      <span className="sch-odd sch-odd-draw">{g.draw.toFixed(2)}</span>
+                      <span className="sch-odd">{g.away_win.toFixed(2)}</span>
                     </div>
-                    <div className="trn-row-away">
-                      <Flag team={g.away_team} size={28} />
-                      <span className="trn-row-tname">{g.away_team}</span>
+                    <div className="sch-team sch-team-away">
+                      <span className="sch-tname">{g.away_team}</span>
+                      <Flag team={g.away_team} size={26} />
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
 
-// ── Standings view ────────────────────────────────────────
+// ── Standings row ─────────────────────────────────────────
+interface Standing {
+  team: string; p: number; w: number; d: number; l: number; pts: number;
+}
+
 function StandingsView({ groups }: { groups: Map<string, { teams: string[]; games: Game[] }> }) {
   return (
     <div className="flex flex-col gap-4">
@@ -170,6 +205,9 @@ function StandingsView({ groups }: { groups: Map<string, { teams: string[]; game
           <div key={letter} className="trn-group-card">
             <div className="trn-standings-hdr">
               <span className="trn-group-letter">בית {letter}</span>
+              <div className="trn-group-flags">
+                {teams.map(t => <Flag key={t} team={t} size={22} />)}
+              </div>
             </div>
             <table className="trn-table">
               <thead>
@@ -188,7 +226,7 @@ function StandingsView({ groups }: { groups: Map<string, { teams: string[]; game
                   <tr key={r.team} className={i < 2 ? 'trn-tr-qualify' : ''}>
                     <td className="trn-td-pos">{i + 1}</td>
                     <td className="trn-td-team">
-                      <Flag team={r.team} size={22} />
+                      <Flag team={r.team} size={20} />
                       <span>{r.team}</span>
                     </td>
                     <td>{r.p}</td>
@@ -227,6 +265,7 @@ export default function TournamentPage() {
         processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
         setGames(processed);
       })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -278,7 +317,7 @@ export default function TournamentPage() {
         </div>
 
         {view === 'schedule'
-          ? <ScheduleView groups={groups} />
+          ? <ScheduleView games={games} groups={groups} />
           : <StandingsView groups={groups} />}
       </div>
     </div>
