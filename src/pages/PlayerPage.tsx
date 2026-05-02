@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Settings, Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
+import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
 import { Coins, CheckCircle2, Zap, RefreshCw, Trophy, Lock } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
@@ -297,7 +298,7 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [winnerOdds, setWinnerOdds] = useState<OddsItem[]>([]);
-  const [scorerOdds, setScorerOdds] = useState<OddsItem[]>([]);
+  const [scorerOdds, setScorerOdds] = useState<(OddsItem & { team?: string })[]>([]);
   const isLocked = new Date() >= TOURNAMENT_START;
 
   useEffect(() => { load(); fetchOdds(); }, [playerId]);
@@ -313,21 +314,35 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
   }
 
   async function fetchOdds() {
+    // Load hardcoded fallbacks immediately so there's always data
+    setWinnerOdds(WINNER_ODDS);
+    setScorerOdds(TOP_SCORER_ODDS.map(s => ({ name: s.name, price: s.price, team: s.team })));
+
     try {
       const key = import.meta.env.VITE_ODDS_API_KEY;
+      if (!key) return;
       const res = await fetch(
         `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/outrights/?apiKey=${key}&regions=eu&oddsFormat=decimal`
       );
+      if (!res.ok) return;
       const events: any[] = await res.json();
-      if (!Array.isArray(events)) return;
+      if (!Array.isArray(events) || !events.length) return;
+      let gotWinner = false, gotScorer = false;
       for (const ev of events) {
         const odds = avgOddsFromEvent(ev);
         if (!odds.length) continue;
         const countryHits = odds.filter(o => WC_TEAM_SET.has(o.name.toLowerCase())).length;
-        if (countryHits / odds.length > 0.4) {
+        if (!gotWinner && countryHits / odds.length > 0.4) {
           setWinnerOdds(odds);
-        } else if (odds.length >= 8) {
-          setScorerOdds(odds.slice(0, 30));
+          gotWinner = true;
+        } else if (!gotScorer && odds.length >= 10) {
+          // Merge API scorer list with our team data
+          const merged = odds.slice(0, 30).map(o => {
+            const known = TOP_SCORER_ODDS.find(s => s.name === o.name);
+            return { name: o.name, price: o.price, team: known?.team ?? '' };
+          });
+          setScorerOdds(merged);
+          gotScorer = true;
         }
       }
     } catch {}
@@ -393,12 +408,21 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
         <div className="special-field">
           <label className="special-label">👟 מי יהיה מלך השערים? {scorerOdds.length > 0 && <span style={{fontWeight:400,color:'var(--text-muted)'}}>· ממוין לפי סיכוי</span>}</label>
           {isLocked
-            ? <div className="special-val">{scorerBet ? scorerBet.prediction : '—'}</div>
+            ? <div className="special-val">
+                {scorerBet
+                  ? <>
+                      {scorerBet.prediction}
+                      {(() => { const o = scorerOdds.find(x => x.name === scorerBet.prediction); return o ? <span className="special-odds-tag">×{o.price}</span> : null; })()}
+                    </>
+                  : '—'}
+              </div>
             : scorerOdds.length > 0
               ? <select className="special-select" value={topScorer} onChange={e => setTopScorer(e.target.value)}>
                   <option value="">בחר שחקן...</option>
                   {scorerOdds.map(o => (
-                    <option key={o.name} value={o.name}>{o.name}  ×{o.price}</option>
+                    <option key={o.name} value={o.name}>
+                      {o.name}{o.team ? ` (${teamHe(o.team)})` : ''}{'  '}×{o.price}
+                    </option>
                   ))}
                 </select>
               : <input
