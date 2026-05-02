@@ -703,13 +703,21 @@ body {
   background: rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 10px;
 }
 .special-select, .special-input {
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  background: #1a2d45; border: 1px solid rgba(255,255,255,0.15);
   border-radius: 8px; padding: 9px 10px;
-  color: var(--text); font-size: 0.85rem; width: 100%;
+  color: #e2e8f0; font-size: 0.85rem; width: 100%;
   font-family: inherit;
 }
 .special-select:focus, .special-input:focus {
   outline: none; border-color: var(--gold);
+}
+.special-select option {
+  background: #1a2d45; color: #e2e8f0;
+}
+.special-odds-tag {
+  display: inline-block; margin-right: 8px;
+  font-size: 0.75rem; font-weight: 700; color: var(--gold);
+  background: rgba(255,214,0,0.1); border-radius: 8px; padding: 1px 6px;
 }
 .special-save {
   display: flex; align-items: center; justify-content: center; gap: 6px;

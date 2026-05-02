@@ -270,6 +270,24 @@ const WC_TEAMS = [
 });
 
 const TOURNAMENT_START = new Date('2026-06-11T00:00:00');
+const WC_TEAM_SET = new Set(WC_TEAMS.map(t => t.toLowerCase()));
+
+type OddsItem = { name: string; price: number };
+
+function avgOddsFromEvent(ev: any): OddsItem[] {
+  const map: Record<string, number[]> = {};
+  for (const bm of ev.bookmakers ?? []) {
+    for (const mkt of bm.markets ?? []) {
+      for (const o of mkt.outcomes ?? []) {
+        if (!map[o.name]) map[o.name] = [];
+        map[o.name].push(o.price);
+      }
+    }
+  }
+  return Object.entries(map)
+    .map(([name, ps]) => ({ name, price: +(ps.reduce((a, b) => a + b, 0) / ps.length).toFixed(2) }))
+    .sort((a, b) => a.price - b.price);
+}
 
 // ── Special bets (winner + top scorer) ───────────────────
 function SpecialBetsCard({ playerId }: { playerId: string }) {
@@ -278,9 +296,11 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
   const [existing, setExisting] = useState<SpecialBet[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [winnerOdds, setWinnerOdds] = useState<OddsItem[]>([]);
+  const [scorerOdds, setScorerOdds] = useState<OddsItem[]>([]);
   const isLocked = new Date() >= TOURNAMENT_START;
 
-  useEffect(() => { load(); }, [playerId]);
+  useEffect(() => { load(); fetchOdds(); }, [playerId]);
 
   async function load() {
     const { data } = await supabase.from('special_bets').select('*').eq('player_id', playerId);
@@ -290,6 +310,27 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
     const t = data.find(d => d.type === 'top_scorer');
     if (w) setWinner(w.prediction);
     if (t) setTopScorer(t.prediction);
+  }
+
+  async function fetchOdds() {
+    try {
+      const key = import.meta.env.VITE_ODDS_API_KEY;
+      const res = await fetch(
+        `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/outrights/?apiKey=${key}&regions=eu&oddsFormat=decimal`
+      );
+      const events: any[] = await res.json();
+      if (!Array.isArray(events)) return;
+      for (const ev of events) {
+        const odds = avgOddsFromEvent(ev);
+        if (!odds.length) continue;
+        const countryHits = odds.filter(o => WC_TEAM_SET.has(o.name.toLowerCase())).length;
+        if (countryHits / odds.length > 0.4) {
+          setWinnerOdds(odds);
+        } else if (odds.length >= 8) {
+          setScorerOdds(odds.slice(0, 30));
+        }
+      }
+    } catch {}
   }
 
   async function save() {
@@ -308,6 +349,11 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
   const winnerBet = existing.find(e => e.type === 'winner');
   const scorerBet = existing.find(e => e.type === 'top_scorer');
 
+  // Build winner options: if we got live odds use them (sorted by price), else fallback to WC_TEAMS
+  const winnerOptions: OddsItem[] = winnerOdds.length > 0
+    ? winnerOdds
+    : WC_TEAMS.map(t => ({ name: t, price: 0 }));
+
   return (
     <div className="special-card">
       <div className="special-card-hdr">
@@ -323,26 +369,44 @@ function SpecialBetsCard({ playerId }: { playerId: string }) {
       <div className="special-fields">
         {/* Winner */}
         <div className="special-field">
-          <label className="special-label">🏆 מי יזכה בטורניר?</label>
+          <label className="special-label">🏆 מי יזכה בטורניר? {winnerOdds.length > 0 && <span style={{fontWeight:400,color:'var(--text-muted)'}}>· ממוין לפי סיכוי</span>}</label>
           {isLocked
-            ? <div className="special-val">{winnerBet ? teamHe(winnerBet.prediction) : '—'}</div>
+            ? <div className="special-val">
+                {winnerBet
+                  ? <>
+                      {teamHe(winnerBet.prediction)}
+                      {(() => { const o = winnerOdds.find(x => x.name === winnerBet.prediction); return o ? <span className="special-odds-tag">×{o.price}</span> : null; })()}
+                    </>
+                  : '—'}
+              </div>
             : <select className="special-select" value={winner} onChange={e => setWinner(e.target.value)}>
                 <option value="">בחר נבחרת...</option>
-                {WC_TEAMS.map(t => <option key={t} value={t}>{teamHe(t)}</option>)}
+                {winnerOptions.map(o => (
+                  <option key={o.name} value={o.name}>
+                    {teamHe(o.name)}{o.price > 0 ? `  ×${o.price}` : ''}
+                  </option>
+                ))}
               </select>}
         </div>
 
         {/* Top scorer */}
         <div className="special-field">
-          <label className="special-label">👟 מי יהיה מלך השערים?</label>
+          <label className="special-label">👟 מי יהיה מלך השערים? {scorerOdds.length > 0 && <span style={{fontWeight:400,color:'var(--text-muted)'}}>· ממוין לפי סיכוי</span>}</label>
           {isLocked
             ? <div className="special-val">{scorerBet ? scorerBet.prediction : '—'}</div>
-            : <input
-                className="special-input"
-                value={topScorer}
-                onChange={e => setTopScorer(e.target.value)}
-                placeholder="שם השחקן בעברית או אנגלית..."
-              />}
+            : scorerOdds.length > 0
+              ? <select className="special-select" value={topScorer} onChange={e => setTopScorer(e.target.value)}>
+                  <option value="">בחר שחקן...</option>
+                  {scorerOdds.map(o => (
+                    <option key={o.name} value={o.name}>{o.name}  ×{o.price}</option>
+                  ))}
+                </select>
+              : <input
+                  className="special-input"
+                  value={topScorer}
+                  onChange={e => setTopScorer(e.target.value)}
+                  placeholder="שם השחקן..."
+                />}
         </div>
       </div>
 
