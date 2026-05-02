@@ -762,6 +762,24 @@ body {
   color: var(--text-muted); padding: 8px 0 4px;
 }
 
+/* ── Push notification banner ────────────────────────────── */
+.push-banner {
+  display: flex; align-items: center; gap: 8px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  padding: 10px 14px;
+  background: rgba(10,20,36,0.97); border-bottom: 1px solid rgba(255,214,0,0.25);
+  backdrop-filter: blur(10px);
+}
+.push-yes {
+  padding: 5px 14px; border-radius: 20px; border: none;
+  background: var(--gold); color: #000; font-size: 0.75rem;
+  font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.push-no {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; padding: 4px; flex-shrink: 0;
+}
+
 /* ── Leaderboard ─────────────────────────────────────────── */
 .ldr-banner {
   display: flex; align-items: center; gap: 14px;

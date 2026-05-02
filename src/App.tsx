@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
@@ -6,9 +6,39 @@ import AdminPage from './pages/AdminPage';
 import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
 import LeaderboardPage from './pages/LeaderboardPage';
-import { Trophy, Swords, BarChart2, Globe, Ticket } from 'lucide-react';
+import { registerPush, pushSupported } from './lib/push';
+import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, X } from 'lucide-react';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
+
+function PushBanner({ userId }: { userId: string }) {
+  const [show, setShow] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    if (Notification.permission === 'default') setShow(true);
+  }, []);
+
+  async function enable() {
+    setRegistering(true);
+    await registerPush(userId);
+    setShow(false);
+    setRegistering(false);
+  }
+
+  if (!show) return null;
+  return (
+    <div className="push-banner">
+      <BellRing size={16} style={{ flexShrink: 0, color: 'var(--gold)' }} />
+      <span style={{ flex: 1, fontSize: '0.78rem' }}>הפעל התראות כשמשחק נגמר</span>
+      <button className="push-yes" onClick={enable} disabled={registering}>
+        {registering ? '...' : 'אישור'}
+      </button>
+      <button className="push-no" onClick={() => setShow(false)}><X size={13} /></button>
+    </div>
+  );
+}
 
 function AppShell() {
   const { user, profile, loading } = useAuth();
@@ -36,6 +66,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen pitch-bg">
+      {profile && <PushBanner userId={profile.id} />}
       {/* Page content */}
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}

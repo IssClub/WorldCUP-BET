@@ -1,0 +1,28 @@
+name: Auto-settle games
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes
+  workflow_dispatch:           # manual trigger button in GitHub
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Settle completed games
+        run: node scripts/settle-games.mjs
+        env:
+          SUPABASE_URL:       ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ODDS_API_KEY:       ${{ secrets.VITE_ODDS_API_KEY }}
+          VAPID_PUBLIC_KEY:   ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY:  ${{ secrets.VAPID_PRIVATE_KEY }}
