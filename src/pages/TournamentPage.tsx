@@ -55,8 +55,9 @@ function extractOdds(g: any): { home_win: number; draw: number; away_win: number
   return { home_win: avg(t.h), draw: avg(t.d), away_win: avg(t.a) };
 }
 
-// ── Group inference ───────────────────────────────────────
+// ── Group inference (connected components) ────────────────
 function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[] }> {
+  // Build adjacency graph
   const adj = new Map<string, Set<string>>();
   for (const g of games) {
     if (!adj.has(g.home_team)) adj.set(g.home_team, new Set());
@@ -65,35 +66,28 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
     adj.get(g.away_team)!.add(g.home_team);
   }
 
+  // BFS to find connected components — each = one group
   const visited = new Set<string>();
-  const groups: string[][] = [];
+  const components: string[][] = [];
 
-  // find cliques of 4 (each plays all 3 others)
-  for (const [team, opps] of adj) {
-    if (visited.has(team) || opps.size < 3) continue;
-    const candidates = [team, ...Array.from(opps)];
-    // try all combos of 4 from candidates
-    const tryGroup = (members: string[]): boolean =>
-      members.every(t => members.filter(x => x !== t).every(x => adj.get(t)?.has(x)));
-
-    const group = candidates.slice(0, 4);
-    if (group.length === 4 && tryGroup(group)) {
-      groups.push(group);
-      group.forEach(t => visited.add(t));
+  for (const team of adj.keys()) {
+    if (visited.has(team)) continue;
+    const component: string[] = [];
+    const queue = [team];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (visited.has(curr)) continue;
+      visited.add(curr);
+      component.push(curr);
+      for (const neighbor of (adj.get(curr) ?? [])) {
+        if (!visited.has(neighbor)) queue.push(neighbor);
+      }
     }
+    components.push(component);
   }
 
-  // Sort each group's teams by first game date
-  for (const g of groups) {
-    g.sort((a, b) => {
-      const aGame = games.find(x => x.home_team === a || x.away_team === a);
-      const bGame = games.find(x => x.home_team === b || x.away_team === b);
-      return (aGame?.commence_time ?? '').localeCompare(bGame?.commence_time ?? '');
-    });
-  }
-
-  // Sort groups by earliest game
-  groups.sort((a, b) => {
+  // Sort components by earliest game
+  components.sort((a, b) => {
     const aDate = games.find(g => a.includes(g.home_team) && a.includes(g.away_team))?.commence_time ?? '';
     const bDate = games.find(g => b.includes(g.home_team) && b.includes(g.away_team))?.commence_time ?? '';
     return aDate.localeCompare(bDate);
@@ -101,7 +95,7 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
 
   const letters = 'ABCDEFGHIJKL'.split('');
   const result = new Map<string, { teams: string[]; games: Game[] }>();
-  groups.forEach((teams, i) => {
+  components.forEach((teams, i) => {
     const letter = letters[i] ?? `${i + 1}`;
     const grpGames = games
       .filter(g => teams.includes(g.home_team) && teams.includes(g.away_team))
