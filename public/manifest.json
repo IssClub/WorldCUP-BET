@@ -12,10 +12,16 @@
   "dir": "rtl",
   "icons": [
     {
-      "src": "/WorldCUP-BET/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/WorldCUP-BET/icon-trophy.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/WorldCUP-BET/icon-trophy.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
