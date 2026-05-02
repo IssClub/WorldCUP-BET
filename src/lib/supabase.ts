@@ -61,6 +61,24 @@ export type Bet = {
   created_at: string;
 };
 
+export type SpecialBet = {
+  id: string;
+  player_id: string;
+  type: 'winner' | 'top_scorer';
+  prediction: string;
+  status: 'pending' | 'won' | 'lost';
+  created_at: string;
+};
+
+export type TopScorer = {
+  id: string;
+  player_name: string;
+  team: string;
+  goals: number;
+  assists: number;
+  updated_at: string;
+};
+
 export type Settings = {
   id: number;
   starting_bank: number;

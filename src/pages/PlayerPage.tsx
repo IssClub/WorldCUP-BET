@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import type { Settings, Bet } from '../lib/supabase';
+import type { Settings, Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
+import { Coins, CheckCircle2, Zap, RefreshCw, Trophy, Lock } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -254,6 +254,107 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
   );
 }
 
+// ── WC 2026 Teams for winner prediction ───────────────────
+const WC_TEAMS = [
+  'Argentina','Brazil','Colombia','Uruguay','Ecuador','Venezuela','Chile','Peru',
+  'Spain','France','Germany','England','Portugal','Netherlands','Belgium','Croatia',
+  'Switzerland','Denmark','Poland','Serbia','Turkey','Austria','Georgia','Scotland',
+  'Romania','Slovakia','Czech Republic','Albania',
+  'United States','Canada','Mexico','Panama','Costa Rica','Honduras','Jamaica',
+  'Japan','Korea Republic','Iran','Australia','Saudi Arabia','Uzbekistan','Jordan','Iraq','China','Indonesia',
+  'Morocco','Nigeria','Egypt','Senegal','Ivory Coast','South Africa','DR Congo','Mali','Cameroon','Algeria',
+  'New Zealand',
+].sort((a, b) => {
+  const ha = (teamHe(a) || a), hb = (teamHe(b) || b);
+  return ha.localeCompare(hb, 'he');
+});
+
+const TOURNAMENT_START = new Date('2026-06-11T00:00:00');
+
+// ── Special bets (winner + top scorer) ───────────────────
+function SpecialBetsCard({ playerId }: { playerId: string }) {
+  const [winner, setWinner] = useState('');
+  const [topScorer, setTopScorer] = useState('');
+  const [existing, setExisting] = useState<SpecialBet[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const isLocked = new Date() >= TOURNAMENT_START;
+
+  useEffect(() => { load(); }, [playerId]);
+
+  async function load() {
+    const { data } = await supabase.from('special_bets').select('*').eq('player_id', playerId);
+    if (!data) return;
+    setExisting(data as SpecialBet[]);
+    const w = data.find(d => d.type === 'winner');
+    const t = data.find(d => d.type === 'top_scorer');
+    if (w) setWinner(w.prediction);
+    if (t) setTopScorer(t.prediction);
+  }
+
+  async function save() {
+    if (isLocked || (!winner && !topScorer)) return;
+    setSaving(true);
+    const upserts = [];
+    if (winner) upserts.push({ player_id: playerId, type: 'winner', prediction: winner, status: 'pending' });
+    if (topScorer) upserts.push({ player_id: playerId, type: 'top_scorer', prediction: topScorer, status: 'pending' });
+    await supabase.from('special_bets').upsert(upserts, { onConflict: 'player_id,type' });
+    await load();
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  const winnerBet = existing.find(e => e.type === 'winner');
+  const scorerBet = existing.find(e => e.type === 'top_scorer');
+
+  return (
+    <div className="special-card">
+      <div className="special-card-hdr">
+        <div className="flex items-center gap-2">
+          <Trophy size={16} style={{ color: 'var(--gold)' }} />
+          <span className="font-bold text-sm">ניחושי טורניר</span>
+        </div>
+        {isLocked
+          ? <span className="special-locked"><Lock size={11} /> נסגר</span>
+          : <span className="special-deadline">נסגר ב-11.6 · ללא ניכוי נקודות</span>}
+      </div>
+
+      <div className="special-fields">
+        {/* Winner */}
+        <div className="special-field">
+          <label className="special-label">🏆 מי יזכה בטורניר?</label>
+          {isLocked
+            ? <div className="special-val">{winnerBet ? teamHe(winnerBet.prediction) : '—'}</div>
+            : <select className="special-select" value={winner} onChange={e => setWinner(e.target.value)}>
+                <option value="">בחר נבחרת...</option>
+                {WC_TEAMS.map(t => <option key={t} value={t}>{teamHe(t)}</option>)}
+              </select>}
+        </div>
+
+        {/* Top scorer */}
+        <div className="special-field">
+          <label className="special-label">👟 מי יהיה מלך השערים?</label>
+          {isLocked
+            ? <div className="special-val">{scorerBet ? scorerBet.prediction : '—'}</div>
+            : <input
+                className="special-input"
+                value={topScorer}
+                onChange={e => setTopScorer(e.target.value)}
+                placeholder="שם השחקן בעברית או אנגלית..."
+              />}
+        </div>
+      </div>
+
+      {!isLocked && (
+        <button className="special-save" onClick={save} disabled={saving || (!winner && !topScorer)}>
+          {saved ? '✓ נשמר!' : saving ? 'שומר...' : 'שמור ניחושים'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── PlayerPage ────────────────────────────────────────────
 export default function PlayerPage() {
   const { profile, refresh } = useAuth();
@@ -405,6 +506,10 @@ export default function PlayerPage() {
             <span className="bank-unit">נקודות</span>
           </div>
         </div>
+
+        {/* ── ניחושי טורניר ── */}
+        <SpecialBetsCard playerId={profile!.id} />
+
 
         {/* ── Day header ── */}
         {activeGames.length > 0 && (

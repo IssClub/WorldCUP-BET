@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invite, Profile, Settings } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt } from 'lucide-react';
+import type { TopScorer } from '../lib/supabase';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -12,9 +13,12 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers'>('invites');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [scorers, setScorers] = useState<TopScorer[]>([]);
+  const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
+  const [savingScorer, setSavingScorer] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [players, setPlayers] = useState<Profile[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -38,12 +42,36 @@ export default function AdminPage() {
     setSettings(data);
   }, []);
 
+  const loadScorers = useCallback(async () => {
+    const { data } = await supabase.from('top_scorers').select('*').order('goals', { ascending: false });
+    setScorers((data as TopScorer[]) || []);
+  }, []);
+
   useEffect(() => {
     loadInvites();
     loadPlayers();
     loadSettings();
     loadBetCounts();
-  }, [loadInvites, loadPlayers, loadSettings]);
+    loadScorers();
+  }, [loadInvites, loadPlayers, loadSettings, loadScorers]);
+
+  async function upsertScorer() {
+    if (!newScorer.player_name.trim()) return;
+    setSavingScorer(true);
+    await supabase.from('top_scorers').upsert(
+      { ...newScorer, updated_at: new Date().toISOString() },
+      { onConflict: 'player_name' }
+    );
+    setNewScorer({ player_name: '', team: '', goals: 0, assists: 0 });
+    await loadScorers();
+    setSavingScorer(false);
+  }
+
+  async function deleteScorer(id: string) {
+    if (!confirm('למחוק שחקן זה מהרשימה?')) return;
+    await supabase.from('top_scorers').delete().eq('id', id);
+    await loadScorers();
+  }
 
   async function createInvite() {
     setLoading(true);
@@ -103,6 +131,7 @@ export default function AdminPage() {
     { key: 'players', label: 'שחקנים', icon: Users },
     { key: 'settings', label: 'הגדרות', icon: SettingsIcon },
     { key: 'data', label: 'נתונים', icon: Database },
+    { key: 'scorers', label: 'שערים', icon: Shirt },
   ] as const;
 
   return (
@@ -252,6 +281,67 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {tab === 'scorers' && (
+          <div className="fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg">מלכי השערים</h2>
+              <button onClick={loadScorers} className="p-2 rounded-lg" style={{background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer'}}>
+                <RefreshCw size={15} />
+              </button>
+            </div>
+
+            {/* Add / update scorer */}
+            <div className="card p-4 mb-4">
+              <div className="font-semibold text-sm mb-3" style={{color: 'var(--gold)'}}>הוספה / עדכון שחקן</div>
+              <div className="flex flex-col gap-2 mb-3">
+                <input className="input" placeholder="שם שחקן (מזהה ייחודי)" value={newScorer.player_name}
+                  onChange={e => setNewScorer(p => ({...p, player_name: e.target.value}))} />
+                <input className="input" placeholder="נבחרת (אנגלית, למשל: Brazil)" value={newScorer.team}
+                  onChange={e => setNewScorer(p => ({...p, team: e.target.value}))} />
+                <div className="flex gap-2">
+                  <input className="input" type="number" placeholder="שערים" value={newScorer.goals || ''}
+                    onChange={e => setNewScorer(p => ({...p, goals: parseInt(e.target.value) || 0}))} />
+                  <input className="input" type="number" placeholder="בישולים" value={newScorer.assists || ''}
+                    onChange={e => setNewScorer(p => ({...p, assists: parseInt(e.target.value) || 0}))} />
+                </div>
+              </div>
+              <button className="btn-primary w-full" onClick={upsertScorer} disabled={savingScorer || !newScorer.player_name.trim()}>
+                {savingScorer ? 'שומר...' : 'שמור / עדכן'}
+              </button>
+            </div>
+
+            {/* Current list */}
+            {scorers.length === 0
+              ? <div className="card p-8 text-center text-sm" style={{color: 'var(--text-muted)'}}>אין נתונים עדיין</div>
+              : (
+              <div className="flex flex-col gap-2">
+                {scorers.map((s, i) => (
+                  <div key={s.id} className="card p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="bebas text-xl w-6 text-center" style={{color: i === 0 ? 'var(--gold)' : 'var(--text-muted)'}}>{i + 1}</span>
+                      <div>
+                        <div className="font-semibold text-sm">{s.player_name}</div>
+                        <div className="text-xs" style={{color: 'var(--text-muted)'}}>{s.team} · {s.goals} שע׳ · {s.assists} בישולים</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setNewScorer({ player_name: s.player_name, team: s.team, goals: s.goals, assists: s.assists })}
+                        className="text-xs px-2 py-1 rounded" style={{background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)'}}>
+                        ערוך
+                      </button>
+                      <button onClick={() => deleteScorer(s.id)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs"
+                        style={{background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', cursor: 'pointer'}}>
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

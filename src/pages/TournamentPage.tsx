@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { CalendarDays, LayoutList, CalendarPlus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import type { TopScorer } from '../lib/supabase';
+import { CalendarDays, LayoutList, CalendarPlus, Shirt } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -235,6 +237,61 @@ function ScheduleView({ games, groups }: {
   );
 }
 
+// ── Top Scorers view ──────────────────────────────────────
+function TopScorersView() {
+  const [scorers, setScorers] = useState<TopScorer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('top_scorers').select('*').order('goals', { ascending: false })
+      .then(({ data }) => { setScorers((data as TopScorer[]) || []); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
+
+  if (scorers.length === 0) return (
+    <div className="card p-10 text-center mt-4">
+      <div className="text-5xl mb-4">👟</div>
+      <div className="font-bold text-lg">הטורניר טרם התחיל</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>סטטיסטיקות מלכי השערים יופיעו כאן עם תחילת המשחקים</div>
+    </div>
+  );
+
+  return (
+    <div className="trn-group-card">
+      <div className="trn-standings-hdr">
+        <span className="trn-group-letter">מלכי השערים</span>
+      </div>
+      <table className="trn-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th className="trn-th-team">שחקן</th>
+            <th>שע׳</th>
+            <th>בישולים</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scorers.map((s, i) => (
+            <tr key={s.id} className={i === 0 ? 'scorer-first' : ''}>
+              <td className="trn-td-pos">{i + 1}</td>
+              <td className="trn-td-team">
+                <Flag team={s.team} size={20} />
+                <div>
+                  <div style={{ fontWeight: 600 }}>{s.player_name}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{teamHe(s.team)}</div>
+                </div>
+              </td>
+              <td style={{ color: 'var(--gold)', fontWeight: 700 }}>{s.goals}</td>
+              <td style={{ color: 'var(--text-muted)' }}>{s.assists}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Standings row ─────────────────────────────────────────
 interface Standing {
   team: string; p: number; w: number; d: number; l: number; pts: number;
@@ -291,7 +348,7 @@ function StandingsView({ groups }: { groups: Map<string, { teams: string[]; game
 export default function TournamentPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'schedule' | 'standings'>('schedule');
+  const [view, setView] = useState<'schedule' | 'standings' | 'scorers'>('schedule');
   const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
 
   useEffect(() => {
@@ -355,11 +412,15 @@ export default function TournamentPage() {
             <LayoutList size={15} />
             טבלת בתים
           </button>
+          <button className={`trn-tog-btn ${view === 'scorers' ? 'trn-tog-on' : ''}`} onClick={() => setView('scorers')}>
+            <Shirt size={15} />
+            מלכי שערים
+          </button>
         </div>
 
-        {view === 'schedule'
-          ? <ScheduleView games={games} groups={groups} />
-          : <StandingsView groups={groups} />}
+        {view === 'schedule' && <ScheduleView games={games} groups={groups} />}
+        {view === 'standings' && <StandingsView groups={groups} />}
+        {view === 'scorers' && <TopScorersView />}
       </div>
     </div>
   );

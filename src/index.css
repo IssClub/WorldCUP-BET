@@ -672,3 +672,88 @@ body {
   background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
   color: #f87171; font-size: 0.9rem;
 }
+
+/* ── Special bets card ───────────────────────────────────── */
+.special-card {
+  background: rgba(19,40,64,0.75);
+  border: 1px solid rgba(255,214,0,0.2);
+  border-radius: 16px; overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+.special-card-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-weight: 700; font-size: 0.88rem;
+  color: var(--gold);
+}
+.special-deadline {
+  font-size: 0.68rem; color: var(--text-muted); font-weight: 400;
+  margin-right: auto;
+}
+.special-locked {
+  font-size: 0.72rem; color: var(--text-muted);
+  padding: 10px 16px; font-style: italic;
+}
+.special-fields { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
+.special-field { display: flex; flex-direction: column; gap: 5px; }
+.special-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+.special-val {
+  font-size: 0.85rem; font-weight: 700; color: var(--text);
+  background: rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 10px;
+}
+.special-select, .special-input {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; padding: 9px 10px;
+  color: var(--text); font-size: 0.85rem; width: 100%;
+  font-family: inherit;
+}
+.special-select:focus, .special-input:focus {
+  outline: none; border-color: var(--gold);
+}
+.special-save {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 10px; border-radius: 10px; border: none;
+  background: var(--gold); color: #000;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+  margin-top: 2px;
+}
+.special-save:hover { filter: brightness(1.1); }
+.special-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.special-success {
+  font-size: 0.75rem; color: var(--green); text-align: center;
+  padding: 4px 0; font-weight: 600;
+}
+
+/* ── Info page ───────────────────────────────────────────── */
+.info-banner {
+  display: flex; align-items: center; gap: 14px;
+  background: rgba(19,40,64,0.75); border: 1px solid rgba(255,214,0,0.2);
+  border-radius: 16px; padding: 16px 18px;
+  backdrop-filter: blur(10px);
+}
+.info-card {
+  background: rgba(19,40,64,0.65); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px; overflow: hidden; backdrop-filter: blur(10px);
+}
+.info-card-title {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px 10px;
+  font-weight: 800; font-size: 0.9rem; color: var(--text);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.info-list { padding: 10px 16px 14px; display: flex; flex-direction: column; gap: 7px; }
+.info-item { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; }
+.info-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--green);
+  flex-shrink: 0; margin-top: 7px;
+}
+.info-footer {
+  text-align: center; font-size: 0.85rem; font-weight: 600;
+  color: var(--text-muted); padding: 8px 0 4px;
+}
+
+/* ── Top scorer first row highlight ─────────────────────── */
+.scorer-first td { background: rgba(255,214,0,0.04); }
+.scorer-first .trn-td-pos { color: var(--gold); }

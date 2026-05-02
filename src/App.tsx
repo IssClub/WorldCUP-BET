@@ -5,13 +5,15 @@ import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
 import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
-import { Trophy, Swords, BarChart2, Globe, Ticket } from 'lucide-react';
+import InfoPage from './pages/InfoPage';
+import { Trophy, Swords, BookOpen, Globe, Ticket } from 'lucide-react';
 
-type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
+type Tab = 'bets' | 'mybets' | 'info' | 'tournament' | 'admin';
 
 function AppShell() {
   const { user, profile, loading } = useAuth();
   const [tab, setTab] = useState<Tab>('bets');
+
   const isAdmin = profile?.role === 'admin';
 
   if (loading) return (
@@ -28,7 +30,7 @@ function AppShell() {
   const tabs = [
     { key: 'bets' as Tab, label: 'הימורים', icon: Swords },
     { key: 'mybets' as Tab, label: 'שלי', icon: Ticket },
-    { key: 'leaderboard' as Tab, label: 'טבלה', icon: BarChart2 },
+    { key: 'info' as Tab, label: 'חוקים', icon: BookOpen },
     { key: 'tournament' as Tab, label: 'מונדיאל', icon: Globe },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'ניהול', icon: Trophy }] : []),
   ];
@@ -39,7 +41,7 @@ function AppShell() {
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}
         {tab === 'mybets' && <MyBetsPage />}
-        {tab === 'leaderboard' && <PlaceholderPage icon="🏆" title="טבלת דירוג" subtitle="בקרוב" />}
+        {tab === 'info' && <InfoPage />}
         {tab === 'tournament' && <TournamentPage />}
         {tab === 'admin' && isAdmin && <AdminPage />}
       </div>
@@ -65,17 +67,6 @@ function AppShell() {
   );
 }
 
-function PlaceholderPage({ icon, title, subtitle }: { icon: string; title: string; subtitle: string }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center p-8">
-      <div className="text-center">
-        <div className="text-6xl mb-5">{icon}</div>
-        <div className="font-bold text-2xl mb-2">{title}</div>
-        <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{subtitle}</div>
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   return (
