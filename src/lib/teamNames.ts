@@ -68,7 +68,7 @@ const HE: Record<string, string> = {
   'Cuba': 'קובה',
   'Haiti': 'האיטי',
   'Suriname': 'סורינאם',
-  'Curacao': 'קוראסאו',
+  'Curacao': 'קוראסאו', 'Curaçao': 'קוראסאו', 'Curaçao PR': 'קוראסאו',
   'Guyana': 'גיאנה',
 
   // AFC

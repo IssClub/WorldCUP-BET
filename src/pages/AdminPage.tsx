@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invite, Profile, Settings } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database } from 'lucide-react';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -12,7 +12,9 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data'>('invites');
+  const [betCounts, setBetCounts] = useState<Record<string, number>>({});
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [players, setPlayers] = useState<Profile[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -40,6 +42,7 @@ export default function AdminPage() {
     loadInvites();
     loadPlayers();
     loadSettings();
+    loadBetCounts();
   }, [loadInvites, loadPlayers, loadSettings]);
 
   async function createInvite() {
@@ -54,6 +57,31 @@ export default function AdminPage() {
     navigator.clipboard.writeText(code);
     setCopied(code);
     setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function loadBetCounts() {
+    const { data } = await supabase.from('bets').select('player_id');
+    if (!data) return;
+    const counts: Record<string, number> = {};
+    for (const row of data) counts[row.player_id] = (counts[row.player_id] || 0) + 1;
+    setBetCounts(counts);
+  }
+
+  async function deletePlayerBets(playerId: string, name: string) {
+    if (!confirm(`למחוק את כל ההימורים של ${name}?`)) return;
+    setDeleting(playerId);
+    await supabase.from('bets').delete().eq('player_id', playerId);
+    await loadBetCounts();
+    setDeleting(null);
+  }
+
+  async function deleteAllBets() {
+    if (!confirm('למחוק את כל ההימורים של כולם? פעולה זו בלתי הפיכה.')) return;
+    if (!confirm('אתה בטוח לגמרי? כל ההיסטוריה תימחק.')) return;
+    setDeleting('all');
+    await supabase.from('bets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await loadBetCounts();
+    setDeleting(null);
   }
 
   async function saveSettings() {
@@ -74,6 +102,7 @@ export default function AdminPage() {
     { key: 'invites', label: 'הזמנות', icon: Plus },
     { key: 'players', label: 'שחקנים', icon: Users },
     { key: 'settings', label: 'הגדרות', icon: SettingsIcon },
+    { key: 'data', label: 'נתונים', icon: Database },
   ] as const;
 
   return (
@@ -167,6 +196,59 @@ export default function AdminPage() {
                     <span className="text-xs" style={{color: 'var(--text-muted)'}}>נק׳</span>
                     {p.role === 'admin' && <span className="badge-admin">Admin</span>}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab === 'data' && (
+          <div className="fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg">ניהול נתונים</h2>
+              <button onClick={loadBetCounts} className="p-2 rounded-lg" style={{background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer'}}>
+                <RefreshCw size={15} />
+              </button>
+            </div>
+
+            {/* Delete all */}
+            <div className="card p-4 mb-4" style={{border: '1px solid rgba(248,113,113,0.25)'}}>
+              <div className="font-semibold mb-1" style={{color: '#f87171'}}>מחיקת כל ההימורים</div>
+              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>מוחק את כל הרשומות מטבלת הימורים של כל השחקנים</div>
+              <button
+                onClick={deleteAllBets}
+                disabled={deleting === 'all'}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171', cursor: 'pointer'}}
+              >
+                <Trash2 size={14} />
+                {deleting === 'all' ? 'מוחק...' : 'מחק הכל'}
+              </button>
+            </div>
+
+            {/* Per player */}
+            <h3 className="font-semibold text-sm mb-3" style={{color: 'var(--text-muted)'}}>מחיקה לפי שחקן</h3>
+            <div className="flex flex-col gap-2">
+              {players.map(p => (
+                <div key={p.id} className="card p-3 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{p.display_name}</div>
+                    <div className="text-xs" style={{color: 'var(--text-muted)'}}>{betCounts[p.id] ?? 0} הימורים</div>
+                  </div>
+                  <button
+                    onClick={() => deletePlayerBets(p.id, p.display_name)}
+                    disabled={deleting === p.id || !betCounts[p.id]}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs"
+                    style={{
+                      background: betCounts[p.id] ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(248,113,113,0.3)',
+                      color: betCounts[p.id] ? '#f87171' : 'var(--text-muted)',
+                      cursor: betCounts[p.id] ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    <Trash2 size={11} />
+                    {deleting === p.id ? 'מוחק...' : 'מחק'}
+                  </button>
                 </div>
               ))}
             </div>

@@ -6,7 +6,7 @@ const CODES: Record<string, string> = {
   'Trinidad and Tobago': 'tt', 'Trinidad & Tobago': 'tt',
   'El Salvador': 'sv', 'Guatemala': 'gt', 'Cuba': 'cu', 'Haiti': 'ht',
   'Nicaragua': 'ni', 'Belize': 'bz', 'Antigua and Barbuda': 'ag',
-  'Curacao': 'cw', 'Suriname': 'sr', 'Guyana': 'gy',
+  'Curacao': 'cw', 'Curaçao': 'cw', 'Curaçao PR': 'cw', 'Suriname': 'sr', 'Guyana': 'gy',
 
   // Americas – CONMEBOL
   'Brazil': 'br', 'Argentina': 'ar', 'Colombia': 'co', 'Uruguay': 'uy',

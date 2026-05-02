@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { CalendarDays, LayoutList, Tv2 } from 'lucide-react';
+import { CalendarDays, LayoutList } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -13,19 +13,15 @@ interface Game {
   away_win: number;
 }
 
-// ── Israeli TV channel static map ─────────────────────────
-// עדכן לפי לוח השידורים הרשמי. ברירת מחדל: Sport 5
+// שידורים ישראל — עדכן כשתהיה רשימה רשמית
 const CHANNEL_MAP: { home: string; away: string; channel: string }[] = [
-  // דוגמאות — עדכן לפי הצורך:
-  // { home: 'USA', away: 'Mexico', channel: 'ערוץ 12 + Sport 5' },
-  // { home: 'Argentina', away: 'Brazil', channel: 'ערוץ 13 + Sport 5' },
+  // { home: 'Argentina', away: 'France', channel: 'ערוץ 12 + Sport 5' },
 ];
-
 function getChannel(home: string, away: string): string {
-  const m = CHANNEL_MAP.find(
-    c => (c.home === home && c.away === away) || (c.home === away && c.away === home)
+  const m = CHANNEL_MAP.find(c =>
+    (c.home === home && c.away === away) || (c.home === away && c.away === home)
   );
-  return m?.channel ?? 'Sport 5';
+  return m?.channel ?? '';
 }
 
 // ── Flag ──────────────────────────────────────────────────
@@ -165,18 +161,14 @@ function ScheduleView({ games, groups }: {
                   <div className="sch-row-top">
                     {grp && <span className="sch-badge">בית {grp}</span>}
                     <span className="sch-time">{fmtTime(g.commence_time)}</span>
-                    <span className="sch-channel"><Tv2 size={10} />{ch}</span>
+                    {ch && <span className="sch-channel">{ch}</span>}
                   </div>
                   <div className="sch-match">
                     <div className="sch-team sch-team-home">
                       <Flag team={g.home_team} size={26} />
                       <span className="sch-tname">{teamHe(g.home_team)}</span>
                     </div>
-                    <div className="sch-odds">
-                      <span className="sch-odd">{g.home_win.toFixed(2)}</span>
-                      <span className="sch-odd sch-odd-draw">{g.draw.toFixed(2)}</span>
-                      <span className="sch-odd">{g.away_win.toFixed(2)}</span>
-                    </div>
+                    <span className="sch-vs">VS</span>
                     <div className="sch-team sch-team-away">
                       <span className="sch-tname">{teamHe(g.away_team)}</span>
                       <Flag team={g.away_team} size={26} />
@@ -188,6 +180,24 @@ function ScheduleView({ games, groups }: {
           </div>
         </div>
       ))}
+
+      {/* Knockout stage */}
+      <div className="sch-knockout">
+        <div className="sch-knockout-title">🏆 שלב הנוק-אאוט</div>
+        {[
+          { stage: 'סיבוב 32', dates: '29 יוני – 3 יולי', games: 16 },
+          { stage: 'שמינית גמר', dates: '6–9 יולי', games: 8 },
+          { stage: 'רבע גמר', dates: '12–13 יולי', games: 4 },
+          { stage: 'חצי גמר', dates: '16–17 יולי', games: 2 },
+          { stage: 'גמר', dates: '19 יולי · מטה לייף', games: 1 },
+        ].map(s => (
+          <div key={s.stage} className="sch-ko-row">
+            <span className="sch-ko-stage">{s.stage}</span>
+            <span className="sch-ko-dates">{s.dates}</span>
+            <span className="sch-ko-tbd">TBD × {s.games}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -609,8 +609,35 @@ body {
   color: var(--text);
 }
 .sch-channel {
-  margin-right: auto; display: flex; align-items: center; gap: 4px;
-  font-size: 0.62rem; color: var(--text-muted);
+  margin-right: auto; font-size: 0.62rem; color: var(--text-muted);
+  background: rgba(255,255,255,0.06); border-radius: 10px; padding: 1px 7px;
+}
+.sch-vs {
+  font-family: 'Bebas Neue', cursive; font-size: 0.85rem; color: var(--text-muted);
+  letter-spacing: 1px; flex-shrink: 0;
+}
+.sch-knockout {
+  background: rgba(19,40,64,0.6); border: 1px solid rgba(255,214,0,0.15);
+  border-radius: 16px; padding: 14px; margin-top: 4px;
+}
+.sch-knockout-title {
+  font-weight: 800; font-size: 0.85rem; color: var(--gold);
+  margin-bottom: 10px; letter-spacing: 0.3px;
+}
+.sch-ko-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.sch-ko-row:last-child { border-bottom: none; }
+.sch-ko-stage {
+  font-weight: 700; font-size: 0.8rem; min-width: 90px;
+}
+.sch-ko-dates {
+  font-size: 0.72rem; color: var(--text-muted); flex: 1;
+}
+.sch-ko-tbd {
+  font-size: 0.65rem; color: var(--text-muted);
+  background: rgba(255,255,255,0.06); border-radius: 10px; padding: 1px 8px;
 }
 .sch-match {
   display: grid; grid-template-columns: 1fr auto 1fr;
