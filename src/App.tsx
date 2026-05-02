@@ -7,17 +7,20 @@ import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import { registerPush, pushSupported } from './lib/push';
-import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, X } from 'lucide-react';
+import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing } from 'lucide-react';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
-function PushBanner({ userId }: { userId: string }) {
+function PushModal({ userId }: { userId: string }) {
   const [show, setShow] = useState(false);
   const [registering, setRegistering] = useState(false);
 
   useEffect(() => {
     if (!pushSupported()) return;
-    if (Notification.permission === 'default') setShow(true);
+    if (Notification.permission === 'default') {
+      const timer = setTimeout(() => setShow(true), 800);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   async function enable() {
@@ -29,13 +32,24 @@ function PushBanner({ userId }: { userId: string }) {
 
   if (!show) return null;
   return (
-    <div className="push-banner">
-      <BellRing size={16} style={{ flexShrink: 0, color: 'var(--gold)' }} />
-      <span style={{ flex: 1, fontSize: '0.78rem' }}>הפעל התראות כשמשחק נגמר</span>
-      <button className="push-yes" onClick={enable} disabled={registering}>
-        {registering ? '...' : 'אישור'}
-      </button>
-      <button className="push-no" onClick={() => setShow(false)}><X size={13} /></button>
+    <div className="push-modal-overlay" onClick={() => setShow(false)}>
+      <div className="push-modal" onClick={e => e.stopPropagation()}>
+        <div className="push-modal-icon">
+          <BellRing size={32} style={{ color: 'var(--gold)' }} />
+        </div>
+        <h3 className="push-modal-title">התראות משחקים</h3>
+        <p className="push-modal-body">
+          קבל התראה מיידית כשמשחק שהימרת עליו נגמר — כולל הפרש הניקוד שלך
+        </p>
+        <div className="push-modal-btns">
+          <button className="push-modal-yes" onClick={enable} disabled={registering}>
+            {registering ? '...' : '✅ אשר התראות'}
+          </button>
+          <button className="push-modal-no" onClick={() => setShow(false)}>
+            לא עכשיו
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -46,7 +60,7 @@ function AppShell() {
   const isAdmin = profile?.role === 'admin';
 
   if (loading) return (
-    <div className="min-h-screen pitch-bg flex items-center justify-center">
+    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
       <div className="text-center">
         <div className="text-5xl mb-4 animate-pulse">⚽</div>
         <div className="bebas text-3xl" style={{ color: 'var(--green)' }}>טוען...</div>
@@ -65,8 +79,8 @@ function AppShell() {
   ];
 
   return (
-    <div className="min-h-screen pitch-bg">
-      {profile && <PushBanner userId={profile.id} />}
+    <div className="pitch-bg" style={{ minHeight: '100dvh' }}>
+      {profile && <PushModal userId={profile.id} />}
       {/* Page content */}
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}

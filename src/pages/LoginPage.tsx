@@ -37,7 +37,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen pitch-bg flex items-center justify-center p-4">
+    <div className="pitch-bg flex items-center justify-center p-4" style={{ minHeight: '100dvh' }}>
       <div className="w-full max-w-md fade-in">
         {/* לוגו */}
         <div className="text-center mb-8">

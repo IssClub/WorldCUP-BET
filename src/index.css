@@ -33,6 +33,7 @@ body {
     radial-gradient(ellipse 70% 40% at 80% 60%, rgba(0,200,83,0.06) 0%, transparent 55%),
     linear-gradient(180deg, #0b1e2d 0%, #071524 100%);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .pitch-bg::before {
@@ -155,6 +156,11 @@ body {
 
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 .animate-pulse { animation: pulse 1.5s ease-in-out infinite; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
 
 /* ── Layout ─────────────────────────────────────────────── */
 .page-wrap { max-width: 480px; margin: 0 auto; padding: 0 16px; }
@@ -762,22 +768,44 @@ body {
   color: var(--text-muted); padding: 8px 0 4px;
 }
 
-/* ── Push notification banner ────────────────────────────── */
-.push-banner {
-  display: flex; align-items: center; gap: 8px;
-  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-  padding: 10px 14px;
-  background: rgba(10,20,36,0.97); border-bottom: 1px solid rgba(255,214,0,0.25);
-  backdrop-filter: blur(10px);
+/* ── Push notification modal ─────────────────────────────── */
+.push-modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
 }
-.push-yes {
-  padding: 5px 14px; border-radius: 20px; border: none;
-  background: var(--gold); color: #000; font-size: 0.75rem;
-  font-weight: 700; cursor: pointer; flex-shrink: 0;
+.push-modal {
+  background: var(--surface); border: 1px solid rgba(255,214,0,0.3);
+  border-radius: 22px; padding: 32px 24px 24px;
+  max-width: 320px; width: 100%;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  animation: slide-up 0.25s ease;
 }
-.push-no {
-  background: none; border: none; color: var(--text-muted);
-  cursor: pointer; padding: 4px; flex-shrink: 0;
+.push-modal-icon {
+  width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px;
+  background: rgba(255,214,0,0.12); border: 2px solid rgba(255,214,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+}
+.push-modal-title {
+  font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; color: var(--text);
+}
+.push-modal-body {
+  font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 22px;
+}
+.push-modal-btns { display: flex; flex-direction: column; gap: 10px; }
+.push-modal-yes {
+  padding: 13px; border-radius: 12px; border: none;
+  background: var(--gold); color: #000; font-size: 0.95rem;
+  font-weight: 700; cursor: pointer;
+}
+.push-modal-yes:disabled { opacity: 0.6; cursor: not-allowed; }
+.push-modal-no {
+  background: none; border: 1px solid var(--border); border-radius: 12px;
+  color: var(--text-muted); font-size: 0.85rem; padding: 11px;
+  cursor: pointer;
 }
 
 /* ── Leaderboard ─────────────────────────────────────────── */
