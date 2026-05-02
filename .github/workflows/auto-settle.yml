@@ -1,13 +1,22 @@
 name: Auto-settle games
 
 on:
+  # ── בשעות המשחקים (17:00-04:00 UTC = 20:00-07:00 ישראל) ──
+  # כל 10 דקות בשעות הערב — שלב הבתים ונוק-אאוט (יוני–יולי 2026)
   schedule:
-    - cron: '*/10 * * * *'   # every 10 minutes
-  workflow_dispatch:           # manual trigger button in GitHub
+    - cron: '*/10 17-23 * 6,7 *'   # 20:00–02:59 ישראל
+    - cron: '*/10 0-3  * 6,7 *'    # 03:00–06:59 ישראל (משחקים מאוחרים)
+    # פעם בשעה בשעות היום (ייצא מיד אם אין משחקים)
+    - cron: '0 4-16 * 6,7 *'
+    # מחוץ לטורניר — פעם ביום בלבד (לאיסוף נתונים ותחזוקה)
+    - cron: '0 12 * 1-5,8-12 *'
+
+  workflow_dispatch:  # כפתור הפעלה ידנית ב-GitHub Actions
 
 jobs:
   settle:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +30,8 @@ jobs:
       - name: Settle completed games
         run: node scripts/settle-games.mjs
         env:
-          SUPABASE_URL:       ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ODDS_API_KEY:       ${{ secrets.VITE_ODDS_API_KEY }}
-          VAPID_PUBLIC_KEY:   ${{ secrets.VAPID_PUBLIC_KEY }}
-          VAPID_PRIVATE_KEY:  ${{ secrets.VAPID_PRIVATE_KEY }}
+          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}
+          VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}

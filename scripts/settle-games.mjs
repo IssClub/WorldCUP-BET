@@ -33,7 +33,21 @@ const HE = {
 const he = name => HE[name] ?? name;
 
 async function main() {
-  console.log('Fetching scores from Odds API...');
+  // Step 1: check if there are any pending bets on games that have already kicked off.
+  // If not — exit immediately without touching the Odds API.
+  const now = new Date().toISOString();
+  const { count } = await supabase
+    .from('bets')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .lte('kickoff_at', now);
+
+  if (!count || count === 0) {
+    console.log('No pending bets on started games — nothing to do.');
+    return;
+  }
+
+  console.log(`Found ${count} pending bet(s) on started games. Fetching scores...`);
 
   const res = await fetch(
     `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${ODDS_API_KEY}&daysFrom=3`
