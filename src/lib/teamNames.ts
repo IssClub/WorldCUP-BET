@@ -115,7 +115,7 @@ const HE: Record<string, string> = {
   'DR Congo': 'קונגו',
   'Congo DR': 'קונגו',
   'Democratic Republic of Congo': 'קונגו',
-  'Cape Verde': 'כף ורדה',
+  'Cape Verde': 'קייפ ורדה',
   'Zambia': 'זמביה',
   'Zimbabwe': 'זימבבואה',
   'Kenya': 'קניה',

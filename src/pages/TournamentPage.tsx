@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { CalendarDays, LayoutList } from 'lucide-react';
+import { CalendarDays, LayoutList, CalendarPlus } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -21,7 +21,27 @@ function getChannel(home: string, away: string): string {
   const m = CHANNEL_MAP.find(c =>
     (c.home === home && c.away === away) || (c.home === away && c.away === home)
   );
-  return m?.channel ?? '';
+  return m?.channel ?? 'Sport 5';
+}
+
+// ── Calendar ICS download ─────────────────────────────────
+function addToCalendar(g: Game) {
+  const fmt = (iso: string) => iso.replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+  const start = fmt(g.commence_time);
+  const end = fmt(new Date(new Date(g.commence_time).getTime() + 2 * 3600000).toISOString());
+  const title = `מונדיאל 2026: ${teamHe(g.home_team)} נגד ${teamHe(g.away_team)}`;
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorldCup Bets//HE',
+    'BEGIN:VEVENT',
+    `DTSTART:${start}`, `DTEND:${end}`,
+    `SUMMARY:${title}`,
+    'DESCRIPTION:FIFA World Cup 2026',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  a.download = `wc2026.ics`;
+  a.click();
 }
 
 // ── Flag ──────────────────────────────────────────────────
@@ -158,22 +178,31 @@ function ScheduleView({ games, groups }: {
               const ch = getChannel(g.home_team, g.away_team);
               return (
                 <div key={g.id} className="sch-row">
+                  {/* Top bar: badge + time + channel */}
                   <div className="sch-row-top">
                     {grp && <span className="sch-badge">בית {grp}</span>}
                     <span className="sch-time">{fmtTime(g.commence_time)}</span>
                     {ch && <span className="sch-channel">{ch}</span>}
                   </div>
+
+                  {/* Match row: home | VS | away */}
                   <div className="sch-match">
-                    <div className="sch-team sch-team-home">
-                      <Flag team={g.home_team} size={26} />
+                    <div className="sch-home">
+                      <Flag team={g.home_team} size={28} />
                       <span className="sch-tname">{teamHe(g.home_team)}</span>
                     </div>
                     <span className="sch-vs">VS</span>
-                    <div className="sch-team sch-team-away">
+                    <div className="sch-away">
                       <span className="sch-tname">{teamHe(g.away_team)}</span>
-                      <Flag team={g.away_team} size={26} />
+                      <Flag team={g.away_team} size={28} />
                     </div>
                   </div>
+
+                  {/* Calendar button */}
+                  <button className="sch-cal-btn" onClick={() => addToCalendar(g)}>
+                    <CalendarPlus size={12} />
+                    הוסף ליומן
+                  </button>
                 </div>
               );
             })}
@@ -216,9 +245,6 @@ function StandingsView({ groups }: { groups: Map<string, { teams: string[]; game
           <div key={letter} className="trn-group-card">
             <div className="trn-standings-hdr">
               <span className="trn-group-letter">בית {letter}</span>
-              <div className="trn-group-flags">
-                {teams.map(t => <Flag key={t} team={t} size={22} />)}
-              </div>
             </div>
             <table className="trn-table">
               <thead>

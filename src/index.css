@@ -641,27 +641,31 @@ body {
 }
 .sch-match {
   display: grid; grid-template-columns: 1fr auto 1fr;
-  align-items: center; gap: 6px;
+  align-items: center; gap: 8px; margin-top: 2px;
 }
-.sch-team {
+.sch-home {
   display: flex; align-items: center; gap: 6px;
+  justify-content: flex-start; /* RTL start = right side */
 }
-.sch-team-home { justify-content: flex-end; flex-direction: row-reverse; }
-.sch-team-away { justify-content: flex-start; }
+.sch-away {
+  display: flex; align-items: center; gap: 6px;
+  justify-content: flex-end; /* RTL end = left side */
+}
 .sch-tname {
-  font-size: 0.78rem; font-weight: 600;
+  font-size: 0.82rem; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 90px;
+  max-width: 95px;
 }
-.sch-odds {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;
+.sch-cal-btn {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 8px; padding: 5px 10px;
+  border-radius: 8px; border: 1px dashed rgba(255,255,255,0.15);
+  background: none; color: var(--text-muted); font-size: 0.68rem;
+  cursor: pointer; transition: all 0.2s; width: 100%;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
-.sch-odd {
-  font-size: 0.65rem; font-weight: 700;
-  background: rgba(255,255,255,0.06); border-radius: 4px; padding: 1px 5px;
-  color: var(--text-muted);
-}
-.sch-odd-draw { color: var(--gold); }
+.sch-cal-btn:hover { border-color: var(--green); color: var(--green); }
 
 /* ── Error ───────────────────────────────────────────────── */
 .err-banner {
