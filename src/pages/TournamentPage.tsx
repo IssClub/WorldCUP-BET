@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { flagUrl } from '../lib/flagMap';
+import { teamHe } from '../lib/teamNames';
 import { CalendarDays, LayoutList, Tv2 } from 'lucide-react';
 
 interface Game {
@@ -169,7 +170,7 @@ function ScheduleView({ games, groups }: {
                   <div className="sch-match">
                     <div className="sch-team sch-team-home">
                       <Flag team={g.home_team} size={26} />
-                      <span className="sch-tname">{g.home_team}</span>
+                      <span className="sch-tname">{teamHe(g.home_team)}</span>
                     </div>
                     <div className="sch-odds">
                       <span className="sch-odd">{g.home_win.toFixed(2)}</span>
@@ -177,7 +178,7 @@ function ScheduleView({ games, groups }: {
                       <span className="sch-odd">{g.away_win.toFixed(2)}</span>
                     </div>
                     <div className="sch-team sch-team-away">
-                      <span className="sch-tname">{g.away_team}</span>
+                      <span className="sch-tname">{teamHe(g.away_team)}</span>
                       <Flag team={g.away_team} size={26} />
                     </div>
                   </div>
@@ -227,7 +228,7 @@ function StandingsView({ groups }: { groups: Map<string, { teams: string[]; game
                     <td className="trn-td-pos">{i + 1}</td>
                     <td className="trn-td-team">
                       <Flag team={r.team} size={20} />
-                      <span>{r.team}</span>
+                      <span>{teamHe(r.team)}</span>
                     </td>
                     <td>{r.p}</td>
                     <td>{r.w}</td>

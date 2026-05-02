@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
+import { teamHe } from '../lib/teamNames';
 import { Coins, CheckCircle2, Zap, RefreshCw } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
@@ -94,7 +95,8 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
   const pickLabel = (p: Pick) => {
     if (p === 'draw') return 'תיקו';
     const team = p === 'home' ? game.home_team : game.away_team;
-    return team.split(' ').slice(-1)[0];
+    const he = teamHe(team);
+    return he.length > 9 ? he.slice(0, 8) + '…' : he;
   };
 
   const potential = bet.pick && bet.amount > 0
@@ -111,15 +113,15 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
 
   // ── Already bet ──
   if (existingBet) {
-    const label = existingBet.pick === 'home' ? existingBet.home_team
-      : existingBet.pick === 'away' ? existingBet.away_team : 'תיקו';
+    const label = existingBet.pick === 'home' ? teamHe(existingBet.home_team)
+      : existingBet.pick === 'away' ? teamHe(existingBet.away_team) : 'תיקו';
     const pot = Math.floor(existingBet.amount * existingBet.odds_value);
     return (
       <div className="gc gc-done">
         <div className="gc-teams">
           <div className="gc-team">
             <Flag team={game.home_team} />
-            <span className="gc-tname">{game.home_team}</span>
+            <span className="gc-tname">{teamHe(game.home_team)}</span>
           </div>
           <div className="gc-mid">
             <span className="gc-time">{fmtTime(game.commence_time)}</span>
@@ -127,7 +129,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
           </div>
           <div className="gc-team">
             <Flag team={game.away_team} />
-            <span className="gc-tname">{game.away_team}</span>
+            <span className="gc-tname">{teamHe(game.away_team)}</span>
           </div>
         </div>
         <div className="gc-submitted">
@@ -152,7 +154,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
       <div className="gc-teams">
         <div className="gc-team">
           <Flag team={game.home_team} />
-          <span className="gc-tname">{game.home_team}</span>
+          <span className="gc-tname">{teamHe(game.home_team)}</span>
         </div>
         <div className="gc-mid">
           <span className="gc-time">{fmtTime(game.commence_time)}</span>
@@ -160,7 +162,7 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
         </div>
         <div className="gc-team">
           <Flag team={game.away_team} />
-          <span className="gc-tname">{game.away_team}</span>
+          <span className="gc-tname">{teamHe(game.away_team)}</span>
         </div>
       </div>
 

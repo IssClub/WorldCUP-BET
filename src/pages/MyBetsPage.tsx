@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Bet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
+import { teamHe } from '../lib/teamNames';
 import { Trash2 } from 'lucide-react';
 
 function Flag({ team }: { team: string }) {
@@ -18,24 +19,32 @@ const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
 
 const pickLabel = (pick: string, home: string, away: string) =>
-  pick === 'home' ? home : pick === 'away' ? away : 'תיקו';
+  pick === 'home' ? teamHe(home) : pick === 'away' ? teamHe(away) : 'תיקו';
 
 export default function MyBetsPage() {
   const { profile, refresh } = useAuth();
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
 
-  useEffect(() => { loadBets(); }, []);
+  useEffect(() => { if (profile) loadBets(); }, [profile?.id]);
 
   async function loadBets() {
+    if (!profile) return;
     setLoading(true);
-    const { data } = await supabase
+    setLoadError('');
+    const { data, error } = await supabase
       .from('bets')
       .select('*')
-      .eq('player_id', profile!.id)
+      .eq('player_id', profile.id)
       .order('kickoff_at', { ascending: false });
-    setBets((data as Bet[]) || []);
+
+    if (error) {
+      setLoadError('שגיאת Supabase: ' + error.message + ' (קוד: ' + error.code + ')');
+    } else {
+      setBets((data as Bet[]) || []);
+    }
     setLoading(false);
   }
 
@@ -43,7 +52,11 @@ export default function MyBetsPage() {
     if (!profile) return;
     setCancelling(bet.id);
     const { error: delErr } = await supabase.from('bets').delete().eq('id', bet.id);
-    if (delErr) { alert('שגיאה בביטול: ' + delErr.message); setCancelling(null); return; }
+    if (delErr) {
+      alert('שגיאה בביטול: ' + delErr.message);
+      setCancelling(null);
+      return;
+    }
     await supabase.from('profiles').update({ bank: profile.bank + bet.amount }).eq('id', profile.id);
     await refresh();
     await loadBets();
@@ -73,6 +86,15 @@ export default function MyBetsPage() {
       </header>
 
       <div className="page-wrap pt-4">
+        {/* שגיאת טעינה */}
+        {loadError && (
+          <div className="err-banner mb-4">
+            ⚠️ {loadError}
+            <br />
+            <button onClick={loadBets} style={{ marginTop: 6, textDecoration: 'underline', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '0.85rem' }}>נסה שוב</button>
+          </div>
+        )}
+
         {/* Stats strip */}
         <div className="mb-grid">
           <div className="mb-stat">
@@ -93,7 +115,7 @@ export default function MyBetsPage() {
           </div>
         </div>
 
-        {bets.length === 0 ? (
+        {bets.length === 0 && !loadError ? (
           <div className="card p-10 text-center mt-4">
             <div className="text-5xl mb-4">🎯</div>
             <div className="font-bold text-lg">עוד לא הימרת</div>
@@ -113,9 +135,9 @@ export default function MyBetsPage() {
                   <div className="mb-card-top">
                     <div className="mb-game">
                       <Flag team={bet.home_team} />
-                      <span className="mb-team">{bet.home_team}</span>
+                      <span className="mb-team">{teamHe(bet.home_team)}</span>
                       <span className="mb-vs">vs</span>
-                      <span className="mb-team">{bet.away_team}</span>
+                      <span className="mb-team">{teamHe(bet.away_team)}</span>
                       <Flag team={bet.away_team} />
                     </div>
                     <span className="mb-status" style={{ color: statusColor }}>{statusLabel}</span>
