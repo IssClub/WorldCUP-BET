@@ -430,6 +430,83 @@ body {
 .trn-odd-val { font-size: 0.9rem; font-weight: 700; color: var(--text); }
 .trn-odd-draw .trn-odd-val { color: var(--gold); }
 
+/* ── Tournament v2 ───────────────────────────────────────── */
+.trn-toggle {
+  display: flex; gap: 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 4px; margin-bottom: 14px;
+}
+.trn-tog-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 8px; border-radius: 9px; border: none;
+  background: none; color: var(--text-muted);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: all 0.18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.trn-tog-on { background: var(--green); color: #000; }
+
+.trn-group-card {
+  background: rgba(19,40,64,0.65);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px; overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+.trn-group-hdr {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 13px 14px;
+  background: none; border: none; cursor: pointer; color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+.trn-group-letter {
+  font-family: 'Bebas Neue', cursive; font-size: 1.1rem;
+  color: var(--green); letter-spacing: 1px; flex-shrink: 0;
+}
+.trn-group-flags { display: flex; gap: 4px; align-items: center; }
+.trn-group-arrow { margin-right: auto; font-size: 0.65rem; color: var(--text-muted); }
+
+.trn-group-body { border-top: 1px solid rgba(255,255,255,0.08); }
+.trn-row {
+  display: grid; grid-template-columns: 52px 1fr auto 1fr;
+  align-items: center; gap: 6px;
+  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.trn-row:last-child { border-bottom: none; }
+.trn-row-date { font-size: 0.62rem; color: var(--text-muted); text-align: center; line-height: 1.4; }
+.trn-row-home { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.trn-row-away { display: flex; align-items: center; gap: 6px; }
+.trn-row-tname { font-size: 0.75rem; font-weight: 600; }
+.trn-row-odds { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+.trn-row-odd { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.06); border-radius: 4px; padding: 2px 5px; }
+.trn-row-draw { color: var(--gold); }
+
+/* Standings */
+.trn-standings-hdr {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.trn-table {
+  width: 100%; border-collapse: collapse; font-size: 0.78rem;
+}
+.trn-table th {
+  padding: 7px 8px; text-align: center;
+  color: var(--text-muted); font-size: 0.65rem; font-weight: 600;
+  background: rgba(255,255,255,0.03);
+}
+.trn-th-team { text-align: right; }
+.trn-th-pts { color: var(--green) !important; }
+.trn-table td { padding: 9px 8px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); }
+.trn-td-pos { font-weight: 700; color: var(--text-muted); width: 24px; }
+.trn-td-team { display: flex; align-items: center; gap: 7px; text-align: right; white-space: nowrap; }
+.trn-td-pts { font-weight: 800; color: var(--green); }
+.trn-tr-qualify td { background: rgba(0,200,83,0.04); }
+.trn-tr-qualify .trn-td-pos { color: var(--green); }
+.trn-qualify-note {
+  font-size: 0.68rem; color: var(--text-muted);
+  padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.05);
+}
+
 /* ── My Bets page ────────────────────────────────────────── */
 .mb-grid {
   display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 16px;
