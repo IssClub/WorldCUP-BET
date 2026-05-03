@@ -579,7 +579,7 @@ body {
   backdrop-filter: blur(8px); margin-bottom: 4px;
 }
 .mb-special-hdr {
-  display: flex; align-items: center; gap-6px; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
   font-size: 0.78rem; font-weight: 700; color: var(--gold);
   margin-bottom: 12px;
 }
