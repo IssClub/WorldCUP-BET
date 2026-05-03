@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import type { Bet } from '../lib/supabase';
+import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { Trash2 } from 'lucide-react';
+import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
+import { Trash2, Trophy, Star } from 'lucide-react';
 
 function Flag({ team }: { team: string }) {
   const url = flagUrl(team, 'w40');
@@ -24,6 +25,7 @@ const pickLabel = (pick: string, home: string, away: string) =>
 export default function MyBetsPage() {
   const { profile, refresh } = useAuth();
   const [bets, setBets] = useState<Bet[]>([]);
+  const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -34,17 +36,16 @@ export default function MyBetsPage() {
     if (!profile) return;
     setLoading(true);
     setLoadError('');
-    const { data, error } = await supabase
-      .from('bets')
-      .select('*')
-      .eq('player_id', profile.id)
-      .order('kickoff_at', { ascending: false });
-
-    if (error) {
-      setLoadError('שגיאת Supabase: ' + error.message + ' (קוד: ' + error.code + ')');
+    const [betsRes, specialRes] = await Promise.all([
+      supabase.from('bets').select('*').eq('player_id', profile.id).order('kickoff_at', { ascending: false }),
+      supabase.from('special_bets').select('*').eq('player_id', profile.id),
+    ]);
+    if (betsRes.error) {
+      setLoadError('שגיאה בטעינת ההימורים — נסה שוב');
     } else {
-      setBets((data as Bet[]) || []);
+      setBets((betsRes.data as Bet[]) || []);
     }
+    setSpecialBets((specialRes.data as SpecialBet[]) || []);
     setLoading(false);
   }
 
@@ -114,6 +115,39 @@ export default function MyBetsPage() {
             <span className="mb-stat-lbl">נרוויחו</span>
           </div>
         </div>
+
+        {/* ניחושי טורניר */}
+        {specialBets.length > 0 && (
+          <div className="mb-special-card">
+            <div className="mb-special-hdr">
+              <Trophy size={14} style={{ color: 'var(--gold)' }} />
+              <span>ניחושי טורניר</span>
+            </div>
+            {specialBets.map(sb => {
+              const isWinner = sb.type === 'winner';
+              const odds = isWinner
+                ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price
+                : TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price;
+              const statusColor = sb.status === 'won' ? 'var(--green)' : sb.status === 'lost' ? '#f87171' : 'var(--gold)';
+              const statusLabel = sb.status === 'won' ? '✓ זכייה' : sb.status === 'lost' ? '✗ הפסד' : 'ממתין';
+              return (
+                <div key={sb.id} className="mb-special-row">
+                  <div className="mb-special-icon">
+                    {isWinner ? '🏆' : '👟'}
+                  </div>
+                  <div className="mb-special-info">
+                    <div className="mb-special-label">{isWinner ? 'זוכה הטורניר' : 'מלך השערים'}</div>
+                    <div className="mb-special-pick">
+                      {isWinner ? teamHe(sb.prediction) : sb.prediction}
+                      {odds && <span className="mb-special-odds">×{odds}</span>}
+                    </div>
+                  </div>
+                  <span className="mb-special-status" style={{ color: statusColor }}>{statusLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {bets.length === 0 && !loadError ? (
           <div className="card p-10 text-center mt-4">
