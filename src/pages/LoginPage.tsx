@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { signIn, signUp } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 import { Trophy, Key, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -17,6 +18,15 @@ export default function LoginPage() {
   async function handleSubmit() {
     setError('');
     setSuccess('');
+    if (mode === 'forgot') {
+      if (!email) { setError('נא להזין אימייל'); return; }
+      setLoading(true);
+      const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+      setLoading(false);
+      if (e) setError(e.message);
+      else setSuccess('נשלח מייל לאיפוס סיסמה — בדוק את תיבת הדואר שלך');
+      return;
+    }
     if (!email || !password) { setError('נא למלא אימייל וסיסמה'); return; }
     if (mode === 'register' && !displayName) { setError('נא למלא שם תצוגה'); return; }
     if (mode === 'register' && !inviteCode) { setError('נא להזין קוד הזמנה'); return; }
@@ -119,8 +129,29 @@ export default function LoginPage() {
             )}
 
             <button className="btn-primary" type="submit" disabled={loading}>
-              {loading ? 'טוען...' : mode === 'login' ? 'כניסה' : 'הרשמה'}
+              {loading ? 'טוען...' : mode === 'login' ? 'כניסה' : mode === 'register' ? 'הרשמה' : 'שלח מייל איפוס'}
             </button>
+
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
+                className="text-center text-xs"
+                style={{color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline'}}
+              >
+                שכחתי סיסמה
+              </button>
+            )}
+            {mode === 'forgot' && (
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+                className="text-center text-xs"
+                style={{color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline'}}
+              >
+                חזרה לכניסה
+              </button>
+            )}
           </form>
         </div>
 

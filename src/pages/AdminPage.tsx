@@ -22,6 +22,11 @@ export default function AdminPage() {
   const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
   const [savingScorer, setSavingScorer] = useState(false);
 
+  // Edit bank
+  const [editingBank, setEditingBank] = useState<string | null>(null);
+  const [editBankValue, setEditBankValue] = useState('');
+  const [resettingBanks, setResettingBanks] = useState(false);
+
   // Special bets settlement
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [actualWinner, setActualWinner] = useState('');
@@ -208,6 +213,25 @@ export default function AdminPage() {
     setBetCounts(counts);
   }
 
+  async function updateBank(playerId: string, newBank: number) {
+    await supabase.from('profiles').update({ bank: newBank }).eq('id', playerId);
+    setEditingBank(null);
+    await loadPlayers();
+  }
+
+  async function resetEliminatedBanks() {
+    if (!settings) return;
+    const eliminated = players.filter(p => p.bank === 0);
+    if (eliminated.length === 0) { alert('אין שחקנים עם בנק 0'); return; }
+    if (!confirm(`לאפס בנק ל-${eliminated.length} שחקנים שאיבדו הכל?\nכל אחד יקבל ${settings.starting_bank.toLocaleString()} נק׳ מחדש.`)) return;
+    setResettingBanks(true);
+    for (const p of eliminated) {
+      await supabase.from('profiles').update({ bank: settings.starting_bank }).eq('id', p.id);
+    }
+    await loadPlayers();
+    setResettingBanks(false);
+  }
+
   async function deletePlayerBets(playerId: string, name: string) {
     if (!confirm(`למחוק את כל ההימורים של ${name}?`)) return;
     setDeleting(playerId);
@@ -322,24 +346,67 @@ export default function AdminPage() {
           <div className="fade-in">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-lg">שחקנים ({players.length})</h2>
-              <button onClick={loadPlayers} className="p-2 rounded-lg" style={{background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer'}}>
-                <RefreshCw size={15} />
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={resetEliminatedBanks}
+                  disabled={resettingBanks}
+                  className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium"
+                  style={{background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',color:'#fbbf24',cursor:'pointer'}}
+                  title="אפס בנק לשחקנים שאיבדו הכל (סוף שלב הבתים)"
+                >
+                  {resettingBanks ? '...' : '🔄 הזדמנות שנייה'}
+                </button>
+                <button onClick={loadPlayers} className="p-2 rounded-lg" style={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-muted)',cursor:'pointer'}}>
+                  <RefreshCw size={15} />
+                </button>
+              </div>
             </div>
             <div className="flex flex-col gap-3">
               {players.map((p, i) => (
-                <div key={p.id} className="card p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="bebas text-2xl w-8 text-center" style={{color: i === 0 ? 'var(--gold)' : 'var(--text-muted)'}}>{i + 1}</span>
-                    <div>
-                      <div className="font-semibold">{p.display_name}</div>
-                      <div className="text-xs" style={{color: 'var(--text-muted)'}}>{p.id === profile?.id ? 'אתה' : ''}</div>
+                <div key={p.id} className="card p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="bebas text-2xl w-8 text-center" style={{color: i === 0 ? 'var(--gold)' : 'var(--text-muted)'}}>{i + 1}</span>
+                      <div>
+                        <div className="font-semibold">{p.display_name}</div>
+                        <div className="text-xs" style={{color: 'var(--text-muted)'}}>{p.id === profile?.id ? 'אתה' : ''}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-lg" style={{color: 'var(--green)'}}>{p.bank.toLocaleString()}</span>
-                    <span className="text-xs" style={{color: 'var(--text-muted)'}}>נק׳</span>
-                    {p.role === 'admin' && <span className="badge-admin">Admin</span>}
+                    <div className="flex items-center gap-2">
+                      {editingBank === p.id ? (
+                        <>
+                          <input
+                            type="number"
+                            className="input text-center"
+                            style={{width: 90, fontSize: '0.9rem'}}
+                            value={editBankValue}
+                            onChange={e => setEditBankValue(e.target.value)}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => updateBank(p.id, parseInt(editBankValue) || 0)}
+                            className="px-2 py-1 rounded text-xs font-bold"
+                            style={{background:'var(--green)',color:'#000',cursor:'pointer'}}
+                          >✓</button>
+                          <button
+                            onClick={() => setEditingBank(null)}
+                            className="px-2 py-1 rounded text-xs"
+                            style={{background:'var(--surface)',color:'var(--text-muted)',border:'1px solid var(--border)',cursor:'pointer'}}
+                          >✕</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold text-lg" style={{color: p.bank === 0 ? '#f87171' : 'var(--green)'}}>{p.bank.toLocaleString()}</span>
+                          <span className="text-xs" style={{color: 'var(--text-muted)'}}>נק׳</span>
+                          {p.role === 'admin' && <span className="badge-admin">Admin</span>}
+                          <button
+                            onClick={() => { setEditingBank(p.id); setEditBankValue(String(p.bank)); }}
+                            className="px-2 py-1 rounded text-xs"
+                            style={{background:'var(--surface)',color:'var(--text-muted)',border:'1px solid var(--border)',cursor:'pointer'}}
+                          >ערוך</button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

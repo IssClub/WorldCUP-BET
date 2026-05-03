@@ -17,7 +17,14 @@ export default function LeaderboardPage() {
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const channel = supabase
+      .channel('leaderboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   async function load() {
     setLoading(true);
