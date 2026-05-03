@@ -84,11 +84,12 @@ function extractOdds(g: any): { home_win: number; draw: number; away_win: number
 }
 
 // ── GameCard ──────────────────────────────────────────────
-function GameCard({ game, settings, bet, existingBet, onChange }: {
+function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
   game: Game;
   settings: Settings;
   bet: BetState;
   existingBet: Bet | null;
+  isStarted: boolean;
   onChange: (b: Partial<BetState>) => void;
 }) {
   const odds: Record<Pick, number> = { home: game.home_win, draw: game.draw, away: game.away_win };
@@ -111,6 +112,32 @@ function GameCard({ game, settings, bet, existingBet, onChange }: {
     Math.round(settings.max_bet * 0.66 / 25) * 25,
     settings.max_bet,
   ].filter((v, i, a) => a.indexOf(v) === i && v >= settings.min_bet && v <= settings.max_bet);
+
+  // ── Started & no bet ──
+  if (isStarted && !existingBet) {
+    return (
+      <div className="gc gc-locked">
+        <div className="gc-teams">
+          <div className="gc-team">
+            <Flag team={game.home_team} />
+            <span className="gc-tname">{teamHe(game.home_team)}</span>
+          </div>
+          <div className="gc-mid">
+            <span className="gc-time">{fmtTime(game.commence_time)}</span>
+            <span className="gc-vs">VS</span>
+          </div>
+          <div className="gc-team">
+            <Flag team={game.away_team} />
+            <span className="gc-tname">{teamHe(game.away_team)}</span>
+          </div>
+        </div>
+        <div className="gc-lock-msg">
+          <Lock size={13} />
+          <span>ההימורים נסגרו — המשחק התחיל</span>
+        </div>
+      </div>
+    );
+  }
 
   // ── Already bet ──
   if (existingBet) {
@@ -512,6 +539,7 @@ export default function PlayerPage() {
   }
 
   const readyBets = activeGames.filter(g => {
+    if (new Date(g.commence_time) <= new Date()) return false;
     const b = bets[g.id];
     return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
   });
@@ -557,7 +585,7 @@ export default function PlayerPage() {
 
   // ── Loading ──
   if (loading) return (
-    <div className="min-h-screen pitch-bg flex items-center justify-center">
+    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
       <div className="text-center">
         <div className="text-5xl mb-4 animate-pulse">⚽</div>
         <div className="bebas text-3xl" style={{ color: 'var(--green)' }}>טוען משחקים...</div>
@@ -567,7 +595,7 @@ export default function PlayerPage() {
   );
 
   return (
-    <div className="min-h-screen pitch-bg pb-32">
+    <div className="pitch-bg pb-32" style={{ minHeight: '100dvh' }}>
 
       {/* ── Header ── */}
       <header className="hdr">
@@ -626,6 +654,7 @@ export default function PlayerPage() {
                 settings={settings!}
                 bet={getBet(game.id)}
                 existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
+                isStarted={new Date(game.commence_time) <= new Date()}
                 onChange={upd => updateBet(game.id, upd)}
               />
             ))}

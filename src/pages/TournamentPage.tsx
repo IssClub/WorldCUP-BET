@@ -15,6 +15,9 @@ interface Game {
   away_win: number;
 }
 
+interface GameScore { homeScore: number; awayScore: number; completed: boolean }
+type ScoreMap = Record<string, GameScore>;
+
 // שידורים ישראל — עדכן כשתהיה רשימה רשמית
 const CHANNEL_MAP: { home: string; away: string; channel: string }[] = [
   // { home: 'Argentina', away: 'France', channel: 'ערוץ 12 + Sport 5' },
@@ -141,9 +144,10 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
 }
 
 // ── Schedule view (chronological + group badge + channel) ─
-function ScheduleView({ games, groups }: {
+function ScheduleView({ games, groups, scoreMap }: {
   games: Game[];
   groups: Map<string, { teams: string[]; games: Game[] }>;
+  scoreMap: ScoreMap;
 }) {
   // Map each game ID → group letter
   const gameToGroup = new Map<string, string>();
@@ -195,13 +199,27 @@ function ScheduleView({ games, groups }: {
                     {ch && <span className="sch-channel">{ch}</span>}
                   </div>
 
-                  {/* Match row: home | VS | away */}
+                  {/* Match row: home | VS/score | away */}
                   <div className="sch-match">
                     <div className="sch-home">
                       <Flag team={g.home_team} size={28} />
                       <span className="sch-tname">{teamHe(g.home_team)}</span>
                     </div>
-                    <span className="sch-vs">VS</span>
+                    {(() => {
+                      const sc = scoreMap[g.id];
+                      if (sc) return (
+                        <div className="sch-score">
+                          <span className="sch-score-num">{sc.homeScore}</span>
+                          <span className="sch-score-sep">:</span>
+                          <span className="sch-score-num">{sc.awayScore}</span>
+                          {sc.completed && <span className="sch-score-ft">סיים</span>}
+                          {!sc.completed && <span className="sch-score-live">חי</span>}
+                        </div>
+                      );
+                      const now = new Date();
+                      if (new Date(g.commence_time) <= now) return <span className="sch-vs">🔴</span>;
+                      return <span className="sch-vs">VS</span>;
+                    })()}
                     <div className="sch-away">
                       <span className="sch-tname">{teamHe(g.away_team)}</span>
                       <Flag team={g.away_team} size={28} />
@@ -294,14 +312,35 @@ function TopScorersView() {
 
 // ── Standings row ─────────────────────────────────────────
 interface Standing {
-  team: string; p: number; w: number; d: number; l: number; pts: number;
+  team: string; p: number; w: number; d: number; l: number; pts: number; gf: number; ga: number;
 }
 
-function StandingsView({ groups }: { groups: Map<string, { teams: string[]; games: Game[] }> }) {
+function StandingsView({ groups, scoreMap }: {
+  groups: Map<string, { teams: string[]; games: Game[] }>;
+  scoreMap: ScoreMap;
+}) {
   return (
     <div className="flex flex-col gap-4">
-      {Array.from(groups.entries()).map(([letter, { teams }]) => {
-        const rows: Standing[] = teams.map(t => ({ team: t, p: 0, w: 0, d: 0, l: 0, pts: 0 }));
+      {Array.from(groups.entries()).map(([letter, { teams, games: grpGames }]) => {
+        const rows: Standing[] = teams.map(t => ({ team: t, p: 0, w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0 }));
+
+        // Calculate from actual scores
+        for (const g of grpGames) {
+          const sc = scoreMap[g.id];
+          if (!sc || !sc.completed) continue;
+          const home = rows.find(r => r.team === g.home_team);
+          const away = rows.find(r => r.team === g.away_team);
+          if (!home || !away) continue;
+          home.p++; away.p++;
+          home.gf += sc.homeScore; home.ga += sc.awayScore;
+          away.gf += sc.awayScore; away.ga += sc.homeScore;
+          if (sc.homeScore > sc.awayScore) { home.w++; home.pts += 3; away.l++; }
+          else if (sc.awayScore > sc.homeScore) { away.w++; away.pts += 3; home.l++; }
+          else { home.d++; away.d++; home.pts++; away.pts++; }
+        }
+
+        rows.sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf);
+
         return (
           <div key={letter} className="trn-group-card">
             <div className="trn-standings-hdr">
@@ -382,24 +421,40 @@ function RulesView() {
 // ── Main ──────────────────────────────────────────────────
 export default function TournamentPage() {
   const [games, setGames] = useState<Game[]>([]);
+  const [scoreMap, setScoreMap] = useState<ScoreMap>({});
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'schedule' | 'standings' | 'scorers' | 'rules'>('schedule');
   const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
 
   useEffect(() => {
-    fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`)
-      .then(r => r.json())
-      .then((raw: any[]) => {
-        const processed = raw.map(g => {
+    const key = ODDS_KEY;
+    Promise.all([
+      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`).then(r => r.ok ? r.json() : []),
+      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${key}&daysFrom=3`).then(r => r.ok ? r.json() : []),
+    ]).then(([oddsRaw, scoresRaw]) => {
+      // Process odds
+      if (Array.isArray(oddsRaw)) {
+        const processed = oddsRaw.map((g: any) => {
           const o = extractOdds(g);
           if (!o) return null;
           return { id: g.id, home_team: g.home_team, away_team: g.away_team, commence_time: g.commence_time, ...o };
         }).filter(Boolean) as Game[];
         processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
         setGames(processed);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      }
+      // Process scores
+      if (Array.isArray(scoresRaw)) {
+        const map: ScoreMap = {};
+        for (const g of scoresRaw) {
+          if (!g.scores?.length) continue;
+          const homeScore = parseInt(g.scores.find((s: any) => s.name === g.home_team)?.score ?? '-1');
+          const awayScore = parseInt(g.scores.find((s: any) => s.name === g.away_team)?.score ?? '-1');
+          if (homeScore < 0 || awayScore < 0) continue;
+          map[g.id] = { homeScore, awayScore, completed: !!g.completed };
+        }
+        setScoreMap(map);
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const groups = useMemo(() => inferGroups(games), [games]);
@@ -457,8 +512,8 @@ export default function TournamentPage() {
           </button>
         </div>
 
-        {view === 'schedule' && <ScheduleView games={games} groups={groups} />}
-        {view === 'standings' && <StandingsView groups={groups} />}
+        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />}
+        {view === 'standings' && <StandingsView groups={groups} scoreMap={scoreMap} />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
       </div>

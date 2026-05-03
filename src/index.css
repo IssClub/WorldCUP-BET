@@ -229,6 +229,11 @@ body {
   background: rgba(0,30,15,0.5);
   border-color: rgba(0,200,83,0.25);
 }
+.gc-locked { opacity: 0.5; pointer-events: none; }
+.gc-lock-msg {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 0.72rem; color: var(--text-muted); padding: 6px 0 2px;
+}
 
 /* Teams row */
 .gc-teams {
@@ -623,6 +628,20 @@ body {
   font-family: 'Bebas Neue', cursive; font-size: 0.85rem; color: var(--text-muted);
   letter-spacing: 1px; flex-shrink: 0;
 }
+.sch-score {
+  display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0;
+}
+.sch-score-num {
+  font-family: 'Bebas Neue', cursive; font-size: 1.5rem; line-height: 1; color: var(--text);
+}
+.sch-score-sep {
+  font-family: 'Bebas Neue', cursive; font-size: 0.9rem; color: var(--text-muted); line-height: 0.8;
+}
+.sch-score-ft { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; margin-top: 2px; }
+.sch-score-live {
+  font-size: 0.55rem; color: #ef4444; font-weight: 700; letter-spacing: 0.5px; margin-top: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
 .sch-knockout {
   background: rgba(19,40,64,0.6); border: 1px solid rgba(255,214,0,0.15);
   border-radius: 16px; padding: 14px; margin-top: 4px;
@@ -857,6 +876,12 @@ body {
   border-radius: 10px; padding: 1px 7px;
 }
 .ldr-record { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.ldr-extras { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.ldr-profit-pos { font-size: 0.68rem; color: var(--green); font-weight: 600; }
+.ldr-profit-neg { font-size: 0.68rem; color: #f87171; font-weight: 600; }
+.ldr-streak-win { font-size: 0.68rem; color: var(--gold); }
+.ldr-streak-lose { font-size: 0.68rem; color: var(--text-muted); }
+.ldr-biggest-win { font-size: 0.68rem; color: var(--text-muted); }
 .ldr-bank-wrap { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; }
 .ldr-bank { font-family: 'Bebas Neue', cursive; font-size: 1.5rem; line-height: 1.1; }
 .ldr-bank-lbl { font-size: 0.6rem; color: var(--text-muted); }
