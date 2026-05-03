@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare } from 'lucide-react';
-import type { TopScorer } from '../lib/supabase';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star } from 'lucide-react';
+import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
+import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -14,12 +15,20 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special'>('invites');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
   const [savingScorer, setSavingScorer] = useState(false);
+
+  // Special bets settlement
+  const SPECIAL_STAKE = 100; // נקודות וירטואליות לחישוב פיצוי ניחושי טורניר
+  const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
+  const [actualWinner, setActualWinner] = useState('');
+  const [actualScorer, setActualScorer] = useState('');
+  const [settlingSpecial, setSettlingSpecial] = useState(false);
+  const [specialMsg, setSpecialMsg] = useState('');
 
   // Settlement state
   type GameGroup = { external_game_id: string; home_team: string; away_team: string; kickoff_at: string; bets: Bet[] };
@@ -54,6 +63,55 @@ export default function AdminPage() {
     setScorers((data as TopScorer[]) || []);
   }, []);
 
+  const loadSpecialBets = useCallback(async () => {
+    const { data } = await supabase.from('special_bets').select('*');
+    setSpecialBets((data as SpecialBet[]) || []);
+  }, []);
+
+  async function settleSpecialBets() {
+    if (!actualWinner && !actualScorer) return;
+    const lines = [];
+    if (actualWinner) lines.push(`זוכה הטורניר: ${teamHe(actualWinner)}`);
+    if (actualScorer) lines.push(`מלך השערים: ${actualScorer}`);
+    if (!confirm(`לסגור ניחושי טורניר?\n${lines.join('\n')}\n\nפעולה זו בלתי הפיכה.`)) return;
+
+    setSettlingSpecial(true);
+    setSpecialMsg('');
+
+    const toSettle = specialBets.filter(sb =>
+      (sb.type === 'winner' && actualWinner) || (sb.type === 'top_scorer' && actualScorer)
+    );
+
+    const playerPayouts: Record<string, number> = {};
+
+    for (const sb of toSettle) {
+      const isWinner = sb.type === 'winner'
+        ? sb.prediction === actualWinner
+        : sb.prediction === actualScorer;
+
+      await supabase.from('special_bets')
+        .update({ status: isWinner ? 'won' : 'lost' })
+        .eq('id', sb.id);
+
+      if (isWinner) {
+        const odds = sb.type === 'winner'
+          ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1
+          : TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
+        playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + Math.floor(SPECIAL_STAKE * odds);
+      }
+    }
+
+    for (const [playerId, payout] of Object.entries(playerPayouts)) {
+      const { data: prof } = await supabase.from('profiles').select('bank').eq('id', playerId).single();
+      if (prof) await supabase.from('profiles').update({ bank: prof.bank + payout }).eq('id', playerId);
+    }
+
+    await loadSpecialBets();
+    setSettlingSpecial(false);
+    const winnersCount = Object.keys(playerPayouts).length;
+    setSpecialMsg(`✓ נסגר בהצלחה! ${winnersCount} שחקנים זכו בנקודות בונוס.`);
+  }
+
   useEffect(() => {
     loadInvites();
     loadPlayers();
@@ -61,7 +119,8 @@ export default function AdminPage() {
     loadBetCounts();
     loadScorers();
     loadPendingGames();
-  }, [loadInvites, loadPlayers, loadSettings, loadScorers]);
+    loadSpecialBets();
+  }, [loadInvites, loadPlayers, loadSettings, loadScorers, loadSpecialBets]);
 
   async function upsertScorer() {
     if (!newScorer.player_name.trim()) return;
@@ -187,6 +246,7 @@ export default function AdminPage() {
     { key: 'data', label: 'נתונים', icon: Database },
     { key: 'scorers', label: 'שערים', icon: Shirt },
     { key: 'results', label: 'תוצאות', icon: CheckSquare },
+    { key: 'special', label: 'ניחושי טורניר', icon: Star },
   ] as const;
 
   return (
@@ -460,6 +520,114 @@ export default function AdminPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {tab === 'special' && (
+          <div className="fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-lg">סגירת ניחושי טורניר</h2>
+              <button onClick={loadSpecialBets} className="p-2 rounded-lg" style={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-muted)',cursor:'pointer'}}>
+                <RefreshCw size={15}/>
+              </button>
+            </div>
+
+            {/* סיכום ניחושים */}
+            {(() => {
+              const winnerBets = specialBets.filter(sb => sb.type === 'winner');
+              const scorerBets = specialBets.filter(sb => sb.type === 'top_scorer');
+              const winnerGroups: Record<string, number> = {};
+              const scorerGroups: Record<string, number> = {};
+              winnerBets.forEach(sb => { winnerGroups[sb.prediction] = (winnerGroups[sb.prediction] || 0) + 1; });
+              scorerBets.forEach(sb => { scorerGroups[sb.prediction] = (scorerGroups[sb.prediction] || 0) + 1; });
+              const alreadySettled = specialBets.some(sb => sb.status !== 'pending');
+
+              return (
+                <>
+                  {alreadySettled && (
+                    <div className="card p-4 mb-4" style={{border:'1px solid rgba(0,200,83,0.3)',background:'rgba(0,200,83,0.05)'}}>
+                      <div className="font-semibold" style={{color:'var(--green)'}}>✓ ניחושי הטורניר כבר נסגרו</div>
+                    </div>
+                  )}
+
+                  <div className="card p-4 mb-4">
+                    <div className="font-semibold text-sm mb-3" style={{color:'var(--gold)'}}>🏆 זוכה הטורניר — {winnerBets.length} ניחושים</div>
+                    {Object.entries(winnerGroups).sort((a,b) => b[1]-a[1]).map(([team, count]) => (
+                      <div key={team} className="flex justify-between text-sm py-1" style={{borderBottom:'1px solid var(--border)'}}>
+                        <span>{teamHe(team)}</span>
+                        <span style={{color:'var(--text-muted)'}}>{count} שחקן{count > 1 ? 'ים' : ''}</span>
+                      </div>
+                    ))}
+                    {winnerBets.length === 0 && <div className="text-sm" style={{color:'var(--text-muted)'}}>אין ניחושים עדיין</div>}
+                  </div>
+
+                  <div className="card p-4 mb-6">
+                    <div className="font-semibold text-sm mb-3" style={{color:'var(--gold)'}}>👟 מלך השערים — {scorerBets.length} ניחושים</div>
+                    {Object.entries(scorerGroups).sort((a,b) => b[1]-a[1]).map(([player, count]) => (
+                      <div key={player} className="flex justify-between text-sm py-1" style={{borderBottom:'1px solid var(--border)'}}>
+                        <span>{player}</span>
+                        <span style={{color:'var(--text-muted)'}}>{count} שחקן{count > 1 ? 'ים' : ''}</span>
+                      </div>
+                    ))}
+                    {scorerBets.length === 0 && <div className="text-sm" style={{color:'var(--text-muted)'}}>אין ניחושים עדיין</div>}
+                  </div>
+
+                  {/* טופס סגירה */}
+                  {!alreadySettled && (
+                    <div className="card p-5" style={{border:'1px solid rgba(255,214,0,0.2)'}}>
+                      <div className="font-bold mb-4" style={{color:'var(--gold)'}}>סגירת ניחושים (סוף יולי 2026)</div>
+                      <div className="text-xs mb-4" style={{color:'var(--text-muted)'}}>
+                        כל שחקן שניחש נכון יקבל {SPECIAL_STAKE} נק׳ × יחס ההימור שלו כנקודות בונוס.
+                      </div>
+
+                      <div className="flex flex-col gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>🏆 מי זכה בטורניר?</label>
+                          <select
+                            className="input w-full"
+                            value={actualWinner}
+                            onChange={e => setActualWinner(e.target.value)}
+                          >
+                            <option value="">— לא מסגר —</option>
+                            {WINNER_ODDS.map(o => (
+                              <option key={o.name} value={o.name}>{teamHe(o.name)} (×{o.price})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>👟 מי מלך השערים?</label>
+                          <select
+                            className="input w-full"
+                            value={actualScorer}
+                            onChange={e => setActualScorer(e.target.value)}
+                          >
+                            <option value="">— לא מסגר —</option>
+                            {TOP_SCORER_ODDS.map(o => (
+                              <option key={o.name} value={o.name}>{o.name} ({o.team}) ×{o.price}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {specialMsg && (
+                          <div className="text-sm px-3 py-2 rounded-lg" style={{background:'rgba(0,200,83,0.1)',color:'var(--green)',border:'1px solid rgba(0,200,83,0.2)'}}>
+                            {specialMsg}
+                          </div>
+                        )}
+
+                        <button
+                          className="btn-primary"
+                          onClick={settleSpecialBets}
+                          disabled={settlingSpecial || (!actualWinner && !actualScorer)}
+                        >
+                          {settlingSpecial ? 'מעדכן...' : '✓ סגור ניחושים וחלק נקודות'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
