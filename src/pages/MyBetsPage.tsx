@@ -45,6 +45,9 @@ export default function MyBetsPage() {
     } else {
       setBets((betsRes.data as Bet[]) || []);
     }
+    if (specialRes.error) {
+      console.error('special_bets error:', specialRes.error.message);
+    }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
     setLoading(false);
   }
