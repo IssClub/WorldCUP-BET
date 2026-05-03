@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { supabase } from './lib/supabase';
 import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
@@ -7,7 +8,7 @@ import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import { registerPush, pushSupported } from './lib/push';
-import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing } from 'lucide-react';
+import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, Lock } from 'lucide-react';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
@@ -54,10 +55,87 @@ function PushModal({ userId }: { userId: string }) {
   );
 }
 
+function ResetPasswordPage() {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  async function handleReset() {
+    if (password.length < 6) { setError('סיסמה חייבת להיות לפחות 6 תווים'); return; }
+    if (password !== confirm) { setError('הסיסמאות לא תואמות'); return; }
+    setLoading(true);
+    const { error: e } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (e) { setError(e.message); return; }
+    setDone(true);
+    setTimeout(() => window.location.replace(window.location.pathname.split('?')[0]), 2500);
+  }
+
+  return (
+    <div className="pitch-bg flex items-center justify-center p-4" style={{ minHeight: '100dvh' }}>
+      <div className="w-full max-w-md fade-in">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4"
+               style={{background: 'rgba(0,200,83,0.15)', border: '2px solid rgba(0,200,83,0.4)'}}>
+            <Lock size={36} style={{color: 'var(--green)'}} />
+          </div>
+          <h1 className="bebas text-4xl tracking-wider" style={{color: 'var(--text)'}}>סיסמה חדשה</h1>
+        </div>
+        <div className="card p-6 flex flex-col gap-4">
+          {done ? (
+            <div className="text-center py-4">
+              <div className="text-4xl mb-3">✅</div>
+              <div className="font-bold" style={{color: 'var(--green)'}}>הסיסמה עודכנה בהצלחה!</div>
+              <div className="text-sm mt-1" style={{color: 'var(--text-muted)'}}>מעביר אותך לאפליקציה...</div>
+            </div>
+          ) : (
+            <>
+              <input
+                className="input"
+                type="password"
+                placeholder="סיסמה חדשה (לפחות 6 תווים)"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              <input
+                className="input"
+                type="password"
+                placeholder="אמת סיסמה"
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+              />
+              {error && (
+                <div className="text-sm px-3 py-2 rounded-lg" style={{background:'rgba(239,68,68,0.1)',color:'#f87171',border:'1px solid rgba(239,68,68,0.2)'}}>
+                  {error}
+                </div>
+              )}
+              <button className="btn-primary" onClick={handleReset} disabled={loading}>
+                {loading ? 'שומר...' : 'שמור סיסמה חדשה'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   const { user, profile, loading } = useAuth();
   const [tab, setTab] = useState<Tab>('bets');
+  const [isRecovery, setIsRecovery] = useState(false);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   const isAdmin = profile?.role === 'admin';
+
+  if (isRecovery) return <ResetPasswordPage />;
 
   if (loading) return (
     <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
