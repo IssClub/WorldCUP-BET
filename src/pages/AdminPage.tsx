@@ -23,7 +23,6 @@ export default function AdminPage() {
   const [savingScorer, setSavingScorer] = useState(false);
 
   // Special bets settlement
-  const SPECIAL_STAKE = 100; // נקודות וירטואליות לחישוב פיצוי ניחושי טורניר
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [actualWinner, setActualWinner] = useState('');
   const [actualScorer, setActualScorer] = useState('');
@@ -97,7 +96,8 @@ export default function AdminPage() {
         const odds = sb.type === 'winner'
           ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1
           : TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
-        playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + Math.floor(SPECIAL_STAKE * odds);
+        const stake = settings?.special_bet_stake ?? 100;
+        playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + Math.floor(stake * odds);
       }
     }
 
@@ -233,6 +233,7 @@ export default function AdminPage() {
       min_bet: settings.min_bet,
       max_bet: settings.max_bet,
       no_bet_penalty: settings.no_bet_penalty,
+      special_bet_stake: settings.special_bet_stake,
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -577,7 +578,8 @@ export default function AdminPage() {
                     <div className="card p-5" style={{border:'1px solid rgba(255,214,0,0.2)'}}>
                       <div className="font-bold mb-4" style={{color:'var(--gold)'}}>סגירת ניחושים (סוף יולי 2026)</div>
                       <div className="text-xs mb-4" style={{color:'var(--text-muted)'}}>
-                        כל שחקן שניחש נכון יקבל {SPECIAL_STAKE} נק׳ × יחס ההימור שלו כנקודות בונוס.
+                        כל שחקן שניחש נכון יקבל {settings?.special_bet_stake ?? 100} נק׳ × יחס ההימור שלו כנקודות בונוס.
+                        (ניתן לשנות ב"הגדרות")
                       </div>
 
                       <div className="flex flex-col gap-4">
@@ -641,6 +643,7 @@ export default function AdminPage() {
                   { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
                   { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
                   { key: 'no_bet_penalty', label: 'קנס על אי-הימור', hint: 'נקודות' },
+                  { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
                 ].map(field => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>

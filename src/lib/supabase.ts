@@ -85,4 +85,5 @@ export type Settings = {
   min_bet: number;
   max_bet: number;
   no_bet_penalty: number;
+  special_bet_stake: number;
 };
