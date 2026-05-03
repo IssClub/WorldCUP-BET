@@ -50,7 +50,7 @@ export default function MyBetsPage() {
     if (specialRes.error) {
       setSpecialError('שגיאת DB: ' + specialRes.error.message);
     } else if (!specialRes.data?.length) {
-      setSpecialError('אין נתונים (player_id=' + profile.id.slice(0, 8) + '…)');
+      setSpecialError('אין נתונים (player_id=' + profile?.id.slice(0, 8) + '…)');
     }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
     setLoading(false);
