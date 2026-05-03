@@ -583,6 +583,27 @@ export default function PlayerPage() {
     }
   }
 
+  // ── Bank = 0 — eliminated ──
+  if (!loading && profile && (profile.bank ?? 0) <= 0) return (
+    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
+      <div className="page-wrap text-center">
+        <div className="text-6xl mb-4">💸</div>
+        <div className="bebas text-3xl mb-2" style={{ color: '#f87171' }}>נגמרו הנקודות</div>
+        <div className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+          הבנק שלך מגיע לאפס — אתה מחוץ למשחק עד סוף שלב הבתים
+        </div>
+        <div className="card p-5" style={{ textAlign: 'right' }}>
+          <div className="text-sm font-bold mb-2" style={{ color: 'var(--gold)' }}>🏆 עדיין אפשר לעקוב:</div>
+          <div className="text-sm" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            • טבלת דירוג — ראה איפה אתה עומד<br />
+            • לשונית מונדיאל — תוצאות ולוח משחקים<br />
+            • בסוף שלב הבתים — כל השחקנים מתחילים מחדש
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Loading ──
   if (loading) return (
     <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
@@ -642,8 +663,25 @@ export default function PlayerPage() {
         {activeGames.length === 0 ? (
           <div className="card p-10 text-center mt-2">
             <div className="text-5xl mb-4">⚽</div>
-            <div className="font-bold text-lg mb-1">אין משחקים בקרוב</div>
-            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
+            {(() => {
+              const now = new Date();
+              const tournamentStart = new Date('2026-06-11');
+              const tournamentEnd   = new Date('2026-07-20');
+              const duringTournament = now >= tournamentStart && now <= tournamentEnd;
+              return duringTournament ? (
+                <>
+                  <div className="font-bold text-lg mb-1">משחקי היום החלו</div>
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    אין הימורים פתוחים כרגע — עבור ללשונית מונדיאל לתוצאות
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-bold text-lg mb-1">אין משחקים בקרוב</div>
+                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
+                </>
+              );
+            })()}
           </div>
         ) : (
           <div className="games-list">

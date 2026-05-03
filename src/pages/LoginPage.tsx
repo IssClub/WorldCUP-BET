@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  const isAdminEmail = email.toLowerCase() === 'issgpt@gmail.com';
+
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +19,7 @@ export default function LoginPage() {
     setSuccess('');
     if (!email || !password) { setError('נא למלא אימייל וסיסמה'); return; }
     if (mode === 'register' && !displayName) { setError('נא למלא שם תצוגה'); return; }
-    if (mode === 'register' && !inviteCode && email.toLowerCase() !== 'issgpt@gmail.com') { setError('נא להזין קוד הזמנה'); return; }
+    if (mode === 'register' && !inviteCode) { setError('נא להזין קוד הזמנה'); return; }
 
     setLoading(true);
     try {
@@ -93,7 +93,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {mode === 'register' && !isAdminEmail && (
+            {mode === 'register' && (
               <div className="relative">
                 <Key size={16} className="absolute top-1/2 -translate-y-1/2" style={{left: 'auto', right: '14px', color: 'var(--text-muted)'}} />
                 <input
