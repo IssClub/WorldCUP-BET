@@ -28,6 +28,7 @@ export default function MyBetsPage() {
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [specialError, setSpecialError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
 
   useEffect(() => { if (profile) loadBets(); }, [profile?.id]);
@@ -36,6 +37,7 @@ export default function MyBetsPage() {
     if (!profile) return;
     setLoading(true);
     setLoadError('');
+    setSpecialError('');
     const [betsRes, specialRes] = await Promise.all([
       supabase.from('bets').select('*').eq('player_id', profile.id).order('kickoff_at', { ascending: false }),
       supabase.from('special_bets').select('*').eq('player_id', profile.id),
@@ -46,7 +48,9 @@ export default function MyBetsPage() {
       setBets((betsRes.data as Bet[]) || []);
     }
     if (specialRes.error) {
-      console.error('special_bets error:', specialRes.error.message);
+      setSpecialError('שגיאת DB: ' + specialRes.error.message);
+    } else if (!specialRes.data?.length) {
+      setSpecialError('אין נתונים (player_id=' + profile.id.slice(0, 8) + '…)');
     }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
     setLoading(false);
@@ -118,6 +122,13 @@ export default function MyBetsPage() {
             <span className="mb-stat-lbl">נרוויחו</span>
           </div>
         </div>
+
+        {/* DEBUG — יוסר אחרי אבחון */}
+        {specialError && (
+          <div style={{ background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: '0.75rem', color: '#93c5fd', direction: 'ltr', wordBreak: 'break-all' }}>
+            🔍 {specialError}
+          </div>
+        )}
 
         {/* ניחושי טורניר */}
         {specialBets.length > 0 && (
