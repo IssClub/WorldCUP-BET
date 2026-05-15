@@ -398,7 +398,20 @@ export default function AdminPage() {
                         <>
                           <span className="font-bold text-lg" style={{color: p.bank === 0 ? '#f87171' : 'var(--green)'}}>{p.bank.toLocaleString()}</span>
                           <span className="text-xs" style={{color: 'var(--text-muted)'}}>נק׳</span>
-                          {p.role === 'admin' && <span className="badge-admin">Admin</span>}
+                          {p.role === 'admin'
+                            ? <span className="badge-admin">Admin</span>
+                            : (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`להפוך את ${p.display_name} לאדמין?`)) return;
+                                  await supabase.from('profiles').update({ role: 'admin' }).eq('id', p.id);
+                                  await loadPlayers();
+                                }}
+                                className="px-2 py-1 rounded text-xs"
+                                style={{background:'rgba(255,214,0,0.1)',border:'1px solid rgba(255,214,0,0.3)',color:'var(--gold)',cursor:'pointer'}}
+                              >👑 אדמין</button>
+                            )
+                          }
                           <button
                             onClick={() => { setEditingBank(p.id); setEditBankValue(String(p.bank)); }}
                             className="px-2 py-1 rounded text-xs"
