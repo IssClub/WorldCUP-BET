@@ -1,0 +1,32 @@
+name: Pre-game reminders and auto-bets
+
+on:
+  schedule:
+    # כל 5 דקות בשעות המשחקים (17:00–04:00 UTC = 20:00–07:00 ישראל)
+    - cron: '*/5 17-23 * 6,7 *'
+    - cron: '*/5 0-4  * 6,7 *'
+
+  workflow_dispatch:  # כפתור הפעלה ידנית
+
+jobs:
+  pre-game:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Pre-game reminders and auto-bets
+        run: node scripts/pre-game.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}

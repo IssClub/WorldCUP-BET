@@ -258,6 +258,7 @@ export default function AdminPage() {
       max_bet: settings.max_bet,
       no_bet_penalty: settings.no_bet_penalty,
       special_bet_stake: settings.special_bet_stake,
+      auto_bet_amount: settings.auto_bet_amount,
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -724,6 +725,7 @@ export default function AdminPage() {
                   { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
                   { key: 'no_bet_penalty', label: 'קנס על אי-הימור', hint: 'נקודות' },
                   { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
+                  { key: 'auto_bet_amount', label: 'הימור אוטומטי (5 דקות לפני)', hint: 'נקודות' },
                 ].map(field => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>

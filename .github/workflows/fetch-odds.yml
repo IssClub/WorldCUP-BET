@@ -1,0 +1,32 @@
+name: Fetch and lock odds
+
+on:
+  schedule:
+    # כל שעה בשעות הטורניר (יוני–יולי 2026)
+    - cron: '0 * * 6,7 *'
+    # פעם ביום מחוץ לטורניר (לאיסוף יחסים ראשוניים לפני הטורניר)
+    - cron: '0 12 * 1-5,8-12 *'
+
+  workflow_dispatch:  # כפתור הפעלה ידנית
+
+jobs:
+  fetch-odds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fetch and lock odds
+        run: node scripts/fetch-odds.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}

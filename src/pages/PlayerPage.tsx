@@ -133,7 +133,7 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         </div>
         <div className="gc-lock-msg">
           <Lock size={13} />
-          <span>ההימורים נסגרו — המשחק התחיל</span>
+          <span>ההימורים נסגרו</span>
         </div>
       </div>
     );
@@ -497,7 +497,33 @@ export default function PlayerPage() {
 
       if (gamesRes.ok) {
         const raw: any[] = await gamesRes.json();
+
+        // שלוף יחסים נעולים מה-DB עבור המשחקים האלה
+        const gameIds = raw.map(g => g.id);
+        const { data: lockedOdds } = await supabase
+          .from('locked_odds')
+          .select('*')
+          .in('external_game_id', gameIds);
+
+        const lockedMap = new Map(
+          (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
+        );
+
         const processed = raw.map(g => {
+          const locked = lockedMap.get(g.id);
+          if (locked) {
+            // השתמש ביחסים הנעולים מה-DB
+            return {
+              id: g.id,
+              home_team: g.home_team,
+              away_team: g.away_team,
+              commence_time: g.commence_time,
+              home_win: Number(locked.home_win),
+              draw: Number(locked.draw_win),
+              away_win: Number(locked.away_win),
+            };
+          }
+          // fallback — יחסים חיים מה-API (עדיין לא נעולים)
           const o = extractOdds(g);
           if (!o) return null;
           return { id: g.id, home_team: g.home_team, away_team: g.away_team, commence_time: g.commence_time, ...o };
@@ -538,8 +564,10 @@ export default function PlayerPage() {
     setBets(prev => ({ ...prev, [id]: { ...getBet(id), ...upd } }));
   }
 
+  // סגירת הימורים 5 דקות לפני kickoff
+  const CUTOFF_MS = 5 * 60 * 1000;
   const readyBets = activeGames.filter(g => {
-    if (new Date(g.commence_time) <= new Date()) return false;
+    if (new Date(g.commence_time).getTime() <= Date.now() + CUTOFF_MS) return false;
     const b = bets[g.id];
     return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
   });
@@ -692,7 +720,7 @@ export default function PlayerPage() {
                 settings={settings!}
                 bet={getBet(game.id)}
                 existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
-                isStarted={new Date(game.commence_time) <= new Date()}
+                isStarted={new Date(game.commence_time).getTime() <= Date.now() + CUTOFF_MS}
                 onChange={upd => updateBet(game.id, upd)}
               />
             ))}

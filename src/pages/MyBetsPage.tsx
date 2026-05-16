@@ -5,7 +5,7 @@ import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
-import { Trash2, Trophy, Star } from 'lucide-react';
+import { Trash2, Trophy, Star, BellRing } from 'lucide-react';
 
 function Flag({ team }: { team: string }) {
   const url = flagUrl(team, 'w40');
@@ -66,6 +66,19 @@ export default function MyBetsPage() {
 
   const canCancel = (bet: Bet) =>
     bet.status === 'pending' && new Date(bet.kickoff_at) > new Date();
+
+  async function sendTestPush() {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (!reg) {
+      alert('Service worker לא פעיל — אפשר לנסות לאשר התראות קודם');
+      return;
+    }
+    reg.showNotification('🔔 בדיקת התראה', {
+      body: 'ההתראות עובדות מצוין! ✅',
+      icon: '/WorldCUP-BET/icon-trophy.png',
+      badge: '/WorldCUP-BET/icon-trophy.png',
+    });
+  }
 
   const totalBet = bets.reduce((s, b) => s + b.amount, 0);
   const totalWon = bets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
@@ -226,6 +239,27 @@ export default function MyBetsPage() {
             })}
           </div>
         )}
+        {/* כפתור בדיקת התראות */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={sendTestPush}
+            style={{
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              color: 'var(--text-muted)',
+              fontSize: '0.8rem',
+              padding: '6px 14px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <BellRing size={13} />
+            בדוק התראות
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -75,12 +75,7 @@ async function main() {
 
   console.log(`Found ${count} pending bet(s) on started games. Fetching scores...`);
 
-  // Step 2: fetch settings (for penalty amount)
-  const { data: settings } = await supabase.from('settings').select('*').single();
-  const penalty = settings?.no_bet_penalty ?? 50;
-  console.log(`No-bet penalty: ${penalty} pts`);
-
-  // Step 3: fetch all active players (bank > 0, they're still in the game)
+  // Step 2: fetch all active players (bank > 0, they're still in the game)
   const { data: allProfiles } = await supabase
     .from('profiles').select('id, bank, display_name');
   const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
@@ -155,30 +150,6 @@ async function main() {
       const newBank = current + payout;
       bankMap[playerId] = newBank;
       await supabase.from('profiles').update({ bank: newBank }).eq('id', playerId);
-    }
-
-    // ── Apply no-bet penalty ──
-    const bettingPlayerIds = new Set(bets.map(b => b.player_id));
-    const nonBettors = activePlayers.filter(p => !bettingPlayerIds.has(p.id));
-    if (nonBettors.length > 0) {
-      console.log(`Applying penalty of ${penalty} pts to ${nonBettors.length} non-bettors`);
-    }
-    for (const player of nonBettors) {
-      const current = bankMap[player.id] ?? player.bank;
-      if (current <= 0) continue; // already out
-      const newBank = Math.max(0, current - penalty);
-      bankMap[player.id] = newBank;
-      await supabase.from('profiles').update({ bank: newBank }).eq('id', player.id);
-
-      if (!todayChange[player.id]) todayChange[player.id] = 0;
-      todayChange[player.id] -= penalty;
-
-      // Notify about penalty
-      await sendPush(player.id, {
-        title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
-        body: `⚠️ לא הימרת — קנס ${penalty} נק׳ | יתרה: ${newBank.toLocaleString()} נק׳`,
-        url: '/WorldCUP-BET/',
-      });
     }
 
     // ── Build updated leaderboard for rank display ──

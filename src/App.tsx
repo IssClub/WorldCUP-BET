@@ -18,11 +18,22 @@ function PushModal({ userId }: { userId: string }) {
 
   useEffect(() => {
     if (!pushSupported()) return;
-    if (Notification.permission === 'default') {
-      const timer = setTimeout(() => setShow(true), 800);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+    // אם המשתמש כבר אישר או דחה — לא מציגים
+    if (Notification.permission !== 'default') return;
+    // בדוק אם המשתמש כבר פוטר את החלון הזה בעבר
+    if (localStorage.getItem('pushDismissed')) return;
+
+    // בדוק אם כבר יש subscription פעיל ב-DB
+    supabase
+      .from('push_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('player_id', userId)
+      .then(({ count }) => {
+        if (!count || count === 0) {
+          setTimeout(() => setShow(true), 800);
+        }
+      });
+  }, [userId]);
 
   async function enable() {
     setRegistering(true);
@@ -46,7 +57,7 @@ function PushModal({ userId }: { userId: string }) {
           <button className="push-modal-yes" onClick={enable} disabled={registering}>
             {registering ? '...' : '✅ אשר התראות'}
           </button>
-          <button className="push-modal-no" onClick={() => setShow(false)}>
+          <button className="push-modal-no" onClick={() => { localStorage.setItem('pushDismissed', '1'); setShow(false); }}>
             לא עכשיו
           </button>
         </div>

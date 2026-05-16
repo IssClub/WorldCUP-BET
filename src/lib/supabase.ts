@@ -86,4 +86,5 @@ export type Settings = {
   max_bet: number;
   no_bet_penalty: number;
   special_bet_stake: number;
+  auto_bet_amount: number;
 };
