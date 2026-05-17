@@ -516,10 +516,12 @@ export default function PlayerPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [gamesRes, settingsRes, betsRes] = await Promise.all([
+      const [gamesRes, settingsRes, betsRes, customGamesRes] = await Promise.all([
         fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`),
         supabase.from('settings').select('*').single(),
         supabase.from('bets').select('*').eq('player_id', profile!.id),
+        supabase.from('custom_games').select('*').eq('is_active', true)
+          .gte('kickoff_at', new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()),
       ]);
 
       if (gamesRes.ok) {
@@ -563,7 +565,19 @@ export default function PlayerPage() {
             oddsLocked: false,
           };
         }) as Game[];
-        setGames(processed);
+        // משחקים מותאמים (סימולציה / ליגה ישראלית)
+        const customProcessed: Game[] = ((customGamesRes as any).data ?? []).map((cg: any) => ({
+          id: cg.id,
+          home_team: cg.home_team,
+          away_team: cg.away_team,
+          commence_time: cg.kickoff_at,
+          home_win: Number(cg.home_win),
+          draw: Number(cg.draw_win),
+          away_win: Number(cg.away_win),
+          oddsLocked: true,
+        }));
+
+        setGames([...customProcessed, ...processed]);
       }
       if (settingsRes.data) setSettings(settingsRes.data);
       if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
