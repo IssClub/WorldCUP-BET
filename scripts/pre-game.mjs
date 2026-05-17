@@ -74,13 +74,23 @@ async function main() {
   const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
 
   // ── חלון תזכורת ────────────────────────────────────────────
-  const { data: reminderGames } = await supabase
-    .from('locked_odds')
-    .select('*')
-    .gt('kickoff_at', reminderFrom)
-    .lt('kickoff_at', reminderTo);
+  const { data: reminderLocked } = await supabase
+    .from('locked_odds').select('*')
+    .gt('kickoff_at', reminderFrom).lt('kickoff_at', reminderTo);
 
-  for (const game of (reminderGames ?? [])) {
+  const { data: reminderCustom } = await supabase
+    .from('custom_games').select('*').eq('is_active', true)
+    .gt('kickoff_at', reminderFrom).lt('kickoff_at', reminderTo);
+
+  const reminderGames = [
+    ...(reminderLocked ?? []),
+    ...(reminderCustom ?? []).map(g => ({
+      external_game_id: g.id, home_team: g.home_team, away_team: g.away_team,
+      kickoff_at: g.kickoff_at, home_win: g.home_win, draw_win: g.draw_win, away_win: g.away_win,
+    })),
+  ];
+
+  for (const game of reminderGames) {
     // בדוק אם כבר נשלחה תזכורת למשחק הזה
     const { data: alreadySent } = await supabase
       .from('game_reminders')
@@ -119,13 +129,23 @@ async function main() {
   }
 
   // ── חלון הימור-אוטומטי ──────────────────────────────────────
-  const { data: autoGames } = await supabase
-    .from('locked_odds')
-    .select('*')
-    .gt('kickoff_at', autoFrom)
-    .lt('kickoff_at', autoTo);
+  const { data: autoLocked } = await supabase
+    .from('locked_odds').select('*')
+    .gt('kickoff_at', autoFrom).lt('kickoff_at', autoTo);
 
-  for (const game of (autoGames ?? [])) {
+  const { data: autoCustom } = await supabase
+    .from('custom_games').select('*').eq('is_active', true)
+    .gt('kickoff_at', autoFrom).lt('kickoff_at', autoTo);
+
+  const autoGames = [
+    ...(autoLocked ?? []),
+    ...(autoCustom ?? []).map(g => ({
+      external_game_id: g.id, home_team: g.home_team, away_team: g.away_team,
+      kickoff_at: g.kickoff_at, home_win: g.home_win, draw_win: g.draw_win, away_win: g.away_win,
+    })),
+  ];
+
+  for (const game of autoGames) {
     // מי כבר המר?
     const { data: existingBets } = await supabase
       .from('bets')

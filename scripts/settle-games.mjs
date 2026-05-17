@@ -192,6 +192,7 @@ async function main() {
   }
 
   await maybeSendDailySummary(settledAnyGame, bankMap, activePlayers, todayChange);
+  await processPushQueue();
   console.log('Done.');
 }
 
@@ -240,6 +241,19 @@ async function maybeSendDailySummary(justSettled, bankMap = {}, activePlayers = 
       body: `${changeStr} | יתרה: ${bank.toLocaleString()} נק׳`,
       url: '/WorldCUP-BET/',
     });
+  }
+}
+
+// ── Push queue (for manually settled games) ───────────────
+async function processPushQueue() {
+  const { data: pending } = await supabase
+    .from('push_queue').select('*').eq('sent', false).order('created_at');
+  if (!pending?.length) return;
+  console.log(`Processing ${pending.length} queued push notification(s)...`);
+  for (const item of pending) {
+    await sendPush(item.player_id, { title: item.title, body: item.body, url: '/WorldCUP-BET/' });
+    await supabase.from('push_queue')
+      .update({ sent: true, sent_at: new Date().toISOString() }).eq('id', item.id);
   }
 }
 

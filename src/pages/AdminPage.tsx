@@ -34,6 +34,11 @@ export default function AdminPage() {
   const [settlingSpecial, setSettlingSpecial] = useState(false);
   const [specialMsg, setSpecialMsg] = useState('');
 
+  // ביטויי זכייה/הפסד לפוש
+  const WIN_PHRASES = ['🏆 אלוף!', '👑 מלך!', '🎯 תותח!', '🔥 מי יכול עליך?', '🌟 כוכב!', '🚀 על הגג!'];
+  const LOSS_PHRASES = ['😅 יהיה בסדר...', '🤦 אאוץ׳', '💀 רי פי', '🫠 נמס', '🃏 הפעם לא, חבר', '😬 כואב אבל בונה אופי'];
+  const randomPhrase = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
   // Settlement state
   type GameGroup = { external_game_id: string; home_team: string; away_team: string; kickoff_at: string; bets: Bet[] };
   const [pendingGames, setPendingGames] = useState<GameGroup[]>([]);
@@ -179,6 +184,20 @@ export default function AdminPage() {
     for (const [playerId, totalPayout] of Object.entries(playerPayouts)) {
       const { data: prof } = await supabase.from('profiles').select('bank').eq('id', playerId).single();
       if (prof) await supabase.from('profiles').update({ bank: prof.bank + totalPayout }).eq('id', playerId);
+    }
+
+    // הכנס פושים לתור
+    const pushTitle = `⚽ ${teamHe(game.home_team)} ${homeScore}:${awayScore} ${teamHe(game.away_team)}`;
+    const pushRows = game.bets.map(bet => {
+      const won = bet.pick === winner;
+      const payout = playerPayouts[bet.player_id] ?? 0;
+      const body = won
+        ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳`
+        : `${randomPhrase(LOSS_PHRASES)} הפסדת ${bet.amount.toLocaleString()} נק׳`;
+      return { player_id: bet.player_id, title: pushTitle, body };
+    });
+    if (pushRows.length > 0) {
+      await supabase.from('push_queue').insert(pushRows);
     }
 
     setSettling(null);
