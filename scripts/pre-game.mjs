@@ -109,7 +109,7 @@ async function main() {
     for (const player of nonBettors) {
       await sendPush(player.id, {
         title: '⏰ 15 דקות למשחק!',
-        body: `${he(game.home_team)} נגד ${he(game.away_team)} — מהר לפני שהסגירה!`,
+        body: `${he(game.home_team)} נגד ${he(game.away_team)} — מהר, תהמר, לפני שייסגר 😉`,
         url: '/WorldCUP-BET/',
       });
     }
@@ -190,7 +190,7 @@ async function main() {
       if (!isMonkey) {
         await sendPush(player.id, {
           title: '🤖 הימור אוטומטי!',
-          body: `הימרנו ${autoAmount} נק׳ על ${pickHe} — ${he(game.home_team)} נגד ${he(game.away_team)}`,
+          body: `הימרנו ${autoAmount} נק׳ על ${pickHe} (${oddsValue.toFixed(2)}×) — ${he(game.home_team)} נגד ${he(game.away_team)}`,
           url: '/WorldCUP-BET/',
         });
       }

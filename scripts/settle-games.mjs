@@ -39,6 +39,23 @@ const HE = {
 };
 const he = name => HE[name] ?? name;
 
+// ביטויים רנדומליים לזכייה
+const WIN_PHRASES = [
+  '🏆 אלוף!', '👑 מלך!', '🎯 תותח!', '🔥 מי יכול עליך?',
+  '⚡ ה-WINNER של המונדיאל!', '💪 מכה כמו ברזיל!', '🌟 כוכב!',
+  '🎉 אגדה חיה!', '🦁 אריה!', '🚀 על הגג!',
+];
+
+// ביטויים רנדומליים להפסד
+const LOSS_PHRASES = [
+  '😅 יהיה בסדר...', '🤦 אאוץ׳', '🙈 לא רואה כלום',
+  '💀 רי פי', '🫠 נמס', '🃏 הפעם לא, חבר',
+  '⚰️ קבורת ה-100 נקודות', '😬 כואב אבל בונה אופי',
+  '🤡 הנביא של... לא', '🌧️ גשם על הפרדה',
+];
+
+const randomPhrase = arr => arr[Math.floor(Math.random() * arr.length)];
+
 // Send push to a player (handles expired subscriptions)
 async function sendPush(playerId, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
@@ -164,8 +181,8 @@ async function main() {
       const rank = rankMap[playerId];
       const rankText = rank ? ` · מקום ${rank}` : '';
       const body = payout > 0
-        ? `✅ זכית! +${payout.toLocaleString()} נק׳${rankText}`
-        : `❌ הפסדת ${lostAmount.toLocaleString()} נק׳${rankText}`;
+        ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳${rankText}`
+        : `${randomPhrase(LOSS_PHRASES)} הפסדת ${lostAmount.toLocaleString()} נק׳${rankText}`;
       await sendPush(playerId, {
         title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
         body,
