@@ -5,7 +5,7 @@ import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
-import { Trash2, Trophy, Star, BellRing } from 'lucide-react';
+import { Trash2, Trophy, Star, BellRing, Pencil, Check, X } from 'lucide-react';
 
 function Flag({ team }: { team: string }) {
   const url = flagUrl(team, 'w40');
@@ -29,6 +29,9 @@ export default function MyBetsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => { if (profile) loadBets(); }, [profile?.id]);
 
@@ -88,6 +91,17 @@ export default function MyBetsPage() {
     });
   }
 
+  async function saveName() {
+    if (!profile) return;
+    const trimmed = newName.trim();
+    if (trimmed.length < 2) { alert('שם חייב להיות לפחות 2 תווים'); return; }
+    setSavingName(true);
+    await supabase.from('profiles').update({ display_name: trimmed }).eq('id', profile.id);
+    await refresh();
+    setSavingName(false);
+    setEditingName(false);
+  }
+
   const totalBet = bets.reduce((s, b) => s + b.amount, 0);
   const totalWon = bets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
   const pending = bets.filter(b => b.status === 'pending').length;
@@ -103,7 +117,38 @@ export default function MyBetsPage() {
       <header className="hdr">
         <div className="hdr-inner">
           <span className="font-bold">ההימורים שלי</span>
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
+          <div className="flex items-center gap-2">
+            {editingName ? (
+              <>
+                <input
+                  className="input"
+                  style={{ fontSize: '0.85rem', padding: '4px 8px', width: 130, textAlign: 'right' }}
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
+                  autoFocus
+                  maxLength={30}
+                />
+                <button onClick={saveName} disabled={savingName} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--green)' }}>
+                  <Check size={16} />
+                </button>
+                <button onClick={() => setEditingName(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171' }}>
+                  <X size={16} />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
+                <button
+                  onClick={() => { setNewName(profile?.display_name ?? ''); setEditingName(true); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', opacity: 0.6 }}
+                  title="שנה שם"
+                >
+                  <Pencil size={13} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
