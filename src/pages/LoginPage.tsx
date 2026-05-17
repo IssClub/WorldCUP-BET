@@ -28,7 +28,8 @@ export default function LoginPage() {
       return;
     }
     if (!email || !password) { setError('נא למלא אימייל וסיסמה'); return; }
-    if (mode === 'register' && !displayName) { setError('נא למלא שם תצוגה'); return; }
+    if (mode === 'register' && !displayName.trim()) { setError('נא למלא שם תצוגה'); return; }
+    if (mode === 'register' && displayName.trim().length < 2) { setError('שם תצוגה חייב להיות לפחות 2 תווים'); return; }
     if (mode === 'register' && !inviteCode) { setError('נא להזין קוד הזמנה'); return; }
 
     setLoading(true);

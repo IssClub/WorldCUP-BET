@@ -64,19 +64,27 @@ export default function MyBetsPage() {
     setCancelling(null);
   }
 
+  // ביטול אפשרי רק עד 5 דקות לפני kickoff (עקבי עם סגירת ההימורים)
   const canCancel = (bet: Bet) =>
-    bet.status === 'pending' && new Date(bet.kickoff_at) > new Date();
+    bet.status === 'pending' && new Date(bet.kickoff_at).getTime() > Date.now() + 5 * 60 * 1000;
 
   async function sendTestPush() {
-    const reg = await navigator.serviceWorker?.getRegistration();
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+      alert('הדפדפן שלך לא תומך בהתראות');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      alert('התראות לא אושרו — אשר התראות קודם דרך כפתור הפעמון בעמוד הראשי');
+      return;
+    }
+    const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) {
-      alert('Service worker לא פעיל — אפשר לנסות לאשר התראות קודם');
+      alert('Service worker לא פעיל — נסה לרענן את הדף');
       return;
     }
     reg.showNotification('🔔 בדיקת התראה', {
       body: 'ההתראות עובדות מצוין! ✅',
       icon: '/WorldCUP-BET/icon-trophy.png',
-      badge: '/WorldCUP-BET/icon-trophy.png',
     });
   }
 
