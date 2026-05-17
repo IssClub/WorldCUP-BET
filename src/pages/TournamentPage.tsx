@@ -477,6 +477,7 @@ export default function TournamentPage() {
           <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{games.length} משחקים · {groups.size} בתים</span>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">
         {/* Banner */}

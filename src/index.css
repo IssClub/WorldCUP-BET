@@ -22,7 +22,6 @@ body {
   background-color: var(--bg);
   color: var(--text);
   direction: rtl;
-  padding-top: env(safe-area-inset-top);
 }
 
 .bebas { font-family: 'Bebas Neue', cursive; }
@@ -169,8 +168,9 @@ body {
 
 /* ── Header ─────────────────────────────────────────────── */
 .hdr {
-  position: sticky; top: 0; z-index: 20;
-  background: rgba(10,14,26,0.92);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  padding-top: env(safe-area-inset-top);
+  background: rgba(10,14,26,0.96);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
@@ -179,6 +179,11 @@ body {
   max-width: 480px; margin: 0 auto;
   padding: 12px 16px;
   display: flex; align-items: center; justify-content: space-between;
+}
+/* רווח מתחת ל-header הקבוע — מוסיפים אחרי כל <header className="hdr"> */
+.hdr-spacer {
+  height: calc(env(safe-area-inset-top) + 48px);
+  flex-shrink: 0;
 }
 
 /* ── Bank card ───────────────────────────────────────────── */

@@ -658,6 +658,7 @@ export default function PlayerPage() {
           </div>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="page-wrap">
         {/* ── Bank ── */}

@@ -95,6 +95,7 @@ export default function LeaderboardPage() {
           </button>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4 flex flex-col gap-3">
         {/* Banner */}

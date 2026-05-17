@@ -5,7 +5,8 @@ import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
-import { Trash2, Trophy, Star, BellRing, Pencil, Check, X } from 'lucide-react';
+import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
+import { registerPush, pushSupported } from '../lib/push';
 
 function Flag({ team }: { team: string }) {
   const url = flagUrl(team, 'w40');
@@ -151,6 +152,7 @@ export default function MyBetsPage() {
           </div>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">
         {/* שגיאת טעינה */}
@@ -292,27 +294,30 @@ export default function MyBetsPage() {
             })}
           </div>
         )}
-        {/* כפתור בדיקת התראות */}
-        <div className="mt-6 text-center">
-          <button
-            onClick={sendTestPush}
-            style={{
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              color: 'var(--text-muted)',
-              fontSize: '0.8rem',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <BellRing size={13} />
-            בדוק התראות
-          </button>
-        </div>
+        {/* כפתור התראות */}
+        {pushSupported() && (
+          <div className="mt-6 text-center">
+            {Notification.permission === 'granted' ? (
+              <button onClick={sendTestPush} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <BellRing size={13} />
+                בדוק התראות
+              </button>
+            ) : Notification.permission === 'denied' ? (
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <BellOff size={13} />
+                התראות חסומות — הפעל ב-הגדרות האייפון → Safari / האפליקציה
+              </div>
+            ) : (
+              <button
+                onClick={async () => { if (profile) await registerPush(profile.id); }}
+                style={{ background: 'var(--green)', border: 'none', borderRadius: 8, color: '#000', fontSize: '0.85rem', fontWeight: 700, padding: '8px 18px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <BellRing size={14} />
+                הפעל התראות
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

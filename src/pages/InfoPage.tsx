@@ -72,6 +72,7 @@ export default function InfoPage() {
           <span style={{ fontSize: '1.2rem' }}>📖</span>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4 flex flex-col gap-4">
         {/* Banner */}
