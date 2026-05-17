@@ -277,7 +277,14 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen pitch-bg">
-      <header className="sticky top-0 z-10" style={{background: 'rgba(10,14,26,0.95)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(10px)'}}>
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20,
+        paddingTop: 'env(safe-area-inset-top)',
+        background: 'rgba(10,14,26,0.96)',
+        borderBottom: '1px solid var(--border)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+      }}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Trophy size={22} style={{color: 'var(--green)'}} />
@@ -290,6 +297,7 @@ export default function AdminPage() {
           </button>
         </div>
       </header>
+      <div className="hdr-spacer" />
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
