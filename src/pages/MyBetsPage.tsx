@@ -125,7 +125,7 @@ export default function MyBetsPage() {
           </div>
           <div className="mb-stat">
             <span className="mb-stat-val" style={{ color: 'var(--green)' }}>{totalWon.toLocaleString()}</span>
-            <span className="mb-stat-lbl">נרוויחו</span>
+            <span className="mb-stat-lbl">זכיות</span>
           </div>
         </div>
 
