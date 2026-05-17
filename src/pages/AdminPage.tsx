@@ -723,7 +723,6 @@ export default function AdminPage() {
                   { key: 'starting_bank', label: 'בנק פתיחה לשחקן חדש', hint: 'נקודות' },
                   { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
                   { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
-                  { key: 'no_bet_penalty', label: 'קנס על אי-הימור', hint: 'נקודות' },
                   { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
                   { key: 'auto_bet_amount', label: 'הימור אוטומטי (5 דקות לפני)', hint: 'נקודות' },
                 ].map(field => (
