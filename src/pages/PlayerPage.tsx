@@ -18,6 +18,7 @@ interface Game {
   home_win: number;
   draw: number;
   away_win: number;
+  oddsLocked: boolean;
 }
 
 interface BetState {
@@ -93,6 +94,32 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
   onChange: (b: Partial<BetState>) => void;
 }) {
   const odds: Record<Pick, number> = { home: game.home_win, draw: game.draw, away: game.away_win };
+
+  // ── No locked odds yet ──
+  if (!game.oddsLocked && !existingBet) {
+    return (
+      <div className="gc gc-locked">
+        <div className="gc-teams">
+          <div className="gc-team">
+            <Flag team={game.home_team} />
+            <span className="gc-tname">{teamHe(game.home_team)}</span>
+          </div>
+          <div className="gc-mid">
+            <span className="gc-time">{fmtTime(game.commence_time)}</span>
+            <span className="gc-vs">VS</span>
+          </div>
+          <div className="gc-team">
+            <Flag team={game.away_team} />
+            <span className="gc-tname">{teamHe(game.away_team)}</span>
+          </div>
+        </div>
+        <div className="gc-lock-msg">
+          <Lock size={13} />
+          <span>יחסים ייפתחו 48 שעות לפני המשחק</span>
+        </div>
+      </div>
+    );
+  }
 
   const pickLabel = (p: Pick) => {
     if (p === 'draw') return 'תיקו';
@@ -512,7 +539,7 @@ export default function PlayerPage() {
         const processed = raw.map(g => {
           const locked = lockedMap.get(g.id);
           if (locked) {
-            // השתמש ביחסים הנעולים מה-DB
+            // יחסים נעולים מה-DB — הכרטיסייה פעילה
             return {
               id: g.id,
               home_team: g.home_team,
@@ -521,13 +548,21 @@ export default function PlayerPage() {
               home_win: Number(locked.home_win),
               draw: Number(locked.draw_win),
               away_win: Number(locked.away_win),
+              oddsLocked: true,
             };
           }
-          // fallback — יחסים חיים מה-API (עדיין לא נעולים)
-          const o = extractOdds(g);
-          if (!o) return null;
-          return { id: g.id, home_team: g.home_team, away_team: g.away_team, commence_time: g.commence_time, ...o };
-        }).filter(Boolean) as Game[];
+          // אין יחסים נעולים עדיין — מציג משחק אבל חוסם הימור
+          return {
+            id: g.id,
+            home_team: g.home_team,
+            away_team: g.away_team,
+            commence_time: g.commence_time,
+            home_win: 0,
+            draw: 0,
+            away_win: 0,
+            oddsLocked: false,
+          };
+        }) as Game[];
         setGames(processed);
       }
       if (settingsRes.data) setSettings(settingsRes.data);
@@ -567,6 +602,7 @@ export default function PlayerPage() {
   // סגירת הימורים 5 דקות לפני kickoff
   const CUTOFF_MS = 5 * 60 * 1000;
   const readyBets = activeGames.filter(g => {
+    if (!g.oddsLocked) return false;
     if (new Date(g.commence_time).getTime() <= Date.now() + CUTOFF_MS) return false;
     const b = bets[g.id];
     return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
