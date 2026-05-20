@@ -318,7 +318,7 @@ export default function AdminPage() {
       </header>
       <div className="hdr-spacer" />
 
-      <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="max-w-3xl mx-auto px-4 py-6 pb-28">
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{scrollbarWidth:'none'}}>
           {tabs.map(t => (
             <button

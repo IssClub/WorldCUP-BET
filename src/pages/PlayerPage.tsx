@@ -26,7 +26,6 @@ interface BetState {
   amount: number;
   exactHome: string;
   exactAway: string;
-  showExact: boolean;
 }
 
 // ── Flag component ────────────────────────────────────────
@@ -130,7 +129,8 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
 
   const potential = bet.pick && bet.amount > 0
     ? Math.floor(bet.amount * odds[bet.pick]) : 0;
-  const bonusPotential = bet.showExact && potential > 0
+  const hasExact = bet.exactHome !== '' && bet.exactAway !== '';
+  const bonusPotential = hasExact && potential > 0
     ? Math.floor(potential * 1.5) : 0;
 
   const presets = [
@@ -274,35 +274,30 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             )}
           </div>
 
-          {/* Exact score toggle */}
-          <button
-            className={`gc-exact-toggle ${bet.showExact ? 'gc-exact-on' : ''}`}
-            onClick={() => onChange({ showExact: !bet.showExact })}
-          >
-            🎯 {bet.showExact ? 'תוצאה מדויקת — בונוס ×1.5' : 'הוסף תוצאה מדויקת לבונוס'}
-          </button>
-
-          {bet.showExact && (
-            <div className="gc-exact-inputs fade-in">
-              <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
-              <input
-                type="number" min="0" max="20"
-                className="gc-score-input"
-                value={bet.exactHome}
-                onChange={e => onChange({ exactHome: e.target.value })}
-                placeholder="0"
-              />
-              <span className="gc-score-colon">:</span>
-              <input
-                type="number" min="0" max="20"
-                className="gc-score-input"
-                value={bet.exactAway}
-                onChange={e => onChange({ exactAway: e.target.value })}
-                placeholder="0"
-              />
-              <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
-            </div>
-          )}
+          {/* Exact score — mandatory */}
+          <div className="gc-exact-label">
+            🎯 תוצאה מדויקת <span style={{ color: '#f87171', fontWeight: 700 }}>*חובה</span>
+            {bonusPotential > 0 && <span style={{ color: 'var(--gold)', marginRight: 6 }}>· בונוס ×1.5</span>}
+          </div>
+          <div className="gc-exact-inputs">
+            <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
+            <input
+              type="number" min="0" max="20"
+              className="gc-score-input"
+              value={bet.exactHome}
+              onChange={e => onChange({ exactHome: e.target.value })}
+              placeholder="0"
+            />
+            <span className="gc-score-colon">:</span>
+            <input
+              type="number" min="0" max="20"
+              className="gc-score-input"
+              value={bet.exactAway}
+              onChange={e => onChange({ exactAway: e.target.value })}
+              placeholder="0"
+            />
+            <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
+          </div>
         </div>
       )}
     </div>
@@ -606,7 +601,7 @@ export default function PlayerPage() {
   const activeGames = activeDay ? (gamesByDay.get(activeDay) || []) : [];
 
   function getBet(id: string): BetState {
-    return bets[id] ?? { pick: null, amount: settings?.min_bet ?? 50, exactHome: '', exactAway: '', showExact: false };
+    return bets[id] ?? { pick: null, amount: settings?.min_bet ?? 50, exactHome: '', exactAway: '' };
   }
 
   function updateBet(id: string, upd: Partial<BetState>) {
@@ -622,11 +617,17 @@ export default function PlayerPage() {
     return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
   });
 
+  const allExactFilled = readyBets.every(g => {
+    const b = bets[g.id];
+    return b?.exactHome !== '' && b?.exactAway !== '';
+  });
+
   const totalCost = readyBets.reduce((s, g) => s + bets[g.id].amount, 0);
 
   async function submitBets() {
     if (!profile || !settings || readyBets.length === 0) return;
     if (totalCost > (profile.bank ?? 0)) { setError('אין מספיק נקודות בבנק'); return; }
+    if (!allExactFilled) { setError('יש להזין תוצאה מדויקת לכל ההימורים'); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -694,7 +695,7 @@ export default function PlayerPage() {
   );
 
   return (
-    <div className="pitch-bg pb-32" style={{ minHeight: '100dvh' }}>
+    <div className="pitch-bg pb-48" style={{ minHeight: '100dvh' }}>
 
       {/* ── Header ── */}
       <header className="hdr">
@@ -794,10 +795,12 @@ export default function PlayerPage() {
                 <span>ההימורים נשלחו בהצלחה!</span>
               </div>
             ) : (
-              <button className="submit-btn" onClick={submitBets} disabled={submitting}>
+              <button className="submit-btn" onClick={submitBets} disabled={submitting || !allExactFilled}>
                 {submitting
                   ? 'שולח...'
-                  : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
+                  : !allExactFilled
+                    ? 'הזן תוצאה מדויקת לכל ההימורים'
+                    : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
               </button>
             )}
           </div>

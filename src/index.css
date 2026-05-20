@@ -326,14 +326,11 @@ body {
 }
 
 /* Exact score */
-.gc-exact-toggle {
-  width: 100%; padding: 9px; margin-bottom: 8px;
-  border-radius: 10px; border: 1px dashed var(--border);
-  background: transparent; color: var(--text-muted);
-  font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
-  -webkit-tap-highlight-color: transparent;
+.gc-exact-label {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--text-muted); margin-bottom: 8px;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
 }
-.gc-exact-on { border-color: var(--gold); color: var(--gold); background: rgba(255,214,0,0.04); }
 .gc-exact-inputs {
   display: flex; align-items: center; justify-content: center;
   gap: 10px; padding: 4px 0;
@@ -369,8 +366,10 @@ body {
 
 /* ── Submit bar ──────────────────────────────────────────── */
 .submit-bar {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
-  padding: 10px 0 28px;
+  position: fixed;
+  bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  left: 0; right: 0; z-index: 35;
+  padding: 12px 0 10px;
   background: linear-gradient(to top, rgba(10,14,26,1) 60%, rgba(10,14,26,0) 100%);
 }
 .submit-btn {

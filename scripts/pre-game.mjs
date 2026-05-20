@@ -36,6 +36,19 @@ const HE = {
 };
 const he = name => HE[name] ?? name;
 
+// תוצאה רנדומלית הגיונית לפי הניחוש
+function randomScore(pick) {
+  if (pick === 'draw') {
+    const g = [0, 1, 1, 2, 2, 3][Math.floor(Math.random() * 6)];
+    return { home: g, away: g };
+  }
+  const scores = pick === 'home'
+    ? [[1,0],[2,0],[2,1],[3,0],[3,1],[1,0],[2,0],[3,2]]
+    : [[0,1],[0,2],[1,2],[0,3],[1,3],[0,1],[0,2],[2,3]];
+  const [h, a] = scores[Math.floor(Math.random() * scores.length)];
+  return { home: h, away: a };
+}
+
 async function sendPush(playerId, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
   const { data: subs } = await supabase
@@ -172,6 +185,7 @@ async function main() {
         : randomPick === 'draw' ? Number(game.draw_win)
         : Number(game.away_win);
       const isMonkey = player.display_name === '🐒 קוף';
+      const score = randomScore(randomPick);
 
       // הכנס הימור
       const { error: betErr } = await supabase.from('bets').insert({
@@ -183,8 +197,8 @@ async function main() {
         pick: randomPick,
         amount: autoAmount,
         odds_value: oddsValue,
-        exact_home: null,
-        exact_away: null,
+        exact_home: score.home,
+        exact_away: score.away,
         status: 'pending',
       });
 
