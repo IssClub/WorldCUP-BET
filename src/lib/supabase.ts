@@ -56,6 +56,8 @@ export type Bet = {
   odds_value: number;
   exact_home: number | null;
   exact_away: number | null;
+  actual_home: number | null;
+  actual_away: number | null;
   status: 'pending' | 'won' | 'lost' | 'cancelled';
   payout: number | null;
   created_at: string;

@@ -178,7 +178,7 @@ export default function AdminPage() {
         }
         playerPayouts[bet.player_id] = (playerPayouts[bet.player_id] || 0) + payout;
       }
-      await supabase.from('bets').update({ status: won ? 'won' : 'lost', payout: won ? payout : 0 }).eq('id', bet.id);
+      await supabase.from('bets').update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore }).eq('id', bet.id);
     }
 
     for (const [playerId, totalPayout] of Object.entries(playerPayouts)) {

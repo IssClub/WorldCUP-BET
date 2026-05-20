@@ -1,26 +1,50 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/supabase';
-import { Crown, RefreshCw } from 'lucide-react';
+import type { Profile, Bet } from '../lib/supabase';
+import { RefreshCw, Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import { teamHe } from '../lib/teamNames';
+import { flagUrl } from '../lib/flagMap';
 
 type PlayerStats = Profile & {
   wins: number;
   losses: number;
-  profit: number;
-  biggestWin: number;
-  streak: number;
+  exactHits: number;
+  bets: Bet[];
+};
+
+const TZ = 'Asia/Jerusalem';
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: TZ });
+
+function Flag({ team, size = 18 }: { team: string; size?: number }) {
+  const url = flagUrl(team, 'w40');
+  if (!url) return <span style={{ fontSize: size * 0.75 }}>⚽</span>;
+  return (
+    <img src={url} alt={team} width={size} height={Math.round(size * 0.6)}
+      style={{ borderRadius: 2, objectFit: 'cover', flexShrink: 0 }} />
+  );
+}
+
+const isExactHit = (bet: Bet) => {
+  if (bet.status !== 'won' || bet.exact_home === null) return false;
+  if (bet.actual_home !== null && bet.actual_away !== null) {
+    return bet.exact_home === bet.actual_home && bet.exact_away === bet.actual_away;
+  }
+  // fallback: payout > base means exact bonus was applied
+  return (bet.payout ?? 0) > Math.floor(bet.amount * bet.odds_value);
 };
 
 export default function LeaderboardPage() {
   const { profile: me } = useAuth();
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     load();
     const channel = supabase
-      .channel('leaderboard-realtime')
+      .channel('leaderboard-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -31,48 +55,30 @@ export default function LeaderboardPage() {
     const [profilesRes, betsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
       supabase.from('bets')
-        .select('player_id, status, amount, payout, created_at')
+        .select('*')
         .neq('status', 'pending')
         .neq('status', 'cancelled')
-        .order('created_at', { ascending: true }),
+        .order('kickoff_at', { ascending: false }),
     ]);
+
     const profiles: Profile[] = profilesRes.data || [];
-    const betRows = betsRes.data || [];
+    const bets: Bet[] = (betsRes.data || []) as Bet[];
 
-    const statsMap: Record<string, {
-      wins: number; losses: number; profit: number;
-      biggestWin: number; orderedStatuses: string[];
-    }> = {};
-
-    for (const b of betRows) {
-      if (!statsMap[b.player_id]) statsMap[b.player_id] = { wins: 0, losses: 0, profit: 0, biggestWin: 0, orderedStatuses: [] };
-      const s = statsMap[b.player_id];
-      s.orderedStatuses.push(b.status);
-      if (b.status === 'won') {
-        s.wins++;
-        s.profit += (b.payout || 0) - b.amount;
-        s.biggestWin = Math.max(s.biggestWin, b.payout || 0);
-      } else {
-        s.losses++;
-        s.profit -= b.amount;
-      }
-    }
-
-    function calcStreak(statuses: string[]): number {
-      if (!statuses.length) return 0;
-      const last = statuses[statuses.length - 1];
-      let count = 0;
-      for (let i = statuses.length - 1; i >= 0; i--) {
-        if (statuses[i] !== last) break;
-        count++;
-      }
-      return last === 'won' ? count : -count;
+    const betsByPlayer: Record<string, Bet[]> = {};
+    for (const bet of bets) {
+      if (!betsByPlayer[bet.player_id]) betsByPlayer[bet.player_id] = [];
+      betsByPlayer[bet.player_id].push(bet);
     }
 
     setPlayers(profiles.map(p => {
-      const s = statsMap[p.id];
-      if (!s) return { ...p, wins: 0, losses: 0, profit: 0, biggestWin: 0, streak: 0 };
-      return { ...p, wins: s.wins, losses: s.losses, profit: s.profit, biggestWin: s.biggestWin, streak: calcStreak(s.orderedStatuses) };
+      const pb = betsByPlayer[p.id] || [];
+      return {
+        ...p,
+        wins: pb.filter(b => b.status === 'won').length,
+        losses: pb.filter(b => b.status === 'lost').length,
+        exactHits: pb.filter(isExactHit).length,
+        bets: pb,
+      };
     }));
     setLoading(false);
   }
@@ -86,7 +92,7 @@ export default function LeaderboardPage() {
   const MEDALS = ['🥇', '🥈', '🥉'];
 
   return (
-    <div className="pb-24" style={{ minHeight: '100dvh' }}>
+    <div className="pb-28" style={{ minHeight: '100dvh' }}>
       <header className="hdr">
         <div className="hdr-inner">
           <span className="font-bold">טבלת דירוג</span>
@@ -98,91 +104,196 @@ export default function LeaderboardPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4 flex flex-col gap-3">
+
         {/* Banner */}
         <div className="ldr-banner">
-          <Crown size={32} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+          <Crown size={28} style={{ color: 'var(--gold)', flexShrink: 0 }} />
           <div>
             <div className="font-bold text-base">דירוג שחקנים</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{players.length} משתתפים · ממוין לפי בנק</div>
+            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+              {players.length} משתתפים · לחץ על שחקן לפירוט הימורים
+            </div>
           </div>
         </div>
 
-        {/* Top 3 podium */}
-        {players.length >= 3 && (
-          <div className="ldr-podium">
-            <div className="ldr-pod ldr-pod-2">
-              <div className="ldr-pod-medal">🥈</div>
-              <div className="ldr-pod-name">{players[1].display_name}</div>
-              <div className="ldr-pod-bank" style={{ color: '#c0c0c0' }}>{players[1].bank.toLocaleString()}</div>
-              <div className="ldr-pod-bar ldr-pod-bar-2" />
-            </div>
-            <div className="ldr-pod ldr-pod-1">
-              <div className="ldr-pod-medal">🥇</div>
-              <div className="ldr-pod-name" style={{ fontWeight: 800, color: 'var(--gold)' }}>{players[0].display_name}</div>
-              <div className="ldr-pod-bank" style={{ color: 'var(--gold)' }}>{players[0].bank.toLocaleString()}</div>
-              <div className="ldr-pod-bar ldr-pod-bar-1" />
-            </div>
-            <div className="ldr-pod ldr-pod-3">
-              <div className="ldr-pod-medal">🥉</div>
-              <div className="ldr-pod-name">{players[2].display_name}</div>
-              <div className="ldr-pod-bank" style={{ color: '#cd7f32' }}>{players[2].bank.toLocaleString()}</div>
-              <div className="ldr-pod-bar ldr-pod-bar-3" />
-            </div>
-          </div>
-        )}
+        {/* League table */}
+        <div className="card" style={{ overflow: 'hidden' }}>
 
-        {/* Full list */}
-        <div className="flex flex-col gap-2">
+          {/* Table header */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '30px 1fr 34px 34px 34px 58px',
+            padding: '8px 12px',
+            borderBottom: '1px solid var(--border)',
+            fontSize: '0.65rem',
+            fontWeight: 700,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase',
+          }}>
+            <span>#</span>
+            <span>שם</span>
+            <span style={{ textAlign: 'center' }}>✓</span>
+            <span style={{ textAlign: 'center' }}>✗</span>
+            <span style={{ textAlign: 'center' }}>🎯</span>
+            <span style={{ textAlign: 'right' }}>נק׳</span>
+          </div>
+
+          {/* Rows */}
           {players.map((p, i) => {
             const isMe = p.id === me?.id;
-            const settled = p.wins + p.losses;
-            const winRate = settled > 0 ? Math.round((p.wins / settled) * 100) : null;
+            const isOpen = expanded === p.id;
+            const completedBets = p.bets.filter(b => b.status === 'won' || b.status === 'lost');
+            const hasHistory = completedBets.length > 0;
 
             return (
-              <div key={p.id} className={`ldr-card ${isMe ? 'ldr-card-me' : ''}`}>
-                <div className="ldr-pos">
-                  {i < 3
-                    ? <span style={{ fontSize: '1.4rem' }}>{MEDALS[i]}</span>
-                    : <span className="ldr-pos-num">{i + 1}</span>}
-                </div>
+              <div key={p.id} style={{ borderBottom: i < players.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
 
-                <div className="ldr-info">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="ldr-name">{p.display_name}</span>
-                    {isMe && <span className="ldr-me-badge">אתה</span>}
-                  </div>
-                  {settled > 0 && (
-                    <div className="ldr-record">
-                      <span style={{ color: 'var(--green)' }}>{p.wins}✓</span>
-                      <span style={{ color: 'var(--text-muted)' }}> · </span>
-                      <span style={{ color: '#f87171' }}>{p.losses}✗</span>
-                      {winRate !== null && <span style={{ color: 'var(--text-muted)' }}> · {winRate}%</span>}
-                    </div>
-                  )}
-                  <div className="ldr-extras">
-                    {p.profit !== 0 && (
-                      <span className={p.profit > 0 ? 'ldr-profit-pos' : 'ldr-profit-neg'}>
-                        {p.profit > 0 ? '+' : ''}{p.profit.toLocaleString()} נק׳
-                      </span>
-                    )}
-                    {p.streak >= 3 && (
-                      <span className="ldr-streak-win">🔥 {p.streak} ברצף</span>
-                    )}
-                    {p.streak <= -3 && (
-                      <span className="ldr-streak-lose">❄️ {Math.abs(p.streak)} ברצף</span>
-                    )}
-                    {p.biggestWin > 0 && (
-                      <span className="ldr-biggest-win">⚡ {p.biggestWin.toLocaleString()}</span>
-                    )}
-                  </div>
-                </div>
+                {/* Player row */}
+                <div
+                  onClick={() => hasHistory && setExpanded(isOpen ? null : p.id)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '30px 1fr 34px 34px 34px 58px',
+                    padding: '11px 12px',
+                    alignItems: 'center',
+                    cursor: hasHistory ? 'pointer' : 'default',
+                    background: isMe ? 'rgba(0,200,83,0.07)' : 'transparent',
+                  }}
+                >
+                  {/* Position */}
+                  <span style={{
+                    fontSize: i < 3 ? '1.05rem' : '0.82rem',
+                    fontWeight: 700,
+                    color: i === 0 ? 'var(--gold)' : 'var(--text-muted)',
+                    lineHeight: 1,
+                  }}>
+                    {i < 3 ? MEDALS[i] : i + 1}
+                  </span>
 
-                <div className="ldr-bank-wrap">
-                  <span className="ldr-bank" style={{ color: i === 0 ? 'var(--gold)' : 'var(--green)' }}>
+                  {/* Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    <span style={{
+                      fontWeight: isMe ? 700 : 500,
+                      fontSize: '0.88rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {p.display_name}
+                    </span>
+                    {isMe && (
+                      <span style={{
+                        fontSize: '0.58rem', background: 'var(--green)', color: '#000',
+                        borderRadius: 4, padding: '1px 4px', fontWeight: 700, flexShrink: 0,
+                      }}>אתה</span>
+                    )}
+                    {hasHistory && (
+                      isOpen
+                        ? <ChevronUp size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        : <ChevronDown size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    )}
+                  </div>
+
+                  {/* Wins */}
+                  <span style={{ textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
+                    {p.wins}
+                  </span>
+
+                  {/* Losses */}
+                  <span style={{ textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
+                    {p.losses}
+                  </span>
+
+                  {/* Exact hits */}
+                  <span style={{ textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem' }}>
+                    {p.exactHits}
+                  </span>
+
+                  {/* Bank */}
+                  <span style={{
+                    textAlign: 'right',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    color: i === 0 ? 'var(--gold)' : p.bank < 500 ? '#f87171' : 'var(--green)',
+                  }}>
                     {p.bank.toLocaleString()}
                   </span>
-                  <span className="ldr-bank-lbl">נק׳</span>
                 </div>
+
+                {/* Expanded bet history */}
+                {isOpen && hasHistory && (
+                  <div style={{
+                    borderTop: '1px solid var(--border)',
+                    background: 'rgba(0,0,0,0.25)',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 5,
+                  }}>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, paddingRight: 2 }}>
+                      היסטוריית הימורים
+                    </div>
+                    {completedBets.map(bet => {
+                      const won = bet.status === 'won';
+                      const exact = isExactHit(bet);
+                      const pickLabel = bet.pick === 'home' ? teamHe(bet.home_team)
+                        : bet.pick === 'away' ? teamHe(bet.away_team) : 'תיקו';
+
+                      return (
+                        <div key={bet.id} style={{
+                          padding: '7px 9px',
+                          borderRadius: 8,
+                          background: won ? 'rgba(0,200,83,0.08)' : 'rgba(248,113,113,0.08)',
+                          border: `1px solid ${won ? 'rgba(0,200,83,0.18)' : 'rgba(248,113,113,0.18)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}>
+                          {/* Result badge */}
+                          <div style={{ fontSize: '1rem', flexShrink: 0 }}>
+                            {exact ? '🎯' : won ? '✅' : '❌'}
+                          </div>
+
+                          {/* Game + pick */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              <Flag team={bet.home_team} size={14} />
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.home_team)}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>-</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.away_team)}</span>
+                              <Flag team={bet.away_team} size={14} />
+                              <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)' }}>{fmtDate(bet.kickoff_at)}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.7rem' }}>
+                                ניחוש: <span style={{ color: won ? 'var(--green)' : '#f87171', fontWeight: 700 }}>{pickLabel}</span>
+                                {bet.exact_home !== null && (
+                                  <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
+                                    {' '}{bet.exact_home}:{bet.exact_away}
+                                  </span>
+                                )}
+                              </span>
+                              {bet.actual_home !== null && (
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                  תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_home}:{bet.actual_away}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Points change */}
+                          <div style={{ flexShrink: 0, textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: won ? 'var(--green)' : '#f87171' }}>
+                              {won ? `+${(bet.payout ?? 0).toLocaleString()}` : `-${bet.amount.toLocaleString()}`}
+                            </div>
+                            <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>נק׳</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

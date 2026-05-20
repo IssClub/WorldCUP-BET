@@ -148,7 +148,7 @@ async function main() {
         }
       }
       await supabase.from('bets')
-        .update({ status: won ? 'won' : 'lost', payout: won ? payout : 0 })
+        .update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore })
         .eq('id', bet.id);
 
       if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0, lostAmount: 0 };
