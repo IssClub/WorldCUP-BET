@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [editingBank, setEditingBank] = useState<string | null>(null);
   const [editBankValue, setEditBankValue] = useState('');
   const [resettingBanks, setResettingBanks] = useState(false);
+  const [cleaningSimulation, setCleaningSimulation] = useState(false);
 
   // Special bets settlement
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
@@ -259,6 +260,27 @@ export default function AdminPage() {
     setDeleting(null);
   }
 
+  async function cleanSimulation() {
+    if (!settings) return;
+    if (!confirm('ניקוי סימולציה:\n• מחיקת כל ההימורים\n• איפוס כל הבנקים ל-' + settings.starting_bank.toLocaleString() + ' נק׳\n• כיבוי כל המשחקים המותאמים\n• ניקוי תור הפושים\n\nהמשך?')) return;
+    if (!confirm('אתה בטוח? פעולה זו בלתי הפיכה.')) return;
+    setCleaningSimulation(true);
+    // מחק הימורים
+    await supabase.from('bets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    // אפס בנקים
+    const { data: allPlayers } = await supabase.from('profiles').select('id');
+    for (const p of (allPlayers ?? [])) {
+      await supabase.from('profiles').update({ bank: settings.starting_bank }).eq('id', p.id);
+    }
+    // כבה custom_games
+    await supabase.from('custom_games').update({ is_active: false }).eq('is_active', true);
+    // נקה push_queue
+    await supabase.from('push_queue').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await Promise.all([loadPlayers(), loadBetCounts()]);
+    setCleaningSimulation(false);
+    alert('✓ הסימולציה נוקתה — כל הבנקים אופסו ל-' + settings.starting_bank.toLocaleString() + ' נק׳');
+  }
+
   async function deleteAllBets() {
     if (!confirm('למחוק את כל ההימורים של כולם? פעולה זו בלתי הפיכה.')) return;
     if (!confirm('אתה בטוח לגמרי? כל ההיסטוריה תימחק.')) return;
@@ -461,6 +483,22 @@ export default function AdminPage() {
               <h2 className="font-bold text-lg">ניהול נתונים</h2>
               <button onClick={loadBetCounts} className="p-2 rounded-lg" style={{background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer'}}>
                 <RefreshCw size={15} />
+              </button>
+            </div>
+
+            {/* Simulation cleanup */}
+            <div className="card p-4 mb-4" style={{border: '1px solid rgba(255,152,0,0.35)', background: 'rgba(255,152,0,0.04)'}}>
+              <div className="font-semibold mb-1" style={{color: '#ff9800'}}>🧹 ניקוי סימולציה</div>
+              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                מוחק את כל ההימורים, מאפס בנקים ל-{settings?.starting_bank.toLocaleString()} נק׳, מכבה משחקים מותאמים ומנקה תור פושים
+              </div>
+              <button
+                onClick={cleanSimulation}
+                disabled={cleaningSimulation}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{background: 'rgba(255,152,0,0.15)', border: '1px solid rgba(255,152,0,0.5)', color: '#ff9800', cursor: 'pointer'}}
+              >
+                🧹 {cleaningSimulation ? 'מנקה...' : 'נקה סימולציה'}
               </button>
             </div>
 
