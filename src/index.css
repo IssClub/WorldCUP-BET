@@ -18,10 +18,15 @@
   --text-muted: #7da0c0;
 }
 
+html {
+  background: var(--bg);
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
   direction: rtl;
+  overscroll-behavior-y: none;
 }
 
 .bebas { font-family: 'Bebas Neue', cursive; }
@@ -174,6 +179,8 @@ body {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .hdr-inner {
   max-width: 480px; margin: 0 auto;

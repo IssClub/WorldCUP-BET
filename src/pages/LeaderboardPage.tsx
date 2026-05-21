@@ -10,6 +10,7 @@ type PlayerStats = Profile & {
   wins: number;
   losses: number;
   exactHits: number;
+  totalBets: number;
   bets: Bet[];
 };
 
@@ -35,6 +36,9 @@ const isExactHit = (bet: Bet) => {
   return (bet.payout ?? 0) > Math.floor(bet.amount * bet.odds_value);
 };
 
+// Show bets for games that have already kicked off (settled or in-progress)
+const isStartedGame = (bet: Bet) => new Date(bet.kickoff_at) <= new Date();
+
 export default function LeaderboardPage() {
   const { profile: me } = useAuth();
   const [players, setPlayers] = useState<PlayerStats[]>([]);
@@ -56,7 +60,6 @@ export default function LeaderboardPage() {
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
       supabase.from('bets')
         .select('*')
-        .neq('status', 'pending')
         .neq('status', 'cancelled')
         .order('kickoff_at', { ascending: false }),
     ]);
@@ -72,11 +75,13 @@ export default function LeaderboardPage() {
 
     setPlayers(profiles.map(p => {
       const pb = betsByPlayer[p.id] || [];
+      const settledBets = pb.filter(b => b.status === 'won' || b.status === 'lost');
       return {
         ...p,
-        wins: pb.filter(b => b.status === 'won').length,
-        losses: pb.filter(b => b.status === 'lost').length,
-        exactHits: pb.filter(isExactHit).length,
+        wins: settledBets.filter(b => b.status === 'won').length,
+        losses: settledBets.filter(b => b.status === 'lost').length,
+        exactHits: settledBets.filter(isExactHit).length,
+        totalBets: pb.length,
         bets: pb,
       };
     }));
@@ -122,7 +127,7 @@ export default function LeaderboardPage() {
           {/* Table header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '30px 1fr 34px 34px 34px 58px',
+            gridTemplateColumns: '30px 1fr 30px 30px 30px 30px 58px',
             padding: '8px 12px',
             borderBottom: '1px solid var(--border)',
             fontSize: '0.65rem',
@@ -133,6 +138,7 @@ export default function LeaderboardPage() {
           }}>
             <span>#</span>
             <span>שם</span>
+            <span style={{ textAlign: 'center' }}>נ</span>
             <span style={{ textAlign: 'center' }}>✓</span>
             <span style={{ textAlign: 'center' }}>✗</span>
             <span style={{ textAlign: 'center' }}>🎯</span>
@@ -143,8 +149,9 @@ export default function LeaderboardPage() {
           {players.map((p, i) => {
             const isMe = p.id === me?.id;
             const isOpen = expanded === p.id;
-            const completedBets = p.bets.filter(b => b.status === 'won' || b.status === 'lost');
-            const hasHistory = completedBets.length > 0;
+            // Show bets for started games (including pending on live games)
+            const startedBets = p.bets.filter(isStartedGame);
+            const hasHistory = startedBets.length > 0;
 
             return (
               <div key={p.id} style={{ borderBottom: i < players.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
@@ -154,7 +161,7 @@ export default function LeaderboardPage() {
                   onClick={() => hasHistory && setExpanded(isOpen ? null : p.id)}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '30px 1fr 34px 34px 34px 58px',
+                    gridTemplateColumns: '30px 1fr 30px 30px 30px 30px 58px',
                     padding: '11px 12px',
                     alignItems: 'center',
                     cursor: hasHistory ? 'pointer' : 'default',
@@ -195,6 +202,11 @@ export default function LeaderboardPage() {
                     )}
                   </div>
 
+                  {/* Total bets */}
+                  <span style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>
+                    {p.totalBets}
+                  </span>
+
                   {/* Wins */}
                   <span style={{ textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
                     {p.wins}
@@ -234,7 +246,8 @@ export default function LeaderboardPage() {
                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, paddingRight: 2 }}>
                       היסטוריית הימורים
                     </div>
-                    {completedBets.map(bet => {
+                    {startedBets.map(bet => {
+                      const isPending = bet.status === 'pending';
                       const won = bet.status === 'won';
                       const exact = isExactHit(bet);
                       const pickLabel = bet.pick === 'home' ? teamHe(bet.home_team)
@@ -244,15 +257,19 @@ export default function LeaderboardPage() {
                         <div key={bet.id} style={{
                           padding: '7px 9px',
                           borderRadius: 8,
-                          background: won ? 'rgba(0,200,83,0.08)' : 'rgba(248,113,113,0.08)',
-                          border: `1px solid ${won ? 'rgba(0,200,83,0.18)' : 'rgba(248,113,113,0.18)'}`,
+                          background: isPending
+                            ? 'rgba(255,214,0,0.06)'
+                            : won ? 'rgba(0,200,83,0.08)' : 'rgba(248,113,113,0.08)',
+                          border: `1px solid ${isPending
+                            ? 'rgba(255,214,0,0.2)'
+                            : won ? 'rgba(0,200,83,0.18)' : 'rgba(248,113,113,0.18)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           gap: 8,
                         }}>
                           {/* Result badge */}
                           <div style={{ fontSize: '1rem', flexShrink: 0 }}>
-                            {exact ? '🎯' : won ? '✅' : '❌'}
+                            {isPending ? '⏳' : exact ? '🎯' : won ? '✅' : '❌'}
                           </div>
 
                           {/* Game + pick */}
@@ -267,16 +284,24 @@ export default function LeaderboardPage() {
                             </div>
                             <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: '0.7rem' }}>
-                                ניחוש: <span style={{ color: won ? 'var(--green)' : '#f87171', fontWeight: 700 }}>{pickLabel}</span>
+                                ניחוש: <span style={{
+                                  color: isPending ? 'var(--gold)' : won ? 'var(--green)' : '#f87171',
+                                  fontWeight: 700
+                                }}>{pickLabel}</span>
                                 {bet.exact_home !== null && (
                                   <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
                                     {' '}{bet.exact_home}:{bet.exact_away}
                                   </span>
                                 )}
                               </span>
-                              {bet.actual_home !== null && (
+                              {bet.actual_home !== null && !isPending && (
                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                   תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_home}:{bet.actual_away}</span>
+                                </span>
+                              )}
+                              {isPending && (
+                                <span style={{ fontSize: '0.63rem', color: 'var(--gold)', fontWeight: 600 }}>
+                                  ממתין לתוצאה
                                 </span>
                               )}
                             </div>
@@ -284,9 +309,15 @@ export default function LeaderboardPage() {
 
                           {/* Points change */}
                           <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: won ? 'var(--green)' : '#f87171' }}>
-                              {won ? `+${(bet.payout ?? 0).toLocaleString()}` : `-${bet.amount.toLocaleString()}`}
-                            </div>
+                            {isPending ? (
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                {bet.amount.toLocaleString()}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: won ? 'var(--green)' : '#f87171' }}>
+                                {won ? `+${(bet.payout ?? 0).toLocaleString()}` : `-${bet.amount.toLocaleString()}`}
+                              </div>
+                            )}
                             <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>נק׳</div>
                           </div>
                         </div>
