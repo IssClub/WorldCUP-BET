@@ -58,10 +58,7 @@ export default function LeaderboardPage() {
     setLoading(true);
     const [profilesRes, betsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
-      supabase.from('bets')
-        .select('*')
-        .neq('status', 'cancelled')
-        .order('kickoff_at', { ascending: false }),
+      supabase.rpc('get_leaderboard_bets'),
     ]);
 
     const profiles: Profile[] = profilesRes.data || [];
