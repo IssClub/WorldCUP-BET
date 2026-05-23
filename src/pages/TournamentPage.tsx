@@ -144,10 +144,11 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
 }
 
 // ── Schedule view (chronological + group badge + channel) ─
-function ScheduleView({ games, groups, scoreMap }: {
+function ScheduleView({ games, groups, scoreMap, fetchError }: {
   games: Game[];
   groups: Map<string, { teams: string[]; games: Game[] }>;
   scoreMap: ScoreMap;
+  fetchError?: string;
 }) {
   // Map each game ID → group letter
   const gameToGroup = new Map<string, string>();
@@ -172,6 +173,7 @@ function ScheduleView({ games, groups, scoreMap }: {
       <div className="text-4xl mb-3">📅</div>
       <div className="font-bold">אין משחקים בלוח</div>
       <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
+      {fetchError && <div className="text-xs mt-2" style={{ color: '#f87171' }}>שגיאה: {fetchError}</div>}
     </div>
   );
 
@@ -426,37 +428,30 @@ export default function TournamentPage() {
   const [view, setView] = useState<'schedule' | 'standings' | 'scorers' | 'rules'>('schedule');
   const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
 
+  const [fetchError, setFetchError] = useState('');
+
   useEffect(() => {
     const key = ODDS_KEY;
-    // scores endpoint מחזיר את כל 72 המשחקים (גם עתידיים)
-    // odds endpoint מחזיר רק משחקים עם שוקי הימורים פעילים — אפשר להיות ריק לפני הטורניר
     Promise.all([
-      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${key}&daysFrom=3`).then(r => r.ok ? r.json() : []),
-      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`).then(r => r.ok ? r.json() : []),
-    ]).then(([scoresRaw, oddsRaw]) => {
-      // בנה מפת יחסים לפי game id
-      const oddsMap = new Map<string, { home_win: number; draw: number; away_win: number }>();
-      if (Array.isArray(oddsRaw)) {
-        for (const g of oddsRaw) {
-          const o = extractOdds(g);
-          if (o) oddsMap.set(g.id, o);
-        }
-      }
+      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`)
+        .then(r => r.ok ? r.json() : Promise.reject(`odds ${r.status}`)),
+      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${key}&daysFrom=3`)
+        .then(r => r.ok ? r.json() : []),
+    ]).then(([oddsRaw, scoresRaw]: [any[], any[]]) => {
+      // odds → רשימת המשחקים (72 משחקים כולם)
+      const processed = oddsRaw.map((g: any) => {
+        const o = extractOdds(g);
+        return {
+          id: g.id, home_team: g.home_team, away_team: g.away_team,
+          commence_time: g.commence_time,
+          home_win: o?.home_win ?? 0, draw: o?.draw ?? 0, away_win: o?.away_win ?? 0,
+        };
+      }) as Game[];
+      processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
+      setGames(processed);
 
-      // המשחקים מגיעים מ-scores (כל 72) — יחסים מוצמדים אם קיימים
+      // scores → תוצאות בלבד (אחרי שהמשחקים יתחילו)
       if (Array.isArray(scoresRaw)) {
-        const processed = scoresRaw.map((g: any) => {
-          const o = oddsMap.get(g.id);
-          return {
-            id: g.id, home_team: g.home_team, away_team: g.away_team,
-            commence_time: g.commence_time,
-            home_win: o?.home_win ?? 0, draw: o?.draw ?? 0, away_win: o?.away_win ?? 0,
-          };
-        }) as Game[];
-        processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
-        setGames(processed);
-
-        // תוצאות
         const map: ScoreMap = {};
         for (const g of scoresRaw) {
           if (!g.scores?.length) continue;
@@ -467,7 +462,9 @@ export default function TournamentPage() {
         }
         setScoreMap(map);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => {
+      setFetchError(String(err));
+    }).finally(() => setLoading(false));
   }, []);
 
   const groups = useMemo(() => inferGroups(games), [games]);
@@ -526,7 +523,7 @@ export default function TournamentPage() {
           </button>
         </div>
 
-        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />}
+        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} fetchError={fetchError} />}
         {view === 'standings' && <StandingsView groups={groups} scoreMap={scoreMap} />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
