@@ -519,6 +519,19 @@ export default function PlayerPage() {
           .gte('kickoff_at', new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()),
       ]);
 
+      // משחקים מותאמים (סימולציה / ליגה ישראלית) — תמיד מוצגים
+      const customProcessed: Game[] = ((customGamesRes as any).data ?? []).map((cg: any) => ({
+        id: cg.id,
+        home_team: cg.home_team,
+        away_team: cg.away_team,
+        commence_time: cg.kickoff_at,
+        home_win: Number(cg.home_win),
+        draw: Number(cg.draw_win),
+        away_win: Number(cg.away_win),
+        oddsLocked: true,
+      }));
+
+      let wcProcessed: Game[] = [];
       if (gamesRes.ok) {
         const raw: any[] = await gamesRes.json();
 
@@ -533,10 +546,9 @@ export default function PlayerPage() {
           (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
         );
 
-        const processed = raw.map(g => {
+        wcProcessed = raw.map(g => {
           const locked = lockedMap.get(g.id);
           if (locked) {
-            // יחסים נעולים מה-DB — הכרטיסייה פעילה
             return {
               id: g.id,
               home_team: g.home_team,
@@ -548,7 +560,6 @@ export default function PlayerPage() {
               oddsLocked: true,
             };
           }
-          // אין יחסים נעולים עדיין — מציג משחק אבל חוסם הימור
           return {
             id: g.id,
             home_team: g.home_team,
@@ -560,20 +571,9 @@ export default function PlayerPage() {
             oddsLocked: false,
           };
         }) as Game[];
-        // משחקים מותאמים (סימולציה / ליגה ישראלית)
-        const customProcessed: Game[] = ((customGamesRes as any).data ?? []).map((cg: any) => ({
-          id: cg.id,
-          home_team: cg.home_team,
-          away_team: cg.away_team,
-          commence_time: cg.kickoff_at,
-          home_win: Number(cg.home_win),
-          draw: Number(cg.draw_win),
-          away_win: Number(cg.away_win),
-          oddsLocked: true,
-        }));
-
-        setGames([...customProcessed, ...processed]);
       }
+
+      setGames([...customProcessed, ...wcProcessed]);
       if (settingsRes.data) setSettings(settingsRes.data);
       if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
     } catch {
