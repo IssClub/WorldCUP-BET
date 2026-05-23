@@ -436,9 +436,13 @@ export default function TournamentPage() {
       if (Array.isArray(oddsRaw)) {
         const processed = oddsRaw.map((g: any) => {
           const o = extractOdds(g);
-          if (!o) return null;
-          return { id: g.id, home_team: g.home_team, away_team: g.away_team, commence_time: g.commence_time, ...o };
-        }).filter(Boolean) as Game[];
+          // הצג את כל המשחקים גם אם אין עדיין יחסים
+          return {
+            id: g.id, home_team: g.home_team, away_team: g.away_team,
+            commence_time: g.commence_time,
+            home_win: o?.home_win ?? 0, draw: o?.draw ?? 0, away_win: o?.away_win ?? 0,
+          };
+        }) as Game[];
         processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
         setGames(processed);
       }
