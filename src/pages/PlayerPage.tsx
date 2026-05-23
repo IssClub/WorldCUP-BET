@@ -120,27 +120,18 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
     );
   }
 
-  const pickLabel = (p: Pick) => {
-    if (p === 'draw') return 'תיקו';
-    const team = p === 'home' ? game.home_team : game.away_team;
-    const he = teamHe(team);
-    return he.length > 9 ? he.slice(0, 8) + '…' : he;
-  };
-
-  const potential = bet.pick && bet.amount > 0
-    ? Math.floor(bet.amount * odds[bet.pick]) : 0;
-  const hasExact = bet.exactHome !== '' && bet.exactAway !== '';
-  const bonusPotential = hasExact && potential > 0
-    ? Math.floor(potential * 1.5) : 0;
-
-  // בדיקה שהתוצאה המדויקת תואמת את כיוון הניחוש
-  const exactMismatch = hasExact && bet.pick ? (() => {
-    const h = parseInt(bet.exactHome), a = parseInt(bet.exactAway);
-    if (bet.pick === 'home') return h <= a;
-    if (bet.pick === 'away') return a <= h;
-    if (bet.pick === 'draw') return h !== a;
-    return false;
-  })() : false;
+  // תוצאה מדויקת בלבד — ניחוש הכיוון נגזר אוטומטית
+  const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
+  const derivedPick: Pick | null = hasScore
+    ? (parseInt(bet.exactHome) > parseInt(bet.exactAway) ? 'home'
+      : parseInt(bet.exactHome) < parseInt(bet.exactAway) ? 'away' : 'draw')
+    : null;
+  const derivedOdds = derivedPick ? odds[derivedPick] : null;
+  const potential = derivedOdds && bet.amount > 0 ? Math.floor(bet.amount * derivedOdds) : 0;
+  const bonusPotential = potential > 0 ? Math.floor(potential * 1.5) : 0;
+  const derivedLabel = derivedPick === 'home' ? `ניצחון ${teamHe(game.home_team).slice(0, 9)}`
+    : derivedPick === 'away' ? `ניצחון ${teamHe(game.away_team).slice(0, 9)}`
+    : derivedPick === 'draw' ? 'תיקו' : null;
 
   const presets = [
     settings.min_bet,
@@ -177,9 +168,10 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
 
   // ── Already bet ──
   if (existingBet) {
-    const label = existingBet.pick === 'home' ? teamHe(existingBet.home_team)
-      : existingBet.pick === 'away' ? teamHe(existingBet.away_team) : 'תיקו';
     const pot = Math.floor(existingBet.amount * existingBet.odds_value);
+    const bonusPot = Math.floor(pot * 1.5);
+    const pickDir = existingBet.pick === 'home' ? teamHe(existingBet.home_team)
+      : existingBet.pick === 'away' ? teamHe(existingBet.away_team) : 'תיקו';
     return (
       <div className="gc gc-done">
         <div className="gc-teams">
@@ -198,14 +190,16 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         </div>
         <div className="gc-submitted">
           <CheckCircle2 size={14} />
-          <span>{label} × {existingBet.odds_value.toFixed(2)}</span>
+          {existingBet.exact_home !== null
+            ? <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
+            : <span>{pickDir} × {existingBet.odds_value.toFixed(2)}</span>
+          }
           <span className="gc-submitted-sep">•</span>
           <span>{existingBet.amount} נק׳</span>
           <span className="gc-submitted-sep">→</span>
-          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{pot} נק׳</span>
-          {existingBet.exact_home !== null && (
-            <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
-          )}
+          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{pot}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 2px' }}>/</span>
+          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>🎯{bonusPot} נק׳</span>
         </div>
       </div>
     );
@@ -213,7 +207,7 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
 
   // ── Betting card ──
   return (
-    <div className={`gc ${bet.pick ? 'gc-picked' : ''}`}>
+    <div className={`gc ${hasScore ? 'gc-picked' : ''}`}>
       {/* Teams */}
       <div className="gc-teams">
         <div className="gc-team">
@@ -230,24 +224,38 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         </div>
       </div>
 
-      {/* Pick buttons */}
-      <div className="gc-picks">
-        {(['home', 'draw', 'away'] as Pick[]).map(p => (
-          <button
-            key={p}
-            className={`gc-pick ${bet.pick === p ? 'gc-pick-on' : ''}`}
-            onClick={() => onChange({ pick: p, amount: bet.amount || settings.min_bet })}
-          >
-            <span className="gc-pick-label">{pickLabel(p)}</span>
-            <span className="gc-pick-odds">{odds[p].toFixed(2)}</span>
-          </button>
-        ))}
+      {/* Score inputs — הפעולה הראשית */}
+      <div className="gc-exact-inputs gc-score-primary">
+        <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
+        <input
+          type="number" min="0" max="20" inputMode="numeric"
+          className="gc-score-input gc-score-lg"
+          value={bet.exactHome}
+          onChange={e => onChange({ exactHome: e.target.value })}
+          placeholder="?"
+        />
+        <span className="gc-score-colon">:</span>
+        <input
+          type="number" min="0" max="20" inputMode="numeric"
+          className="gc-score-input gc-score-lg"
+          value={bet.exactAway}
+          onChange={e => onChange({ exactAway: e.target.value })}
+          placeholder="?"
+        />
+        <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
       </div>
 
-      {/* Amount — only after pick */}
-      {bet.pick && (
+      {/* ניחוש כיוון נגזר אוטומטית */}
+      {derivedPick && (
+        <div className="gc-derived-pick">
+          <span>{derivedLabel}</span>
+          <span className="gc-derived-odds">× {derivedOdds!.toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* כמות + פוטנציאל — מופיע אחרי מילוי תוצאה */}
+      {hasScore && (
         <div className="gc-amount fade-in">
-          {/* Presets */}
           <div className="gc-presets">
             {presets.map(v => (
               <button
@@ -259,8 +267,6 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
               </button>
             ))}
           </div>
-
-          {/* Stepper */}
           <div className="gc-stepper">
             <button className="gc-step" onClick={() => onChange({ amount: Math.max(settings.min_bet, bet.amount - 25) })}>−</button>
             <div className="gc-amount-val">
@@ -269,49 +275,16 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             </div>
             <button className="gc-step" onClick={() => onChange({ amount: Math.min(settings.max_bet, bet.amount + 25) })}>+</button>
           </div>
-
-          {/* Potential winnings */}
           <div className="gc-potential">
             <Zap size={13} style={{ color: 'var(--gold)' }} />
-            <span className="gc-pot-label">תרוויח</span>
-            <span className="gc-pot-val">
-              {bonusPotential > 0 ? bonusPotential : potential}
-            </span>
+            <span className="gc-pot-label">כיוון נכון</span>
+            <span className="gc-pot-val">{potential}</span>
             <span className="gc-pot-u">נק׳</span>
-            {bonusPotential > 0 && (
-              <span className="gc-pot-bonus">+50% בונוס</span>
-            )}
+            <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
+            <span className="gc-pot-label">🎯 מדויק</span>
+            <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{bonusPotential}</span>
+            <span className="gc-pot-u">נק׳</span>
           </div>
-
-          {/* Exact score — mandatory */}
-          <div className="gc-exact-label">
-            🎯 תוצאה מדויקת <span style={{ color: '#f87171', fontWeight: 700 }}>*חובה</span>
-            {bonusPotential > 0 && <span style={{ color: 'var(--gold)', marginRight: 6 }}>· בונוס ×1.5</span>}
-          </div>
-          <div className="gc-exact-inputs">
-            <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
-            <input
-              type="number" min="0" max="20"
-              className="gc-score-input"
-              value={bet.exactHome}
-              onChange={e => onChange({ exactHome: e.target.value })}
-              placeholder="0"
-            />
-            <span className="gc-score-colon">:</span>
-            <input
-              type="number" min="0" max="20"
-              className="gc-score-input"
-              value={bet.exactAway}
-              onChange={e => onChange({ exactAway: e.target.value })}
-              placeholder="0"
-            />
-            <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
-          </div>
-          {exactMismatch && (
-            <div style={{ color: '#f87171', fontSize: 12, textAlign: 'center', marginTop: 6, fontWeight: 600 }}>
-              ⚠️ התוצאה לא תואמת את הניחוש — בדוק שוב
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -621,22 +594,7 @@ export default function PlayerPage() {
     if (!g.oddsLocked) return false;
     if (new Date(g.commence_time).getTime() <= Date.now() + CUTOFF_MS) return false;
     const b = bets[g.id];
-    return b?.pick && !existingBets.find(e => e.external_game_id === g.id);
-  });
-
-  const allExactFilled = readyBets.every(g => {
-    const b = bets[g.id];
-    return b?.exactHome !== '' && b?.exactAway !== '';
-  });
-
-  const hasExactMismatch = readyBets.some(g => {
-    const b = bets[g.id];
-    if (!b?.pick || b.exactHome === '' || b.exactAway === '') return false;
-    const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
-    if (b.pick === 'home') return h <= a;
-    if (b.pick === 'away') return a <= h;
-    if (b.pick === 'draw') return h !== a;
-    return false;
+    return b?.exactHome !== '' && b?.exactAway !== '' && !existingBets.find(e => e.external_game_id === g.id);
   });
 
   const totalCost = readyBets.reduce((s, g) => s + bets[g.id].amount, 0);
@@ -644,25 +602,25 @@ export default function PlayerPage() {
   async function submitBets() {
     if (!profile || !settings || readyBets.length === 0) return;
     if (totalCost > (profile.bank ?? 0)) { setError('אין מספיק נקודות בבנק'); return; }
-    if (!allExactFilled) { setError('יש להזין תוצאה מדויקת לכל ההימורים'); return; }
-    if (hasExactMismatch) { setError('תוצאה מדויקת לא תואמת את הניחוש — בדוק שוב'); return; }
     setSubmitting(true);
     setError('');
     try {
       for (const g of readyBets) {
         const b = bets[g.id];
-        const oddsVal = b.pick === 'home' ? g.home_win : b.pick === 'draw' ? g.draw : g.away_win;
+        const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
+        const derivedPick: Pick = h > a ? 'home' : h < a ? 'away' : 'draw';
+        const oddsVal = derivedPick === 'home' ? g.home_win : derivedPick === 'draw' ? g.draw : g.away_win;
         const { error: insertErr } = await supabase.from('bets').insert({
           player_id: profile.id,
           external_game_id: g.id,
           home_team: g.home_team,
           away_team: g.away_team,
           kickoff_at: g.commence_time,
-          pick: b.pick,
+          pick: derivedPick,
           amount: b.amount,
           odds_value: oddsVal,
-          exact_home: b.exactHome !== '' ? parseInt(b.exactHome) : null,
-          exact_away: b.exactAway !== '' ? parseInt(b.exactAway) : null,
+          exact_home: h,
+          exact_away: a,
           status: 'pending',
         });
         if (insertErr) throw new Error(insertErr.message);
@@ -813,14 +771,12 @@ export default function PlayerPage() {
                 <span>ההימורים נשלחו בהצלחה!</span>
               </div>
             ) : (
-              <button className="submit-btn" onClick={submitBets} disabled={submitting || !allExactFilled || hasExactMismatch}>
+              <button className="submit-btn" onClick={submitBets} disabled={submitting || readyBets.length === 0}>
                 {submitting
                   ? 'שולח...'
-                  : !allExactFilled
-                    ? 'הזן תוצאה מדויקת לכל ההימורים'
-                    : hasExactMismatch
-                      ? '⚠️ תוצאה לא תואמת ניחוש — בדוק שוב'
-                      : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
+                  : readyBets.length === 0
+                    ? 'הזן תוצאה לפחות להימור אחד'
+                    : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
               </button>
             )}
           </div>

@@ -332,12 +332,7 @@ body {
   border-radius: 20px; padding: 1px 7px;
 }
 
-/* Exact score */
-.gc-exact-label {
-  font-size: 0.8rem; font-weight: 600;
-  color: var(--text-muted); margin-bottom: 8px;
-  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
-}
+/* Score inputs */
 .gc-exact-inputs {
   display: flex; align-items: center; justify-content: center;
   gap: 10px; padding: 4px 0;
@@ -354,6 +349,19 @@ body {
 .gc-score-input::-webkit-outer-spin-button,
 .gc-score-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .gc-score-colon { font-size: 2rem; font-weight: 800; color: var(--text-muted); }
+
+/* Score primary — inputs bigger + margin */
+.gc-score-primary { margin: 14px 0 4px; gap: 12px; }
+.gc-score-lg { width: 64px !important; height: 58px !important; font-size: 1.9rem !important; border-radius: 14px !important; }
+.gc-score-primary .gc-score-colon { font-size: 2.4rem; }
+
+/* Derived pick chip */
+.gc-derived-pick {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 4px 0 2px;
+  font-size: 0.78rem; color: var(--text-muted);
+}
+.gc-derived-odds { font-weight: 800; color: var(--green); font-size: 0.9rem; }
 
 /* Submitted state */
 .gc-submitted {
