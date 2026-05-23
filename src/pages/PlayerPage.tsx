@@ -224,6 +224,21 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         </div>
       </div>
 
+      {/* 1X2 — יחסים + הדגשה אוטומטית לפי תוצאה */}
+      <div className="gc-odds-row">
+        {(['home', 'draw', 'away'] as Pick[]).map(p => {
+          const label = p === 'draw' ? 'X'
+            : p === 'home' ? teamHe(game.home_team).slice(0, 7)
+            : teamHe(game.away_team).slice(0, 7);
+          return (
+            <div key={p} className={`gc-odds-cell ${derivedPick === p ? 'gc-odds-active' : ''}`}>
+              <span className="gc-odds-label">{label}</span>
+              <span className="gc-odds-val">{odds[p].toFixed(2)}</span>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Score inputs — הפעולה הראשית */}
       <div className="gc-exact-inputs gc-score-primary">
         <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
@@ -244,14 +259,6 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         />
         <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
       </div>
-
-      {/* ניחוש כיוון נגזר אוטומטית */}
-      {derivedPick && (
-        <div className="gc-derived-pick">
-          <span>{derivedLabel}</span>
-          <span className="gc-derived-odds">× {derivedOdds!.toFixed(2)}</span>
-        </div>
-      )}
 
       {/* כמות + פוטנציאל — מופיע אחרי מילוי תוצאה */}
       {hasScore && (
