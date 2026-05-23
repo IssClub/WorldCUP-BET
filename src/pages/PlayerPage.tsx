@@ -266,10 +266,10 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             <Zap size={13} style={{ color: 'var(--gold)' }} />
             <span className="gc-pot-label">תרוויח</span>
             <span className="gc-pot-val">
-              {bet.showExact && bonusPotential > 0 ? bonusPotential : potential}
+              {bonusPotential > 0 ? bonusPotential : potential}
             </span>
             <span className="gc-pot-u">נק׳</span>
-            {bet.showExact && bonusPotential > 0 && (
+            {bonusPotential > 0 && (
               <span className="gc-pot-bonus">+50% בונוס</span>
             )}
           </div>
@@ -643,8 +643,8 @@ export default function PlayerPage() {
           pick: b.pick,
           amount: b.amount,
           odds_value: oddsVal,
-          exact_home: b.showExact && b.exactHome !== '' ? parseInt(b.exactHome) : null,
-          exact_away: b.showExact && b.exactAway !== '' ? parseInt(b.exactAway) : null,
+          exact_home: b.exactHome !== '' ? parseInt(b.exactHome) : null,
+          exact_away: b.exactAway !== '' ? parseInt(b.exactAway) : null,
           status: 'pending',
         });
         if (insertErr) throw new Error(insertErr.message);
