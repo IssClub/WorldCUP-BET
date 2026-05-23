@@ -516,7 +516,7 @@ export default function PlayerPage() {
       const [settingsRes, betsRes, customGamesRes] = await Promise.all([
         supabase.from('settings').select('*').single(),
         supabase.from('bets').select('*').eq('player_id', profile!.id),
-        supabase.from('custom_games').select('*').eq('is_active', true)
+        supabase.from('custom_games').select('*')
           .gte('kickoff_at', new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()),
       ]);
 
