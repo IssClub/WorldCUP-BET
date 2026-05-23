@@ -60,6 +60,16 @@ function extractOdds(game) {
 }
 
 async function main() {
+  // אל תקרא ל-API אם הטורניר לא מתחיל ב-48 השעות הקרובות
+  // כל קריאה עולה 72 קרדיטים (1 לכל משחק) — יקר מדי לקרוא כל שעה בחינם
+  const now = Date.now();
+  const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
+  if (now < TOURNAMENT_START - 48 * 60 * 60 * 1000) {
+    const hoursLeft = Math.round((TOURNAMENT_START - now) / 3600000);
+    console.log(`Tournament starts in ${hoursLeft}h — skipping API call to save credits.`);
+    return;
+  }
+
   console.log('Fetching odds from The Odds API...');
 
   const res = await fetch(

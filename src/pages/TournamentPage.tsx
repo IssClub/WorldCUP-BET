@@ -144,11 +144,10 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
 }
 
 // ── Schedule view (chronological + group badge + channel) ─
-function ScheduleView({ games, groups, scoreMap, fetchError }: {
+function ScheduleView({ games, groups, scoreMap }: {
   games: Game[];
   groups: Map<string, { teams: string[]; games: Game[] }>;
   scoreMap: ScoreMap;
-  fetchError?: string;
 }) {
   // Map each game ID → group letter
   const gameToGroup = new Map<string, string>();
@@ -173,7 +172,6 @@ function ScheduleView({ games, groups, scoreMap, fetchError }: {
       <div className="text-4xl mb-3">📅</div>
       <div className="font-bold">אין משחקים בלוח</div>
       <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
-      {fetchError && <div className="text-xs mt-2" style={{ color: '#f87171' }}>שגיאה: {fetchError}</div>}
     </div>
   );
 
@@ -426,44 +424,36 @@ export default function TournamentPage() {
   const [scoreMap, setScoreMap] = useState<ScoreMap>({});
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'schedule' | 'standings' | 'scorers' | 'rules'>('schedule');
-  const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
-
-  const [fetchError, setFetchError] = useState('');
-
   useEffect(() => {
-    const key = ODDS_KEY;
+    // קורא מ-Supabase בלבד — לא שורף קרדיטים מה-API
+    // locked_odds מתמלא ע"י fetch-odds.mjs (שרת) כשיש משחקים ב-48 שעות
+    // bets מכיל גם משחקים עם actual_home/actual_away לתוצאות
     Promise.all([
-      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`)
-        .then(r => r.ok ? r.json() : Promise.reject(`odds ${r.status}`)),
-      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${key}&daysFrom=3`)
-        .then(r => r.ok ? r.json() : []),
-    ]).then(([oddsRaw, scoresRaw]: [any[], any[]]) => {
-      // odds → רשימת המשחקים (72 משחקים כולם)
-      const processed = oddsRaw.map((g: any) => {
-        const o = extractOdds(g);
-        return {
-          id: g.id, home_team: g.home_team, away_team: g.away_team,
-          commence_time: g.commence_time,
-          home_win: o?.home_win ?? 0, draw: o?.draw ?? 0, away_win: o?.away_win ?? 0,
-        };
-      }) as Game[];
-      processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
+      supabase.from('locked_odds').select('*').order('kickoff_at'),
+      supabase.from('bets').select('external_game_id, actual_home, actual_away').not('actual_home', 'is', null),
+    ]).then(([oddsRes, scoresRes]) => {
+      const oddsData = oddsRes.data ?? [];
+      const processed = oddsData.map((g: any) => ({
+        id: g.external_game_id,
+        home_team: g.home_team,
+        away_team: g.away_team,
+        commence_time: g.kickoff_at,
+        home_win: Number(g.home_win),
+        draw: Number(g.draw_win),
+        away_win: Number(g.away_win),
+      })) as Game[];
       setGames(processed);
 
-      // scores → תוצאות בלבד (אחרי שהמשחקים יתחילו)
-      if (Array.isArray(scoresRaw)) {
-        const map: ScoreMap = {};
-        for (const g of scoresRaw) {
-          if (!g.scores?.length) continue;
-          const homeScore = parseInt(g.scores.find((s: any) => s.name === g.home_team)?.score ?? '-1');
-          const awayScore = parseInt(g.scores.find((s: any) => s.name === g.away_team)?.score ?? '-1');
-          if (homeScore < 0 || awayScore < 0) continue;
-          map[g.id] = { homeScore, awayScore, completed: !!g.completed };
+      // תוצאות מוכרות מ-bets
+      const map: ScoreMap = {};
+      for (const b of (scoresRes.data ?? [])) {
+        if (b.actual_home !== null && b.actual_away !== null) {
+          map[b.external_game_id] = {
+            homeScore: b.actual_home, awayScore: b.actual_away, completed: true,
+          };
         }
-        setScoreMap(map);
       }
-    }).catch((err) => {
-      setFetchError(String(err));
+      setScoreMap(map);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -523,7 +513,7 @@ export default function TournamentPage() {
           </button>
         </div>
 
-        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} fetchError={fetchError} />}
+        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />}
         {view === 'standings' && <StandingsView groups={groups} scoreMap={scoreMap} />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
