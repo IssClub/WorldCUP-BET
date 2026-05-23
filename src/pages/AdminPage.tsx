@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [editBankValue, setEditBankValue] = useState('');
   const [resettingBanks, setResettingBanks] = useState(false);
   const [cleaningSimulation, setCleaningSimulation] = useState(false);
+  const [resettingGroupStage, setResettingGroupStage] = useState(false);
 
   // Special bets settlement
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
@@ -260,6 +261,22 @@ export default function AdminPage() {
     setDeleting(null);
   }
 
+  async function resetGroupStageBanks() {
+    if (!settings) return;
+    if (!confirm(
+      `איפוס בנקים — סוף שלב הבתים\n\n` +
+      `כל ${players.length} השחקנים יקבלו ${settings.starting_bank.toLocaleString()} נק׳ מחדש.\n` +
+      `ההיסטוריה והניחושים נשמרים.\n\nהמשך?`
+    )) return;
+    setResettingGroupStage(true);
+    for (const p of players) {
+      await supabase.from('profiles').update({ bank: settings.starting_bank }).eq('id', p.id);
+    }
+    await loadPlayers();
+    setResettingGroupStage(false);
+    alert(`✓ כל הבנקים אופסו ל-${settings.starting_bank.toLocaleString()} נק׳ — בהצלחה בשלב הנוקאאוט!`);
+  }
+
   async function cleanSimulation() {
     if (!settings) return;
     if (!confirm('ניקוי סימולציה:\n• מחיקת כל ההימורים\n• איפוס כל הבנקים ל-' + settings.starting_bank.toLocaleString() + ' נק׳\n• כיבוי כל המשחקים המותאמים\n• ניקוי תור הפושים\n\nהמשך?')) return;
@@ -483,6 +500,22 @@ export default function AdminPage() {
               <h2 className="font-bold text-lg">ניהול נתונים</h2>
               <button onClick={loadBetCounts} className="p-2 rounded-lg" style={{background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer'}}>
                 <RefreshCw size={15} />
+              </button>
+            </div>
+
+            {/* Group stage reset */}
+            <div className="card p-4 mb-4" style={{border: '1px solid rgba(99,179,237,0.35)', background: 'rgba(99,179,237,0.04)'}}>
+              <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🔄 איפוס סוף שלב הבתים</div>
+              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                מאפס את בנק כל השחקנים ל-{settings?.starting_bank.toLocaleString()} נק׳ — ההיסטוריה נשמרת. לשימוש בסוף שלב הבתים לפי כללי המשחק.
+              </div>
+              <button
+                onClick={resetGroupStageBanks}
+                disabled={resettingGroupStage}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{background: 'rgba(99,179,237,0.15)', border: '1px solid rgba(99,179,237,0.5)', color: '#63b3ed', cursor: 'pointer'}}
+              >
+                🔄 {resettingGroupStage ? 'מאפס...' : 'אפס בנקים'}
               </button>
             </div>
 

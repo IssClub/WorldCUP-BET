@@ -47,6 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Realtime: עדכן פרופיל אוטומטי כשהבנק משתנה (למשל אחרי סגירת משחק)
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('my-profile-rt')
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload) => setProfile(payload.new as Profile)
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{ user, profile, loading, refresh }}>
       {children}
