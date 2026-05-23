@@ -428,15 +428,25 @@ export default function TournamentPage() {
 
   useEffect(() => {
     const key = ODDS_KEY;
+    // scores endpoint מחזיר את כל 72 המשחקים (גם עתידיים)
+    // odds endpoint מחזיר רק משחקים עם שוקי הימורים פעילים — אפשר להיות ריק לפני הטורניר
     Promise.all([
-      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`).then(r => r.ok ? r.json() : []),
       fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${key}&daysFrom=3`).then(r => r.ok ? r.json() : []),
-    ]).then(([oddsRaw, scoresRaw]) => {
-      // Process odds
+      fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${key}&regions=eu&markets=h2h&oddsFormat=decimal`).then(r => r.ok ? r.json() : []),
+    ]).then(([scoresRaw, oddsRaw]) => {
+      // בנה מפת יחסים לפי game id
+      const oddsMap = new Map<string, { home_win: number; draw: number; away_win: number }>();
       if (Array.isArray(oddsRaw)) {
-        const processed = oddsRaw.map((g: any) => {
+        for (const g of oddsRaw) {
           const o = extractOdds(g);
-          // הצג את כל המשחקים גם אם אין עדיין יחסים
+          if (o) oddsMap.set(g.id, o);
+        }
+      }
+
+      // המשחקים מגיעים מ-scores (כל 72) — יחסים מוצמדים אם קיימים
+      if (Array.isArray(scoresRaw)) {
+        const processed = scoresRaw.map((g: any) => {
+          const o = oddsMap.get(g.id);
           return {
             id: g.id, home_team: g.home_team, away_team: g.away_team,
             commence_time: g.commence_time,
@@ -445,9 +455,8 @@ export default function TournamentPage() {
         }) as Game[];
         processed.sort((a, b) => a.commence_time.localeCompare(b.commence_time));
         setGames(processed);
-      }
-      // Process scores
-      if (Array.isArray(scoresRaw)) {
+
+        // תוצאות
         const map: ScoreMap = {};
         for (const g of scoresRaw) {
           if (!g.scores?.length) continue;
