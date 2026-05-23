@@ -189,7 +189,7 @@ body {
 }
 /* רווח מתחת ל-header הקבוע — מוסיפים אחרי כל <header className="hdr"> */
 .hdr-spacer {
-  height: calc(env(safe-area-inset-top) + 48px);
+  height: calc(env(safe-area-inset-top) + 56px);
   flex-shrink: 0;
 }
 
