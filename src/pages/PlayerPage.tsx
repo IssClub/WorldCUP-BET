@@ -594,7 +594,7 @@ export default function PlayerPage() {
     if (!g.oddsLocked) return false;
     if (new Date(g.commence_time).getTime() <= Date.now() + CUTOFF_MS) return false;
     const b = bets[g.id];
-    return b?.exactHome !== '' && b?.exactAway !== '' && !existingBets.find(e => e.external_game_id === g.id);
+    return b != null && b.exactHome !== '' && b.exactAway !== '' && !existingBets.find(e => e.external_game_id === g.id);
   });
 
   const totalCost = readyBets.reduce((s, g) => s + bets[g.id].amount, 0);
