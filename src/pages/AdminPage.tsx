@@ -261,20 +261,21 @@ export default function AdminPage() {
     setDeleting(null);
   }
 
-  async function resetGroupStageBanks() {
+  async function giveGroupStageBonus() {
     if (!settings) return;
+    const bonus = settings.group_stage_bonus ?? 500;
     if (!confirm(
-      `איפוס בנקים — סוף שלב הבתים\n\n` +
-      `כל ${players.length} השחקנים יקבלו ${settings.starting_bank.toLocaleString()} נק׳ מחדש.\n` +
+      `בונוס סוף שלב הבתים\n\n` +
+      `כל ${players.length} השחקנים יקבלו +${bonus.toLocaleString()} נק׳ על הבנק הקיים.\n` +
       `ההיסטוריה והניחושים נשמרים.\n\nהמשך?`
     )) return;
     setResettingGroupStage(true);
     for (const p of players) {
-      await supabase.from('profiles').update({ bank: settings.starting_bank }).eq('id', p.id);
+      await supabase.from('profiles').update({ bank: p.bank + bonus }).eq('id', p.id);
     }
     await loadPlayers();
     setResettingGroupStage(false);
-    alert(`✓ כל הבנקים אופסו ל-${settings.starting_bank.toLocaleString()} נק׳ — בהצלחה בשלב הנוקאאוט!`);
+    alert(`✓ בונוס של ${bonus.toLocaleString()} נק׳ חולק לכולם — בהצלחה בשלב הנוקאאוט!`);
   }
 
   async function cleanSimulation() {
@@ -317,6 +318,7 @@ export default function AdminPage() {
       no_bet_penalty: settings.no_bet_penalty,
       special_bet_stake: settings.special_bet_stake,
       auto_bet_amount: settings.auto_bet_amount,
+      group_stage_bonus: settings.group_stage_bonus,
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -503,19 +505,19 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Group stage reset */}
+            {/* Group stage bonus */}
             <div className="card p-4 mb-4" style={{border: '1px solid rgba(99,179,237,0.35)', background: 'rgba(99,179,237,0.04)'}}>
-              <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🔄 איפוס סוף שלב הבתים</div>
+              <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🎁 בונוס סוף שלב הבתים</div>
               <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
-                מאפס את בנק כל השחקנים ל-{settings?.starting_bank.toLocaleString()} נק׳ — ההיסטוריה נשמרת. לשימוש בסוף שלב הבתים לפי כללי המשחק.
+                מוסיף +{(settings?.group_stage_bonus ?? 500).toLocaleString()} נק׳ לבנק של כל שחקן. הסכום ניתן לשינוי בהגדרות.
               </div>
               <button
-                onClick={resetGroupStageBanks}
+                onClick={giveGroupStageBonus}
                 disabled={resettingGroupStage}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
                 style={{background: 'rgba(99,179,237,0.15)', border: '1px solid rgba(99,179,237,0.5)', color: '#63b3ed', cursor: 'pointer'}}
               >
-                🔄 {resettingGroupStage ? 'מאפס...' : 'אפס בנקים'}
+                🎁 {resettingGroupStage ? 'מחלק...' : 'חלק בונוס'}
               </button>
             </div>
 
@@ -821,8 +823,10 @@ export default function AdminPage() {
                   { key: 'starting_bank', label: 'בנק פתיחה לשחקן חדש', hint: 'נקודות' },
                   { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
                   { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
+                  { key: 'no_bet_penalty', label: 'קנס אי-הימור', hint: 'נקודות' },
                   { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
                   { key: 'auto_bet_amount', label: 'הימור אוטומטי (5 דקות לפני)', hint: 'נקודות' },
+                  { key: 'group_stage_bonus', label: 'בונוס סוף שלב הבתים', hint: 'נקודות' },
                 ].map(field => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>
