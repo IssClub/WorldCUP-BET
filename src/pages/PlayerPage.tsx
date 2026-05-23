@@ -133,6 +133,15 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
   const bonusPotential = hasExact && potential > 0
     ? Math.floor(potential * 1.5) : 0;
 
+  // בדיקה שהתוצאה המדויקת תואמת את כיוון הניחוש
+  const exactMismatch = hasExact && bet.pick ? (() => {
+    const h = parseInt(bet.exactHome), a = parseInt(bet.exactAway);
+    if (bet.pick === 'home') return h <= a;
+    if (bet.pick === 'away') return a <= h;
+    if (bet.pick === 'draw') return h !== a;
+    return false;
+  })() : false;
+
   const presets = [
     settings.min_bet,
     Math.round(settings.max_bet * 0.33 / 25) * 25,
@@ -298,6 +307,11 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             />
             <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
           </div>
+          {exactMismatch && (
+            <div style={{ color: '#f87171', fontSize: 12, textAlign: 'center', marginTop: 6, fontWeight: 600 }}>
+              ⚠️ התוצאה לא תואמת את הניחוש — בדוק שוב
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -615,12 +629,23 @@ export default function PlayerPage() {
     return b?.exactHome !== '' && b?.exactAway !== '';
   });
 
+  const hasExactMismatch = readyBets.some(g => {
+    const b = bets[g.id];
+    if (!b?.pick || b.exactHome === '' || b.exactAway === '') return false;
+    const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
+    if (b.pick === 'home') return h <= a;
+    if (b.pick === 'away') return a <= h;
+    if (b.pick === 'draw') return h !== a;
+    return false;
+  });
+
   const totalCost = readyBets.reduce((s, g) => s + bets[g.id].amount, 0);
 
   async function submitBets() {
     if (!profile || !settings || readyBets.length === 0) return;
     if (totalCost > (profile.bank ?? 0)) { setError('אין מספיק נקודות בבנק'); return; }
     if (!allExactFilled) { setError('יש להזין תוצאה מדויקת לכל ההימורים'); return; }
+    if (hasExactMismatch) { setError('תוצאה מדויקת לא תואמת את הניחוש — בדוק שוב'); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -788,12 +813,14 @@ export default function PlayerPage() {
                 <span>ההימורים נשלחו בהצלחה!</span>
               </div>
             ) : (
-              <button className="submit-btn" onClick={submitBets} disabled={submitting || !allExactFilled}>
+              <button className="submit-btn" onClick={submitBets} disabled={submitting || !allExactFilled || hasExactMismatch}>
                 {submitting
                   ? 'שולח...'
                   : !allExactFilled
                     ? 'הזן תוצאה מדויקת לכל ההימורים'
-                    : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
+                    : hasExactMismatch
+                      ? '⚠️ תוצאה לא תואמת ניחוש — בדוק שוב'
+                      : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`}
               </button>
             )}
           </div>
