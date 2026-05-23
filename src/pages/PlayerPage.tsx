@@ -510,16 +510,20 @@ export default function PlayerPage() {
 
   async function loadData() {
     setLoading(true);
+    setError('');
     try {
-      const [gamesRes, settingsRes, betsRes, customGamesRes] = await Promise.all([
-        fetch(`https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`),
+      // שאילתות Supabase — תמיד חייבות לעבוד
+      const [settingsRes, betsRes, customGamesRes] = await Promise.all([
         supabase.from('settings').select('*').single(),
         supabase.from('bets').select('*').eq('player_id', profile!.id),
         supabase.from('custom_games').select('*').eq('is_active', true)
           .gte('kickoff_at', new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()),
       ]);
 
-      // משחקים מותאמים (סימולציה / ליגה ישראלית) — תמיד מוצגים
+      if (settingsRes.data) setSettings(settingsRes.data);
+      if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
+
+      // משחקים מותאמים — תמיד מוצגים גם אם WC API נכשל
       const customProcessed: Game[] = ((customGamesRes as any).data ?? []).map((cg: any) => ({
         id: cg.id,
         home_team: cg.home_team,
@@ -531,51 +535,40 @@ export default function PlayerPage() {
         oddsLocked: true,
       }));
 
+      // WC API — נכשלה? ממשיכים עם custom בלבד
       let wcProcessed: Game[] = [];
-      if (gamesRes.ok) {
-        const raw: any[] = await gamesRes.json();
-
-        // שלוף יחסים נעולים מה-DB עבור המשחקים האלה
-        const gameIds = raw.map(g => g.id);
-        const { data: lockedOdds } = await supabase
-          .from('locked_odds')
-          .select('*')
-          .in('external_game_id', gameIds);
-
-        const lockedMap = new Map(
-          (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
+      try {
+        const gamesRes = await fetch(
+          `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`
         );
-
-        wcProcessed = raw.map(g => {
-          const locked = lockedMap.get(g.id);
-          if (locked) {
+        if (gamesRes.ok) {
+          const raw: any[] = await gamesRes.json();
+          const gameIds = raw.map(g => g.id);
+          const { data: lockedOdds } = await supabase
+            .from('locked_odds').select('*').in('external_game_id', gameIds);
+          const lockedMap = new Map(
+            (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
+          );
+          wcProcessed = raw.map(g => {
+            const locked = lockedMap.get(g.id);
+            if (locked) {
+              return {
+                id: g.id, home_team: g.home_team, away_team: g.away_team,
+                commence_time: g.commence_time,
+                home_win: Number(locked.home_win), draw: Number(locked.draw_win),
+                away_win: Number(locked.away_win), oddsLocked: true,
+              };
+            }
             return {
-              id: g.id,
-              home_team: g.home_team,
-              away_team: g.away_team,
+              id: g.id, home_team: g.home_team, away_team: g.away_team,
               commence_time: g.commence_time,
-              home_win: Number(locked.home_win),
-              draw: Number(locked.draw_win),
-              away_win: Number(locked.away_win),
-              oddsLocked: true,
+              home_win: 0, draw: 0, away_win: 0, oddsLocked: false,
             };
-          }
-          return {
-            id: g.id,
-            home_team: g.home_team,
-            away_team: g.away_team,
-            commence_time: g.commence_time,
-            home_win: 0,
-            draw: 0,
-            away_win: 0,
-            oddsLocked: false,
-          };
-        }) as Game[];
-      }
+          }) as Game[];
+        }
+      } catch { /* WC API failed — showing custom games only */ }
 
       setGames([...customProcessed, ...wcProcessed]);
-      if (settingsRes.data) setSettings(settingsRes.data);
-      if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
     } catch {
       setError('שגיאה בטעינת המשחקים');
     } finally {
