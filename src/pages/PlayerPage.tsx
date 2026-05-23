@@ -232,7 +232,6 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             : teamHe(game.away_team).slice(0, 7);
           return (
             <div key={p} className={`gc-odds-cell ${derivedPick === p ? 'gc-odds-active' : ''}`}>
-              <span className="gc-odds-label">{label}</span>
               <span className="gc-odds-val">{odds[p].toFixed(2)}</span>
             </div>
           );
