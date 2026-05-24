@@ -60,20 +60,25 @@ function extractOdds(game) {
 }
 
 async function main() {
-  // אל תקרא ל-API אם הטורניר לא מתחיל ב-48 השעות הקרובות
-  // כל קריאה עולה 72 קרדיטים (1 לכל משחק) — יקר מדי לקרוא כל שעה בחינם
   const now = Date.now();
+
+  // אל תקרא ל-API אם הטורניר לא מתחיל ב-24 השעות הקרובות
   const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
-  if (now < TOURNAMENT_START - 48 * 60 * 60 * 1000) {
+  if (now < TOURNAMENT_START - 24 * 60 * 60 * 1000) {
     const hoursLeft = Math.round((TOURNAMENT_START - now) / 3600000);
     console.log(`Tournament starts in ${hoursLeft}h — skipping API call to save credits.`);
     return;
   }
 
+  // commenceTimeTo = עכשיו + 24 שעות
+  // ה-API מחזיר רק משחקים שמתחילים בטווח הזה = 2-5 קרדיטים בכל קריאה (במקום 72)
+  const commenceTimeTo = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+
   console.log('Fetching odds from The Odds API...');
+  console.log(`Window: now → ${commenceTimeTo}`);
 
   const res = await fetch(
-    `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`
+    `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal&commenceTimeTo=${commenceTimeTo}`
   );
 
   if (!res.ok) {
