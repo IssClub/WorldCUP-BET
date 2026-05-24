@@ -69,13 +69,15 @@ async function sendPush(playerId, payload) {
 async function main() {
   const now = Date.now();
 
-  // חלון תזכורת: 13–18 דקות לפני kickoff
-  const reminderFrom = new Date(now + 13 * 60 * 1000).toISOString();
-  const reminderTo   = new Date(now + 18 * 60 * 1000).toISOString();
+  // חלון תזכורת: 15–45 דקות לפני kickoff
+  // חלון רחב כי GitHub Actions יכול להתעכב עד 20 דקות
+  const reminderFrom = new Date(now + 15 * 60 * 1000).toISOString();
+  const reminderTo   = new Date(now + 45 * 60 * 1000).toISOString();
 
-  // חלון הימור-אוטומטי: 3–8 דקות לפני kickoff (סגירת הימורים ב-5 דקות)
-  const autoFrom = new Date(now + 3 * 60 * 1000).toISOString();
-  const autoTo   = new Date(now + 8 * 60 * 1000).toISOString();
+  // חלון הימור-אוטומטי: 0–25 דקות לפני kickoff
+  // כולל גם אחרי תחילת המשחק (עד 0 דק') כי GitHub Actions לא תמיד מדויק
+  const autoFrom = new Date(now - 0 * 60 * 1000).toISOString(); // עד עכשיו
+  const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
   // הגדרות
   const { data: settings } = await supabase.from('settings').select('*').single();
