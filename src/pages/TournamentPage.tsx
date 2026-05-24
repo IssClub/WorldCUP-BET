@@ -425,36 +425,36 @@ export default function TournamentPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'schedule' | 'standings' | 'scorers' | 'rules'>('schedule');
   useEffect(() => {
-    // קורא מ-Supabase בלבד — לא שורף קרדיטים מה-API
-    // locked_odds מתמלא ע"י fetch-odds.mjs (שרת) כשיש משחקים ב-48 שעות
-    // bets מכיל גם משחקים עם actual_home/actual_away לתוצאות
-    Promise.all([
-      supabase.from('locked_odds').select('*').order('kickoff_at'),
-      supabase.from('bets').select('external_game_id, actual_home, actual_away').not('actual_home', 'is', null),
-    ]).then(([oddsRes, scoresRes]) => {
-      const oddsData = oddsRes.data ?? [];
-      const processed = oddsData.map((g: any) => ({
-        id: g.external_game_id,
-        home_team: g.home_team,
-        away_team: g.away_team,
-        commence_time: g.kickoff_at,
-        home_win: Number(g.home_win),
-        draw: Number(g.draw_win),
-        away_win: Number(g.away_win),
-      })) as Game[];
-      setGames(processed);
+    // קורא מ-wc_schedule — לוח משחקים סטטי, לא שורף קרדיטים
+    // תוצאות (home_score/away_score/completed) מתעדכנות ע"י אדמין או settle-games
+    supabase.from('wc_schedule').select('*').order('kickoff_at')
+      .then(({ data }) => {
+        const rows = data ?? [];
+        const processed = rows.map((g: any) => ({
+          id:           g.id,
+          home_team:    g.home_team,
+          away_team:    g.away_team,
+          commence_time: g.kickoff_at,
+          home_win:     0,
+          draw:         0,
+          away_win:     0,
+        })) as Game[];
+        setGames(processed);
 
-      // תוצאות מוכרות מ-bets
-      const map: ScoreMap = {};
-      for (const b of (scoresRes.data ?? [])) {
-        if (b.actual_home !== null && b.actual_away !== null) {
-          map[b.external_game_id] = {
-            homeScore: b.actual_home, awayScore: b.actual_away, completed: true,
-          };
+        // תוצאות ישירות מ-wc_schedule
+        const map: ScoreMap = {};
+        for (const g of rows) {
+          if (g.home_score !== null && g.away_score !== null) {
+            map[g.id] = {
+              homeScore: g.home_score,
+              awayScore: g.away_score,
+              completed: g.completed ?? false,
+            };
+          }
         }
-      }
-      setScoreMap(map);
-    }).finally(() => setLoading(false));
+        setScoreMap(map);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const groups = useMemo(() => inferGroups(games), [games]);
