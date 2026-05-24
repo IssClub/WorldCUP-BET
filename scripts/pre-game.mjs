@@ -88,6 +88,9 @@ async function main() {
     .from('profiles').select('id, display_name, bank');
   const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
 
+  // מעקב יתרה מקומי — מתעדכן אחרי כל הימור אוטומטי באותה ריצה
+  const localBank = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
+
   // ── חלון תזכורת ────────────────────────────────────────────
   const { data: reminderLocked } = await supabase
     .from('locked_odds').select('*')
@@ -170,9 +173,9 @@ async function main() {
 
     const bettorIds = new Set((existingBets ?? []).map(b => b.player_id));
 
-    // שחקנים שצריכים הימור אוטומטי: לא המרו + יש להם מספיק נקודות
+    // שחקנים שצריכים הימור אוטומטי: לא המרו + יש להם מספיק נקודות (לפי יתרה מקומית)
     const needsBet = activePlayers.filter(
-      p => !bettorIds.has(p.id) && p.bank >= autoAmount
+      p => !bettorIds.has(p.id) && (localBank[p.id] ?? p.bank) >= autoAmount
     );
 
     if (needsBet.length === 0) continue;
@@ -209,9 +212,12 @@ async function main() {
         continue;
       }
 
-      // הורד מהבנק
+      // הורד מהבנק — משתמש ביתרה המקומית המעודכנת
+      const currentBank = localBank[player.id] ?? player.bank;
+      const newBank = currentBank - autoAmount;
+      localBank[player.id] = newBank;
       await supabase.from('profiles')
-        .update({ bank: player.bank - autoAmount })
+        .update({ bank: newBank })
         .eq('id', player.id);
 
       const pickHe = randomPick === 'home' ? he(game.home_team)
