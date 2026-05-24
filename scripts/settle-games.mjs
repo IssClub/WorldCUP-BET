@@ -26,6 +26,20 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails('mailto:admin@worldcupbet.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
 
+// Team name normalization: API might return slightly different names than wc_schedule
+const WC_ALIASES = {
+  'Türkiye':                    'Turkey',
+  "Côte d'Ivoire":              'Ivory Coast',
+  'Czechia':                    'Czech Republic',
+  'USA':                        'United States',
+  'Korea Republic':             'South Korea',
+  'Democratic Republic of Congo': 'DR Congo',
+  'Congo DR':                   'DR Congo',
+  'Curaçao':                    'Curacao',
+  'Bosnia & Herzegovina':       'Bosnia and Herzegovina',
+};
+const wcName = name => WC_ALIASES[name] ?? name;
+
 // Hebrew team names
 const HE = {
   'Argentina':'ארגנטינה','Brazil':'ברזיל','France':'צרפת','Germany':'גרמניה',
@@ -133,6 +147,14 @@ async function main() {
 
     settledAnyGame = true;
     console.log(`Settling: ${game.home_team} ${homeScore}:${awayScore} ${game.away_team} (${bets.length} bets)`);
+
+    // עדכן wc_schedule — כך לוח המשחקים יציג את הציון אוטומטית
+    const { error: wcErr } = await supabase.from('wc_schedule')
+      .update({ home_score: homeScore, away_score: awayScore, completed: true })
+      .eq('home_team', wcName(game.home_team))
+      .eq('away_team', wcName(game.away_team));
+    if (wcErr) console.log(`  wc_schedule note: ${wcErr.message}`);
+    else console.log(`  wc_schedule updated ✓`);
 
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
     const playerData = {}; // playerId -> { payout, lostAmount }
