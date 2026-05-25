@@ -610,13 +610,19 @@ export default function PlayerPage() {
     if (totalCost > (profile.bank ?? 0)) { setError('אין מספיק נקודות בבנק'); return; }
     setSubmitting(true);
     setError('');
+    const insertedBetIds: string[] = [];
     try {
+      // קודם עדכן בנק — אם נכשל, אין הימורים שנרשמו לשווא
+      const { error: bankErr } = await supabase
+        .from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
+      if (bankErr) throw new Error(bankErr.message);
+
       for (const g of readyBets) {
         const b = bets[g.id];
         const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
         const derivedPick: Pick = h > a ? 'home' : h < a ? 'away' : 'draw';
         const oddsVal = derivedPick === 'home' ? g.home_win : derivedPick === 'draw' ? g.draw : g.away_win;
-        const { error: insertErr } = await supabase.from('bets').insert({
+        const { data: inserted, error: insertErr } = await supabase.from('bets').insert({
           player_id: profile.id,
           external_game_id: g.id,
           home_team: g.home_team,
@@ -628,16 +634,22 @@ export default function PlayerPage() {
           exact_home: h,
           exact_away: a,
           status: 'pending',
-        });
+        }).select('id').single();
         if (insertErr) throw new Error(insertErr.message);
+        if (inserted?.id) insertedBetIds.push(inserted.id);
       }
-      const { error: bankErr } = await supabase
-        .from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
-      if (bankErr) throw new Error(bankErr.message);
       await Promise.all([refresh(), loadData()]);
       setJustSubmitted(true);
       setTimeout(() => setJustSubmitted(false), 3000);
     } catch (e: any) {
+      // אם כבר הכנסנו הימורים לפני השגיאה — בטל אותם
+      if (insertedBetIds.length > 0) {
+        await supabase.from('bets').delete().in('id', insertedBetIds);
+      }
+      // אם עדכון הבנק הצליח אבל הכנסת הימור נכשלה — החזר את הבנק
+      if (insertedBetIds.length < readyBets.length) {
+        await supabase.from('profiles').update({ bank: profile.bank ?? 0 }).eq('id', profile.id);
+      }
       setError('שגיאה: ' + (e?.message ?? 'נסה שוב'));
     } finally {
       setSubmitting(false);
