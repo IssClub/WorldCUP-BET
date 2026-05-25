@@ -273,9 +273,24 @@ export default function MyBetsPage() {
                     </div>
                   </div>
 
-                  {/* Exact score */}
+                  {/* Exact score guess */}
                   {bet.exact_home !== null && (
-                    <div className="mb-exact">⚡ ניחוש: {bet.exact_home}:{bet.exact_away}</div>
+                    <div className="mb-exact">
+                      ⚡ ניחוש: {pickLabel(bet.pick, bet.home_team, bet.away_team)} {bet.exact_home}:{bet.exact_away}
+                    </div>
+                  )}
+
+                  {/* Actual result — only for settled bets */}
+                  {(bet.status === 'won' || bet.status === 'lost') && bet.actual_home !== null && bet.actual_away !== null && (
+                    <div className="mb-actual">
+                      {(() => {
+                        const aw = bet.actual_home > bet.actual_away ? 'home'
+                          : bet.actual_away > bet.actual_home ? 'away' : 'draw';
+                        const winnerName = aw === 'home' ? teamHe(bet.home_team)
+                          : aw === 'away' ? teamHe(bet.away_team) : 'תיקו';
+                        return <>🏁 תוצאה: <strong>{winnerName}</strong> {bet.actual_home}:{bet.actual_away}</>;
+                      })()}
+                    </div>
                   )}
 
                   {/* Cancel */}
