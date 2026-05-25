@@ -100,8 +100,11 @@ async function main() {
 
   if (!count || count === 0) {
     console.log('No pending bets on started games — nothing to do.');
-    await maybeSendDailySummary(false);
-    await processPushQueue(); // שלח פושים שנשמרו מסגירה ידנית
+    const sentCount = await processPushQueue(); // שלח פושים שנשמרו מסגירה ידנית
+    if (sentCount > 0) {
+      // משחקים נסגרו ידנית — בדוק אם צריך לשלוח סיכום יומי
+      await maybeSendDailySummaryFromDB();
+    }
     return;
   }
 
@@ -268,15 +271,87 @@ async function maybeSendDailySummary(justSettled, bankMap = {}, activePlayers = 
 }
 
 // ── Push queue (for manually settled games) ───────────────
+// מחזיר כמה פושים נשלחו
 async function processPushQueue() {
   const { data: pending } = await supabase
     .from('push_queue').select('*').eq('sent', false).order('created_at');
-  if (!pending?.length) return;
+  if (!pending?.length) return 0;
   console.log(`Processing ${pending.length} queued push notification(s)...`);
   for (const item of pending) {
     await sendPush(item.player_id, { title: item.title, body: item.body, url: '/WorldCUP-BET/' });
     await supabase.from('push_queue')
       .update({ sent: true, sent_at: new Date().toISOString() }).eq('id', item.id);
+  }
+  return pending.length;
+}
+
+// ── Daily summary after manual settlement ─────────────────
+// גרסה שקוראת את נתוני הבנק ישירות מה-DB (למקרה של סגירה ידנית)
+async function maybeSendDailySummaryFromDB() {
+  const israelDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+  const dayStart = israelDate + 'T00:00:00';
+  const dayEnd   = israelDate + 'T23:59:59';
+
+  const { count: pendingToday } = await supabase
+    .from('bets')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .gte('kickoff_at', dayStart)
+    .lte('kickoff_at', dayEnd);
+
+  if (pendingToday && pendingToday > 0) {
+    console.log(`${pendingToday} pending bets remain today — skipping daily summary.`);
+    return;
+  }
+
+  // בדוק שיש בכלל משחקים היום (כדי לא לשלוח סיכום ביום ריק)
+  const { count: gamesCount } = await supabase
+    .from('bets')
+    .select('id', { count: 'exact', head: true })
+    .gte('kickoff_at', dayStart)
+    .lte('kickoff_at', dayEnd);
+
+  if (!gamesCount || gamesCount === 0) return;
+
+  console.log('All games for today settled (manual) — sending daily summary push...');
+
+  const { data: allProfiles } = await supabase
+    .from('profiles').select('id, bank, display_name');
+  const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
+  const sorted = [...activePlayers].sort((a, b) => b.bank - a.bank);
+  const rankMap = Object.fromEntries(sorted.map((p, i) => [p.id, i + 1]));
+  const total = sorted.length;
+
+  // חישוב שינוי יומי מהימורים שנסגרו היום
+  const { data: todayBets } = await supabase
+    .from('bets')
+    .select('player_id, amount, payout, status')
+    .gte('kickoff_at', dayStart)
+    .lte('kickoff_at', dayEnd)
+    .in('status', ['won', 'lost']);
+
+  const todayChange: Record<string, number> = {};
+  for (const bet of (todayBets ?? [])) {
+    if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
+    todayChange[bet.player_id] += bet.status === 'won'
+      ? (bet.payout - bet.amount)
+      : -bet.amount;
+  }
+
+  for (const player of activePlayers) {
+    const rank = rankMap[player.id];
+    const change = todayChange[player.id] ?? 0;
+    const changeStr = change > 0
+      ? `+${change.toLocaleString()} נק׳ היום`
+      : change < 0
+        ? `${change.toLocaleString()} נק׳ היום`
+        : 'ללא שינוי היום';
+
+    await sendPush(player.id, {
+      title: `📊 סיכום יום · מקום ${rank} מתוך ${total}`,
+      body: `${changeStr} | יתרה: ${player.bank.toLocaleString()} נק׳`,
+      url: '/WorldCUP-BET/',
+    });
   }
 }
 

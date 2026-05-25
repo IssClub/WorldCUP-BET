@@ -95,7 +95,6 @@ async function main() {
   console.log(`Got ${games.length} games from API`);
 
   // רק משחקים ב-48 השעות הקרובות
-  const now = Date.now();
   const cutoff = now + 48 * 60 * 60 * 1000;
   const upcoming = games.filter(g => {
     const t = new Date(g.commence_time).getTime();
