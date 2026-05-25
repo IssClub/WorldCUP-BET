@@ -330,7 +330,7 @@ async function maybeSendDailySummaryFromDB() {
     .lte('kickoff_at', dayEnd)
     .in('status', ['won', 'lost']);
 
-  const todayChange: Record<string, number> = {};
+  const todayChange = {};
   for (const bet of (todayBets ?? [])) {
     if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
     todayChange[bet.player_id] += bet.status === 'won'
