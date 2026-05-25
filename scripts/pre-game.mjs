@@ -74,9 +74,9 @@ async function main() {
   const reminderFrom = new Date(now + 15 * 60 * 1000).toISOString();
   const reminderTo   = new Date(now + 45 * 60 * 1000).toISOString();
 
-  // חלון הימור-אוטומטי: 0–25 דקות לפני kickoff
-  // כולל גם אחרי תחילת המשחק (עד 0 דק') כי GitHub Actions לא תמיד מדויק
-  const autoFrom = new Date(now - 0 * 60 * 1000).toISOString(); // עד עכשיו
+  // חלון הימור-אוטומטי: 30 דקות אחורה עד 25 דקות קדימה
+  // אחורה כי GitHub Actions מתעכב ולפעמים רץ אחרי שהמשחק כבר התחיל
+  const autoFrom = new Date(now - 30 * 60 * 1000).toISOString(); // עד 30 דק' אחורה
   const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
   // הגדרות
