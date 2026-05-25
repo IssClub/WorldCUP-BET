@@ -101,6 +101,7 @@ async function main() {
   if (!count || count === 0) {
     console.log('No pending bets on started games — nothing to do.');
     await maybeSendDailySummary(false);
+    await processPushQueue(); // שלח פושים שנשמרו מסגירה ידנית
     return;
   }
 
