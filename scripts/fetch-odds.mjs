@@ -68,7 +68,7 @@ async function main() {
 
   console.log(`Active sport keys: ${sportKeys.join(', ')}`);
 
-  const commenceTimeTo = new Date(now + 48 * 60 * 60 * 1000).toISOString();
+  const commenceTimeTo = new Date(now + 48 * 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const cutoff = now + 48 * 60 * 60 * 1000;
 
   let totalInserted = 0;
