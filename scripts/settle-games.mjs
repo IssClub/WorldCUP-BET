@@ -100,11 +100,8 @@ async function main() {
 
   if (!count || count === 0) {
     console.log('No pending bets on started games — nothing to do.');
-    const sentCount = await processPushQueue(); // שלח פושים שנשמרו מסגירה ידנית
-    if (sentCount > 0) {
-      // משחקים נסגרו ידנית — בדוק אם צריך לשלוח סיכום יומי
-      await maybeSendDailySummaryFromDB();
-    }
+    await processPushQueue(); // שלח פושים שנשמרו מסגירה ידנית
+    await maybeSendDailySummaryFromDB();
     return;
   }
 
