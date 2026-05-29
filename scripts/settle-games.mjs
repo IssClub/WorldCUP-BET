@@ -113,18 +113,26 @@ async function main() {
   const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
   const bankMap = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
 
-  // Step 4: fetch scores from Odds API
-  const res = await fetch(
-    `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/scores/?apiKey=${ODDS_API_KEY}&daysFrom=3`
-  );
-  const games = await res.json();
+  // Step 3: קרא sport keys פעילים מה-settings
+  const { data: settings } = await supabase.from('settings').select('sport_keys').single();
+  const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
 
-  if (!Array.isArray(games)) {
-    console.error('Unexpected API response:', JSON.stringify(games).slice(0, 200));
-    return;
+  // Step 4: fetch scores from Odds API — לכל sport key פעיל
+  const allGames = [];
+  for (const sportKey of sportKeys) {
+    const res = await fetch(
+      `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${ODDS_API_KEY}&daysFrom=3`
+    );
+    const games = await res.json();
+    if (!Array.isArray(games)) {
+      console.error(`Unexpected API response for ${sportKey}:`, JSON.stringify(games).slice(0, 200));
+      continue;
+    }
+    console.log(`[${sportKey}] Got ${games.length} games, ${games.filter(g => g.completed).length} completed`);
+    allGames.push(...games);
   }
 
-  console.log(`Got ${games.length} games, ${games.filter(g => g.completed).length} completed`);
+  const games = allGames;
 
   // Track today's net change per player (for daily summary)
   const todayChange = {};

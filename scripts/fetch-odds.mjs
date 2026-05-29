@@ -62,99 +62,91 @@ function extractOdds(game) {
 async function main() {
   const now = Date.now();
 
-  // אל תקרא ל-API אם הטורניר לא מתחיל ב-24 השעות הקרובות
-  const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
-  if (now < TOURNAMENT_START - 24 * 60 * 60 * 1000) {
-    const hoursLeft = Math.round((TOURNAMENT_START - now) / 3600000);
-    console.log(`Tournament starts in ${hoursLeft}h — skipping API call to save credits.`);
-    return;
-  }
+  // קרא sport keys פעילים מה-settings
+  const { data: settings } = await supabase.from('settings').select('sport_keys').single();
+  const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
 
-  // commenceTimeTo = עכשיו + 24 שעות
-  // ה-API מחזיר רק משחקים שמתחילים בטווח הזה = 2-5 קרדיטים בכל קריאה (במקום 72)
-  const commenceTimeTo = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+  console.log(`Active sport keys: ${sportKeys.join(', ')}`);
 
-  console.log('Fetching odds from The Odds API...');
-  console.log(`Window: now → ${commenceTimeTo}`);
-
-  const res = await fetch(
-    `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal&commenceTimeTo=${commenceTimeTo}`
-  );
-
-  if (!res.ok) {
-    console.error('API error:', res.status, await res.text());
-    process.exit(1);
-  }
-
-  const games = await res.json();
-  if (!Array.isArray(games)) {
-    console.error('Unexpected API response:', JSON.stringify(games).slice(0, 200));
-    process.exit(1);
-  }
-
-  console.log(`Got ${games.length} games from API`);
-
-  // רק משחקים ב-48 השעות הקרובות
+  const commenceTimeTo = new Date(now + 48 * 60 * 60 * 1000).toISOString();
   const cutoff = now + 48 * 60 * 60 * 1000;
-  const upcoming = games.filter(g => {
-    const t = new Date(g.commence_time).getTime();
-    return t > now && t < cutoff;
-  });
 
-  console.log(`${upcoming.length} games in next 48h`);
+  let totalInserted = 0;
 
-  if (upcoming.length === 0) {
-    console.log('Nothing to lock.');
-    return;
-  }
+  for (const sportKey of sportKeys) {
+    console.log(`\nFetching odds for ${sportKey}...`);
+    console.log(`Window: now → ${commenceTimeTo}`);
 
-  // אילו משחקים כבר נעולים?
-  const ids = upcoming.map(g => g.id);
-  const { data: existing } = await supabase
-    .from('locked_odds')
-    .select('external_game_id')
-    .in('external_game_id', ids);
+    const res = await fetch(
+      `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal&commenceTimeTo=${commenceTimeTo}`
+    );
 
-  const lockedIds = new Set((existing ?? []).map(r => r.external_game_id));
-  const toInsert = upcoming.filter(g => !lockedIds.has(g.id));
-
-  console.log(`${lockedIds.size} already locked, ${toInsert.length} new to lock`);
-
-  let inserted = 0;
-  for (const game of toInsert) {
-    const odds = extractOdds(game);
-    if (!odds) {
-      console.log(`No odds found for ${game.home_team} vs ${game.away_team} — skipping`);
+    if (!res.ok) {
+      console.error(`API error for ${sportKey}:`, res.status, await res.text());
       continue;
     }
 
-    const { error } = await supabase.from('locked_odds').insert({
-      external_game_id: game.id,
-      home_team: game.home_team,
-      away_team: game.away_team,
-      kickoff_at: game.commence_time,
-      home_win: odds.home_win,
-      draw_win: odds.draw_win,
-      away_win: odds.away_win,
+    const games = await res.json();
+    if (!Array.isArray(games)) {
+      console.error(`Unexpected API response for ${sportKey}:`, JSON.stringify(games).slice(0, 200));
+      continue;
+    }
+
+    console.log(`Got ${games.length} games from API`);
+
+    const upcoming = games.filter(g => {
+      const t = new Date(g.commence_time).getTime();
+      return t > now && t < cutoff;
     });
 
-    if (error) {
-      // If duplicate key — game was locked by a parallel run, ignore
-      if (error.code === '23505') {
-        console.log(`Already locked (race): ${game.home_team} vs ${game.away_team}`);
-      } else {
-        console.error(`Error inserting ${game.home_team} vs ${game.away_team}:`, error.message);
+    console.log(`${upcoming.length} games in next 48h`);
+    if (upcoming.length === 0) continue;
+
+    const ids = upcoming.map(g => g.id);
+    const { data: existing } = await supabase
+      .from('locked_odds')
+      .select('external_game_id')
+      .in('external_game_id', ids);
+
+    const lockedIds = new Set((existing ?? []).map(r => r.external_game_id));
+    const toInsert = upcoming.filter(g => !lockedIds.has(g.id));
+
+    console.log(`${lockedIds.size} already locked, ${toInsert.length} new to lock`);
+
+    for (const game of toInsert) {
+      const odds = extractOdds(game);
+      if (!odds) {
+        console.log(`No odds found for ${game.home_team} vs ${game.away_team} — skipping`);
+        continue;
       }
-    } else {
-      console.log(
-        `Locked: ${game.home_team} vs ${game.away_team} ` +
-        `(${odds.source}) H:${odds.home_win} D:${odds.draw_win} A:${odds.away_win}`
-      );
-      inserted++;
+
+      const { error } = await supabase.from('locked_odds').insert({
+        external_game_id: game.id,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        kickoff_at: game.commence_time,
+        home_win: odds.home_win,
+        draw_win: odds.draw_win,
+        away_win: odds.away_win,
+      });
+
+      if (error) {
+        if (error.code === '23505') {
+          console.log(`Already locked (race): ${game.home_team} vs ${game.away_team}`);
+        } else {
+          console.error(`Error inserting ${game.home_team} vs ${game.away_team}:`, error.message);
+        }
+      } else {
+        console.log(
+          `Locked: ${game.home_team} vs ${game.away_team} ` +
+          `(${odds.source}) H:${odds.home_win} D:${odds.draw_win} A:${odds.away_win}`
+        );
+        totalInserted++;
+      }
     }
   }
 
-  console.log(`Done. Locked ${inserted} new game(s).`);
+  console.log(`\nDone. Locked ${totalInserted} new game(s) total.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
