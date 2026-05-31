@@ -222,9 +222,72 @@ async function main() {
     }
   }
 
+  await applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings);
   await maybeSendDailySummary(settledAnyGame, bankMap, activePlayers, todayChange);
   await processPushQueue();
   console.log('Done.');
+}
+
+// ── קנס גיבוי — שחקנים שלא המרו ולא קיבלו הימור אוטומטי ──
+async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings) {
+  const penalty = settings?.penalty ?? 50;
+  const completedGames = games.filter(g => g.completed);
+  if (!completedGames.length) return;
+
+  for (const game of completedGames) {
+    // מי שהמר על המשחק הזה (כל סטטוס)
+    const { data: betsForGame } = await supabase
+      .from('bets')
+      .select('player_id')
+      .eq('external_game_id', game.id);
+
+    const bettorIds = new Set((betsForGame ?? []).map(b => b.player_id));
+
+    // מי שלא המר
+    const missing = activePlayers.filter(p => !bettorIds.has(p.id));
+    if (!missing.length) continue;
+
+    // מי שכבר קיבל קנס על המשחק הזה (idempotency)
+    const { data: existingPenalties } = await supabase
+      .from('penalties')
+      .select('player_id')
+      .eq('external_game_id', game.id);
+
+    const alreadyPenalized = new Set((existingPenalties ?? []).map(r => r.player_id));
+
+    for (const player of missing) {
+      if (alreadyPenalized.has(player.id)) continue;
+
+      const currentBank = bankMap[player.id] ?? player.bank;
+      if (currentBank <= 0) continue; // שחקן שכבר eliminated
+
+      const newBank = Math.max(0, currentBank - penalty);
+      bankMap[player.id] = newBank;
+
+      // עדכן בנק
+      await supabase.from('profiles').update({ bank: newBank }).eq('id', player.id);
+
+      // רשום קנס
+      await supabase.from('penalties').insert({
+        player_id: player.id,
+        external_game_id: game.id,
+        amount: penalty,
+      });
+
+      // עדכן שינוי יומי
+      if (!todayChange[player.id]) todayChange[player.id] = 0;
+      todayChange[player.id] -= penalty;
+
+      // שלח פוש
+      await sendPush(player.id, {
+        title: '⚠️ קנס אי-הימור',
+        body: `לא הימרת על ${he(game.home_team)} נגד ${he(game.away_team)} — קנס של ${penalty} נק׳`,
+        url: '/WorldCUP-BET/',
+      });
+
+      console.log(`Penalty applied: ${player.id} -${penalty} pts (missed ${game.home_team} vs ${game.away_team})`);
+    }
+  }
 }
 
 // ── Daily summary push ────────────────────────────────────

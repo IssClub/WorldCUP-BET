@@ -21,7 +21,9 @@ export default function LoginPage() {
     if (mode === 'forgot') {
       if (!email) { setError('נא להזין אימייל'); return; }
       setLoading(true);
-      const { error: e } = await supabase.auth.resetPasswordForEmail(email);
+      const { error: e } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/WorldCUP-BET/',
+      });
       setLoading(false);
       if (e) setError(e.message);
       else setSuccess('נשלח מייל לאיפוס סיסמה — בדוק את תיבת הדואר שלך');
