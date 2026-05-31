@@ -70,7 +70,7 @@ export default function LeaderboardPage() {
       betsByPlayer[bet.player_id].push(bet);
     }
 
-    setPlayers(profiles.map(p => {
+    const mapped = profiles.map(p => {
       const pb = betsByPlayer[p.id] || [];
       const settledBets = pb.filter(b => b.status === 'won' || b.status === 'lost');
       return {
@@ -81,7 +81,16 @@ export default function LeaderboardPage() {
         totalBets: pb.length,
         bets: pb,
       };
-    }));
+    });
+
+    // מיון: בנק → ניחושים נכונים → בולים
+    mapped.sort((a, b) =>
+      b.bank - a.bank ||
+      b.wins - a.wins ||
+      b.exactHits - a.exactHits
+    );
+
+    setPlayers(mapped);
     setLoading(false);
   }
 
