@@ -107,10 +107,10 @@ async function main() {
 
   console.log(`Found ${count} pending bet(s) on started games. Fetching scores...`);
 
-  // Step 2: fetch all active players (bank > 0, they're still in the game)
+  // Step 2: fetch all players
   const { data: allProfiles } = await supabase
     .from('profiles').select('id, bank, display_name');
-  const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
+  const activePlayers = allProfiles ?? [];
   const bankMap = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
 
   // Step 3: קרא sport keys פעילים מה-settings
@@ -166,7 +166,7 @@ async function main() {
     else console.log(`  wc_schedule updated ✓`);
 
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
-    const playerData = {}; // playerId -> { payout, lostAmount }
+    const playerData = {}; // playerId -> { payout }
 
     // ── Settle bets ──
     for (const bet of bets) {
@@ -182,16 +182,15 @@ async function main() {
         .update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore })
         .eq('id', bet.id);
 
-      if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0, lostAmount: 0 };
+      if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0 };
       if (won) playerData[bet.player_id].payout += payout;
-      else playerData[bet.player_id].lostAmount += bet.amount;
 
-      // Track today's change
+      // Track today's change (only wins count)
       if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
-      todayChange[bet.player_id] += won ? (payout - bet.amount) : -bet.amount;
+      if (won) todayChange[bet.player_id] += payout;
     }
 
-    // Update winner banks
+    // Update score for winners only
     for (const [playerId, { payout }] of Object.entries(playerData)) {
       if (payout <= 0) continue;
       const current = bankMap[playerId] ?? 0;
@@ -208,12 +207,12 @@ async function main() {
     const rankMap = Object.fromEntries(updatedProfiles.map((p, i) => [p.id, i + 1]));
 
     // ── Send bet result notifications ──
-    for (const [playerId, { payout, lostAmount }] of Object.entries(playerData)) {
+    for (const [playerId, { payout }] of Object.entries(playerData)) {
       const rank = rankMap[playerId];
       const rankText = rank ? ` · מקום ${rank}` : '';
       const body = payout > 0
         ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳${rankText}`
-        : `${randomPhrase(LOSS_PHRASES)} הפסדת ${lostAmount.toLocaleString()} נק׳${rankText}`;
+        : `${randomPhrase(LOSS_PHRASES)} הפסד — 0 נק׳${rankText}`;
       await sendPush(playerId, {
         title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
         body,

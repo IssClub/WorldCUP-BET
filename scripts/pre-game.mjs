@@ -79,17 +79,12 @@ async function main() {
   const autoFrom = new Date(now - 30 * 60 * 1000).toISOString(); // עד 30 דק' אחורה
   const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
-  // הגדרות
-  const { data: settings } = await supabase.from('settings').select('*').single();
-  const autoAmount = settings?.auto_bet_amount ?? 50;
+  const AUTO_BET_AMOUNT = 10; // סכום קבוע לכל הימור
 
-  // כל השחקנים הפעילים (bank > 0)
+  // כל השחקנים
   const { data: allProfiles } = await supabase
-    .from('profiles').select('id, display_name, bank');
-  const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
-
-  // מעקב יתרה מקומי — מתעדכן אחרי כל הימור אוטומטי באותה ריצה
-  const localBank = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
+    .from('profiles').select('id, display_name');
+  const activePlayers = allProfiles ?? [];
 
   // ── חלון תזכורת ────────────────────────────────────────────
   const { data: reminderLocked } = await supabase
@@ -173,10 +168,8 @@ async function main() {
 
     const bettorIds = new Set((existingBets ?? []).map(b => b.player_id));
 
-    // שחקנים שצריכים הימור אוטומטי: לא המרו + יש להם מספיק נקודות (לפי יתרה מקומית)
-    const needsBet = activePlayers.filter(
-      p => !bettorIds.has(p.id) && (localBank[p.id] ?? p.bank) >= autoAmount
-    );
+    // שחקנים שצריכים הימור אוטומטי: לא המרו
+    const needsBet = activePlayers.filter(p => !bettorIds.has(p.id));
 
     if (needsBet.length === 0) continue;
 
@@ -200,7 +193,7 @@ async function main() {
         away_team: game.away_team,
         kickoff_at: game.kickoff_at,
         pick: randomPick,
-        amount: autoAmount,
+        amount: AUTO_BET_AMOUNT,
         odds_value: oddsValue,
         exact_home: score.home,
         exact_away: score.away,
@@ -212,27 +205,19 @@ async function main() {
         continue;
       }
 
-      // הורד מהבנק — משתמש ביתרה המקומית המעודכנת
-      const currentBank = localBank[player.id] ?? player.bank;
-      const newBank = currentBank - autoAmount;
-      localBank[player.id] = newBank;
-      await supabase.from('profiles')
-        .update({ bank: newBank })
-        .eq('id', player.id);
-
       const pickHe = randomPick === 'home' ? he(game.home_team)
         : randomPick === 'away' ? he(game.away_team) : 'תיקו';
 
       console.log(
         `Auto-bet placed: ${player.display_name} → ${randomPick} (${pickHe}) ` +
-        `on ${game.home_team} vs ${game.away_team} (${autoAmount} pts @ ${oddsValue})`
+        `on ${game.home_team} vs ${game.away_team} (${AUTO_BET_AMOUNT} pts @ ${oddsValue})`
       );
 
       // שלח התראה לשחקן אנושי (לא לקוף)
       if (!isMonkey) {
         await sendPush(player.id, {
           title: '🤖 הימור אוטומטי!',
-          body: `הימרנו ${autoAmount} נק׳ על ${pickHe} (${oddsValue.toFixed(2)}×) — ${he(game.home_team)} נגד ${he(game.away_team)}`,
+          body: `הימרנו ${AUTO_BET_AMOUNT} נק׳ על ${pickHe} (${oddsValue.toFixed(2)}×) — ${he(game.home_team)} נגד ${he(game.away_team)}`,
           url: '/WorldCUP-BET/',
         });
       }
