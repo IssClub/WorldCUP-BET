@@ -312,6 +312,7 @@ export default function AdminPage() {
     if (!settings) return;
     setSavingSettings(true);
     const { error } = await supabase.from('settings').update({
+      use_bank: settings.use_bank,
       starting_bank: settings.starting_bank,
       min_bet: settings.min_bet,
       max_bet: settings.max_bet,
@@ -819,20 +820,90 @@ export default function AdminPage() {
             <h2 className="font-bold text-lg mb-4">הגדרות מערכת</h2>
             <div className="card p-6">
               <div className="flex flex-col gap-5">
+
+                {/* ── Toggle: מצב בנק / צבירה ── */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold" style={{color: 'var(--text)'}}>מצב בנק נקודות</div>
+                      <div className="text-xs mt-0.5" style={{color: 'var(--text-muted)'}}>
+                        {settings.use_bank
+                          ? 'כל שחקן מתחיל עם בנק — מנכה בהימור, מוסיף בזכייה'
+                          : 'צבירה — כל הימור הוא קבוע, רק זכייה מוסיפה לציון'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSettings(prev => prev ? {...prev, use_bank: !prev.use_bank} : prev)}
+                      style={{
+                        width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                        background: settings.use_bank ? 'var(--green)' : 'var(--border)',
+                        position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute', top: 3,
+                        left: settings.use_bank ? 25 : 3,
+                        width: 20, height: 20, borderRadius: '50%',
+                        background: '#fff', transition: 'left 0.2s',
+                      }} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── שדות מצב בנק (גלויים רק כשהמצב פעיל) ── */}
+                {settings.use_bank && (
+                  <div className="flex flex-col gap-5 fade-in" style={{
+                    borderRight: '2px solid rgba(0,200,83,0.3)',
+                    paddingRight: 14, marginRight: -2,
+                  }}>
+                    {[
+                      { key: 'starting_bank', label: 'בנק פתיחה לשחקן', hint: 'נקודות' },
+                      { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
+                      { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
+                      { key: 'no_bet_penalty', label: 'קנס על אי-הימור', hint: 'נקודות' },
+                    ].map(field => (
+                      <div key={field.key}>
+                        <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>
+                        <div className="flex items-center gap-3">
+                          <input type="number" className="input"
+                            value={settings[field.key as keyof Settings] as number}
+                            onChange={e => setSettings(prev => prev ? {...prev, [field.key]: parseInt(e.target.value) || 0} : prev)}
+                          />
+                          <span className="text-sm" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>{field.hint}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── שדה מצב צבירה ── */}
+                {!settings.use_bank && (
+                  <div className="flex flex-col gap-5 fade-in" style={{
+                    borderRight: '2px solid rgba(255,214,0,0.3)',
+                    paddingRight: 14, marginRight: -2,
+                  }}>
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>נקודות לכל הימור (קבוע)</label>
+                      <div className="flex items-center gap-3">
+                        <input type="number" className="input"
+                          value={settings.auto_bet_amount}
+                          onChange={e => setSettings(prev => prev ? {...prev, auto_bet_amount: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-sm" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נקודות</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── שדות משותפים לשני המצבים ── */}
                 {[
-                  { key: 'starting_bank', label: 'בנק פתיחה לשחקן חדש', hint: 'נקודות' },
-                  { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
-                  { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
                   { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
-                  { key: 'auto_bet_amount', label: 'הימור אוטומטי (5 דקות לפני)', hint: 'נקודות' },
                   { key: 'group_stage_bonus', label: 'בונוס סוף שלב הבתים', hint: 'נקודות' },
                 ].map(field => (
                   <div key={field.key}>
                     <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>
                     <div className="flex items-center gap-3">
-                      <input
-                        type="number"
-                        className="input"
+                      <input type="number" className="input"
                         value={settings[field.key as keyof Settings] as number}
                         onChange={e => setSettings(prev => prev ? {...prev, [field.key]: parseInt(e.target.value) || 0} : prev)}
                       />
@@ -846,7 +917,6 @@ export default function AdminPage() {
                     {settingsMsg}
                   </div>
                 )}
-
                 <button className="btn-primary" onClick={saveSettings} disabled={savingSettings}>
                   {savingSettings ? 'שומר...' : 'שמור הגדרות'}
                 </button>

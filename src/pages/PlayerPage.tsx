@@ -5,9 +5,7 @@ import type { Settings, Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
-import { CheckCircle2, Zap, RefreshCw, Trophy, Lock } from 'lucide-react';
-
-const BET_AMOUNT = 10; // סכום קבוע לכל הימור
+import { Coins, CheckCircle2, Zap, RefreshCw, Trophy, Lock } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -25,6 +23,7 @@ interface Game {
 
 interface BetState {
   pick: Pick | null;
+  amount: number;
   exactHome: string;
   exactAway: string;
 }
@@ -128,11 +127,19 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
       : parseInt(bet.exactHome) < parseInt(bet.exactAway) ? 'away' : 'draw')
     : null;
   const derivedOdds = derivedPick ? odds[derivedPick] : null;
-  const potential = derivedOdds ? Math.floor(BET_AMOUNT * derivedOdds) : 0;
+  const betAmount = settings.use_bank ? bet.amount : settings.auto_bet_amount;
+  const potential = derivedOdds && betAmount > 0 ? Math.floor(betAmount * derivedOdds) : 0;
   const bonusPotential = potential > 0 ? Math.floor(potential * 1.5) : 0;
   const derivedLabel = derivedPick === 'home' ? `ניצחון ${teamHe(game.home_team).slice(0, 9)}`
     : derivedPick === 'away' ? `ניצחון ${teamHe(game.away_team).slice(0, 9)}`
     : derivedPick === 'draw' ? 'תיקו' : null;
+
+  const presets = settings.use_bank ? [
+    settings.min_bet,
+    Math.round(settings.max_bet * 0.33 / 25) * 25,
+    Math.round(settings.max_bet * 0.66 / 25) * 25,
+    settings.max_bet,
+  ].filter((v, i, a) => a.indexOf(v) === i && v >= settings.min_bet && v <= settings.max_bet) : [];
 
   // ── Started & no bet ──
   if (isStarted && !existingBet) {
@@ -251,17 +258,38 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
       </div>
 
-      {/* פוטנציאל — מופיע אחרי מילוי תוצאה */}
+      {/* כמות + פוטנציאל — מופיע אחרי מילוי תוצאה */}
       {hasScore && (
-        <div className="gc-potential fade-in" style={{ marginTop: 10 }}>
-          <Zap size={13} style={{ color: 'var(--gold)' }} />
-          <span className="gc-pot-label">כיוון נכון</span>
-          <span className="gc-pot-val">{potential}</span>
-          <span className="gc-pot-u">נק׳</span>
-          <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
-          <span className="gc-pot-label">🎯 מדויק</span>
-          <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{bonusPotential}</span>
-          <span className="gc-pot-u">נק׳</span>
+        <div className="gc-amount fade-in">
+          {/* בחירת סכום — רק במצב בנק */}
+          {settings.use_bank && (
+            <>
+              <div className="gc-presets">
+                {presets.map(v => (
+                  <button key={v} className={`gc-preset ${bet.amount === v ? 'gc-preset-on' : ''}`}
+                    onClick={() => onChange({ amount: v })}>{v}</button>
+                ))}
+              </div>
+              <div className="gc-stepper">
+                <button className="gc-step" onClick={() => onChange({ amount: Math.max(settings.min_bet, bet.amount - 25) })}>−</button>
+                <div className="gc-amount-val">
+                  <span className="gc-amount-num">{bet.amount}</span>
+                  <span className="gc-amount-u">נק׳</span>
+                </div>
+                <button className="gc-step" onClick={() => onChange({ amount: Math.min(settings.max_bet, bet.amount + 25) })}>+</button>
+              </div>
+            </>
+          )}
+          <div className="gc-potential">
+            <Zap size={13} style={{ color: 'var(--gold)' }} />
+            <span className="gc-pot-label">כיוון נכון</span>
+            <span className="gc-pot-val">{potential}</span>
+            <span className="gc-pot-u">נק׳</span>
+            <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
+            <span className="gc-pot-label">🎯 מדויק</span>
+            <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{bonusPotential}</span>
+            <span className="gc-pot-u">נק׳</span>
+          </div>
         </div>
       )}
     </div>
@@ -574,17 +602,31 @@ export default function PlayerPage() {
     return b != null && b.exactHome !== '' && b.exactAway !== '' && !existingBets.find(e => e.external_game_id === g.id);
   });
 
+  const totalCost = settings?.use_bank
+    ? readyBets.reduce((s, g) => s + (bets[g.id]?.amount ?? 0), 0)
+    : readyBets.length * (settings?.auto_bet_amount ?? 10);
+
   async function submitBets() {
     if (!profile || !settings || readyBets.length === 0) return;
+    if (settings.use_bank && totalCost > (profile.bank ?? 0)) {
+      setError('אין מספיק נקודות בבנק'); return;
+    }
     setSubmitting(true);
     setError('');
     const insertedBetIds: string[] = [];
     try {
+      // מצב בנק: נכה קודם, אחר כך הכנס הימורים
+      if (settings.use_bank) {
+        const { error: bankErr } = await supabase
+          .from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
+        if (bankErr) throw new Error(bankErr.message);
+      }
       for (const g of readyBets) {
         const b = bets[g.id];
         const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
         const derivedPick: Pick = h > a ? 'home' : h < a ? 'away' : 'draw';
         const oddsVal = derivedPick === 'home' ? g.home_win : derivedPick === 'draw' ? g.draw : g.away_win;
+        const betAmt = settings.use_bank ? b.amount : settings.auto_bet_amount;
         const { data: inserted, error: insertErr } = await supabase.from('bets').insert({
           player_id: profile.id,
           external_game_id: g.id,
@@ -592,7 +634,7 @@ export default function PlayerPage() {
           away_team: g.away_team,
           kickoff_at: g.commence_time,
           pick: derivedPick,
-          amount: BET_AMOUNT,
+          amount: betAmt,
           odds_value: oddsVal,
           exact_home: h,
           exact_away: a,
@@ -608,11 +650,35 @@ export default function PlayerPage() {
       if (insertedBetIds.length > 0) {
         await supabase.from('bets').delete().in('id', insertedBetIds);
       }
+      if (settings.use_bank && insertedBetIds.length < readyBets.length) {
+        await supabase.from('profiles').update({ bank: profile.bank ?? 0 }).eq('id', profile.id);
+      }
       setError('שגיאה: ' + (e?.message ?? 'נסה שוב'));
     } finally {
       setSubmitting(false);
     }
   }
+
+  // ── Eliminated (מצב בנק בלבד) ──
+  if (!loading && settings?.use_bank && profile && (profile.bank ?? 0) <= 0) return (
+    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
+      <div className="page-wrap text-center">
+        <div className="text-6xl mb-4">💸</div>
+        <div className="bebas text-3xl mb-2" style={{ color: '#f87171' }}>נגמרו הנקודות</div>
+        <div className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+          הבנק שלך מגיע לאפס — אתה מחוץ למשחק עד סוף שלב הבתים
+        </div>
+        <div className="card p-5" style={{ textAlign: 'right' }}>
+          <div className="text-sm font-bold mb-2" style={{ color: 'var(--gold)' }}>🏆 עדיין אפשר לעקוב:</div>
+          <div className="text-sm" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            • טבלת דירוג — ראה איפה אתה עומד<br />
+            • לשונית מונדיאל — תוצאות ולוח משחקים<br />
+            • בסוף שלב הבתים — כל השחקנים מתחילים מחדש
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
 
   // ── Loading ──
@@ -644,6 +710,20 @@ export default function PlayerPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap">
+        {/* ── Bank (מצב בנק בלבד) ── */}
+        {settings?.use_bank && (
+          <div className="bank-card">
+            <div className="bank-left">
+              <Coins size={14} style={{ color: 'var(--green)' }} />
+              <span className="bank-label">הבנק שלך</span>
+            </div>
+            <div className="bank-right">
+              <span className="bank-val">{(profile?.bank ?? 0).toLocaleString()}</span>
+              <span className="bank-unit">נקודות</span>
+            </div>
+          </div>
+        )}
+
         {/* ── ניחושי טורניר ── */}
         {profile && <SpecialBetsCard playerId={profile.id} />}
 
@@ -720,6 +800,8 @@ export default function PlayerPage() {
                   ? 'שולח...'
                   : readyBets.length === 0
                     ? 'הזן תוצאה לפחות להימור אחד'
+                    : settings?.use_bank
+                    ? `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`
                     : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''}`}
               </button>
             )}

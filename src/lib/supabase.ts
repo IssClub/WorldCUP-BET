@@ -83,6 +83,7 @@ export type TopScorer = {
 
 export type Settings = {
   id: number;
+  use_bank: boolean;
   starting_bank: number;
   min_bet: number;
   max_bet: number;

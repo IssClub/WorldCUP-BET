@@ -79,12 +79,17 @@ async function main() {
   const autoFrom = new Date(now - 30 * 60 * 1000).toISOString(); // עד 30 דק' אחורה
   const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
-  const AUTO_BET_AMOUNT = 10; // סכום קבוע לכל הימור
+  // הגדרות
+  const { data: settings } = await supabase.from('settings').select('use_bank, auto_bet_amount').single();
+  const useBank = settings?.use_bank ?? false;
+  const AUTO_BET_AMOUNT = settings?.auto_bet_amount ?? 10;
 
-  // כל השחקנים
+  // כל השחקנים (במצב בנק — רק עם בנק > 0)
   const { data: allProfiles } = await supabase
-    .from('profiles').select('id, display_name');
-  const activePlayers = allProfiles ?? [];
+    .from('profiles').select('id, display_name, bank');
+  const activePlayers = useBank
+    ? (allProfiles ?? []).filter(p => (p.bank ?? 0) >= AUTO_BET_AMOUNT)
+    : (allProfiles ?? []);
 
   // ── חלון תזכורת ────────────────────────────────────────────
   const { data: reminderLocked } = await supabase
@@ -168,7 +173,7 @@ async function main() {
 
     const bettorIds = new Set((existingBets ?? []).map(b => b.player_id));
 
-    // שחקנים שצריכים הימור אוטומטי: לא המרו
+    // שחקנים שצריכים הימור אוטומטי
     const needsBet = activePlayers.filter(p => !bettorIds.has(p.id));
 
     if (needsBet.length === 0) continue;
@@ -203,6 +208,13 @@ async function main() {
       if (betErr) {
         console.error(`Error auto-betting for ${player.display_name}:`, betErr.message);
         continue;
+      }
+
+      // מצב בנק: נכה מהבנק
+      if (useBank) {
+        const newBank = (player.bank ?? 0) - AUTO_BET_AMOUNT;
+        await supabase.from('profiles').update({ bank: newBank }).eq('id', player.id);
+        player.bank = newBank; // עדכן מקומי למניעת כפל
       }
 
       const pickHe = randomPick === 'home' ? he(game.home_team)

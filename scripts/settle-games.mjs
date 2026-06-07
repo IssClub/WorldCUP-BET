@@ -113,9 +113,10 @@ async function main() {
   const activePlayers = allProfiles ?? [];
   const bankMap = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
 
-  // Step 3: קרא sport keys פעילים מה-settings
-  const { data: settings } = await supabase.from('settings').select('sport_keys').single();
+  // Step 3: קרא settings
+  const { data: settings } = await supabase.from('settings').select('sport_keys, use_bank').single();
   const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
+  const useBank = settings?.use_bank ?? false;
 
   // Step 4: fetch scores from Odds API — לכל sport key פעיל
   const allGames = [];
@@ -166,7 +167,7 @@ async function main() {
     else console.log(`  wc_schedule updated ✓`);
 
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
-    const playerData = {}; // playerId -> { payout }
+    const playerData = {}; // playerId -> { payout, lostAmount }
 
     // ── Settle bets ──
     for (const bet of bets) {
@@ -182,19 +183,22 @@ async function main() {
         .update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore })
         .eq('id', bet.id);
 
-      if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0 };
+      if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0, lostAmount: 0 };
       if (won) playerData[bet.player_id].payout += payout;
+      else playerData[bet.player_id].lostAmount += bet.amount;
 
-      // Track today's change (only wins count)
+      // Track today's change
       if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
-      if (won) todayChange[bet.player_id] += payout;
+      todayChange[bet.player_id] += won ? payout : (useBank ? -bet.amount : 0);
     }
 
-    // Update score for winners only
-    for (const [playerId, { payout }] of Object.entries(playerData)) {
-      if (payout <= 0) continue;
+    // Update bank
+    for (const [playerId, { payout, lostAmount }] of Object.entries(playerData)) {
       const current = bankMap[playerId] ?? 0;
-      const newBank = current + payout;
+      const newBank = useBank
+        ? current + payout  // הפסד כבר נוכה בעת ההימור
+        : current + payout; // צבירה: רק זוכים מקבלים
+      if (newBank === current) continue;
       bankMap[playerId] = newBank;
       await supabase.from('profiles').update({ bank: newBank }).eq('id', playerId);
     }
