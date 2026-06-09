@@ -280,7 +280,9 @@ export default function AdminPage() {
 
   async function cleanSimulation() {
     if (!settings) return;
-    if (!confirm('ניקוי סימולציה:\n• מחיקת כל ההימורים\n• איפוס כל הבנקים ל-' + settings.starting_bank.toLocaleString() + ' נק׳\n• כיבוי כל המשחקים המותאמים\n• ניקוי תור הפושים\n\nהמשך?')) return;
+    const resetTo = settings.use_bank ? settings.starting_bank : 0;
+    const resetMsg = settings.use_bank ? `איפוס כל הבנקים ל-${resetTo.toLocaleString()} נק׳` : 'איפוס כל הניקוד ל-0';
+    if (!confirm(`ניקוי סימולציה:\n• מחיקת כל ההימורים\n• ${resetMsg}\n• כיבוי כל המשחקים המותאמים\n• ניקוי תור הפושים\n\nהמשך?`)) return;
     if (!confirm('אתה בטוח? פעולה זו בלתי הפיכה.')) return;
     setCleaningSimulation(true);
     // מחק הימורים
@@ -288,7 +290,7 @@ export default function AdminPage() {
     // אפס בנקים
     const { data: allPlayers } = await supabase.from('profiles').select('id');
     for (const p of (allPlayers ?? [])) {
-      await supabase.from('profiles').update({ bank: settings.starting_bank }).eq('id', p.id);
+      await supabase.from('profiles').update({ bank: resetTo }).eq('id', p.id);
     }
     // כבה custom_games
     await supabase.from('custom_games').update({ is_active: false }).eq('is_active', true);
@@ -296,7 +298,7 @@ export default function AdminPage() {
     await supabase.from('push_queue').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await Promise.all([loadPlayers(), loadBetCounts()]);
     setCleaningSimulation(false);
-    alert('✓ הסימולציה נוקתה — כל הבנקים אופסו ל-' + settings.starting_bank.toLocaleString() + ' נק׳');
+    alert(`✓ הסימולציה נוקתה — ${resetMsg}`);
   }
 
   async function deleteAllBets() {
@@ -417,15 +419,17 @@ export default function AdminPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-lg">שחקנים ({players.length})</h2>
               <div className="flex gap-2">
-                <button
-                  onClick={resetEliminatedBanks}
-                  disabled={resettingBanks}
-                  className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium"
-                  style={{background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',color:'#fbbf24',cursor:'pointer'}}
-                  title="אפס בנק לשחקנים שאיבדו הכל (סוף שלב הבתים)"
-                >
-                  {resettingBanks ? '...' : '🔄 הזדמנות שנייה'}
-                </button>
+                {settings?.use_bank && (
+                  <button
+                    onClick={resetEliminatedBanks}
+                    disabled={resettingBanks}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium"
+                    style={{background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',color:'#fbbf24',cursor:'pointer'}}
+                    title="אפס בנק לשחקנים שאיבדו הכל (סוף שלב הבתים)"
+                  >
+                    {resettingBanks ? '...' : '🔄 הזדמנות שנייה'}
+                  </button>
+                )}
                 <button onClick={loadPlayers} className="p-2 rounded-lg" style={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-muted)',cursor:'pointer'}}>
                   <RefreshCw size={15} />
                 </button>
@@ -506,27 +510,29 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Group stage bonus */}
-            <div className="card p-4 mb-4" style={{border: '1px solid rgba(99,179,237,0.35)', background: 'rgba(99,179,237,0.04)'}}>
-              <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🎁 בונוס סוף שלב הבתים</div>
-              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
-                מוסיף +{(settings?.group_stage_bonus ?? 500).toLocaleString()} נק׳ לבנק של כל שחקן. הסכום ניתן לשינוי בהגדרות.
+            {/* Group stage bonus — רק במצב בנק */}
+            {settings?.use_bank && (
+              <div className="card p-4 mb-4" style={{border: '1px solid rgba(99,179,237,0.35)', background: 'rgba(99,179,237,0.04)'}}>
+                <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🎁 בונוס סוף שלב הבתים</div>
+                <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                  מוסיף +{(settings?.group_stage_bonus ?? 500).toLocaleString()} נק׳ לבנק של כל שחקן. הסכום ניתן לשינוי בהגדרות.
+                </div>
+                <button
+                  onClick={giveGroupStageBonus}
+                  disabled={resettingGroupStage}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                  style={{background: 'rgba(99,179,237,0.15)', border: '1px solid rgba(99,179,237,0.5)', color: '#63b3ed', cursor: 'pointer'}}
+                >
+                  🎁 {resettingGroupStage ? 'מחלק...' : 'חלק בונוס'}
+                </button>
               </div>
-              <button
-                onClick={giveGroupStageBonus}
-                disabled={resettingGroupStage}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
-                style={{background: 'rgba(99,179,237,0.15)', border: '1px solid rgba(99,179,237,0.5)', color: '#63b3ed', cursor: 'pointer'}}
-              >
-                🎁 {resettingGroupStage ? 'מחלק...' : 'חלק בונוס'}
-              </button>
-            </div>
+            )}
 
             {/* Simulation cleanup */}
             <div className="card p-4 mb-4" style={{border: '1px solid rgba(255,152,0,0.35)', background: 'rgba(255,152,0,0.04)'}}>
               <div className="font-semibold mb-1" style={{color: '#ff9800'}}>🧹 ניקוי סימולציה</div>
               <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
-                מוחק את כל ההימורים, מאפס בנקים ל-{settings?.starting_bank.toLocaleString()} נק׳, מכבה משחקים מותאמים ומנקה תור פושים
+                מוחק את כל ההימורים, מאפס ניקוד ל-{settings?.use_bank ? settings.starting_bank.toLocaleString() : '0'} נק׳, מכבה משחקים מותאמים ומנקה תור פושים
               </div>
               <button
                 onClick={cleanSimulation}
@@ -861,6 +867,8 @@ export default function AdminPage() {
                       { key: 'min_bet', label: 'הימור מינימלי', hint: 'נקודות' },
                       { key: 'max_bet', label: 'הימור מקסימלי', hint: 'נקודות' },
                       { key: 'no_bet_penalty', label: 'קנס על אי-הימור', hint: 'נקודות' },
+                      { key: 'special_bet_stake', label: 'הימור לניחושי טורניר', hint: 'נקודות' },
+                      { key: 'group_stage_bonus', label: 'בונוס סוף שלב הבתים', hint: 'נקודות' },
                     ].map(field => (
                       <div key={field.key}>
                         <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>
@@ -876,7 +884,7 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* ── שדה מצב צבירה ── */}
+                {/* ── שדה מצב צבירה — רק נקודות לכל הימור ── */}
                 {!settings.use_bank && (
                   <div className="flex flex-col gap-5 fade-in" style={{
                     borderRight: '2px solid rgba(255,214,0,0.3)',
@@ -894,23 +902,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
-
-                {/* ── שדות משותפים לשני המצבים ── */}
-                {[
-                  { key: 'special_bet_stake', label: 'הימור וירטואלי לניחושי טורניר', hint: 'נקודות' },
-                  { key: 'group_stage_bonus', label: 'בונוס סוף שלב הבתים', hint: 'נקודות' },
-                ].map(field => (
-                  <div key={field.key}>
-                    <label className="block text-sm font-medium mb-2" style={{color: 'var(--text-muted)'}}>{field.label}</label>
-                    <div className="flex items-center gap-3">
-                      <input type="number" className="input"
-                        value={settings[field.key as keyof Settings] as number}
-                        onChange={e => setSettings(prev => prev ? {...prev, [field.key]: parseInt(e.target.value) || 0} : prev)}
-                      />
-                      <span className="text-sm" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>{field.hint}</span>
-                    </div>
-                  </div>
-                ))}
 
                 {settingsMsg && (
                   <div className="text-sm px-3 py-2 rounded-lg" style={{background: 'rgba(0,200,83,0.1)', color: 'var(--green)', border: '1px solid rgba(0,200,83,0.2)'}}>
