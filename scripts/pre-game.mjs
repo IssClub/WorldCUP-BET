@@ -74,9 +74,11 @@ async function main() {
   const reminderFrom = new Date(now + 15 * 60 * 1000).toISOString();
   const reminderTo   = new Date(now + 45 * 60 * 1000).toISOString();
 
-  // חלון הימור-אוטומטי: 30 דקות אחורה עד 25 דקות קדימה
-  // אחורה כי GitHub Actions מתעכב ולפעמים רץ אחרי שהמשחק כבר התחיל
-  const autoFrom = new Date(now - 30 * 60 * 1000).toISOString(); // עד 30 דק' אחורה
+  // חלון הימור-אוטומטי: 12 שעות אחורה עד 25 דקות קדימה
+  // אחורה רחב מאוד כי GitHub Actions בפועל רץ כל ~1.5-2 שעות (לא כל 5 דק' כמו ב-cron),
+  // אז חלון צר היה גורם לפספס לגמרי הרבה משחקים. settle-games בודק daysFrom=3,
+  // כך שהימור אוטומטי "מאוחר" עדיין יסגר נכון.
+  const autoFrom = new Date(now - 12 * 60 * 60 * 1000).toISOString(); // עד 12 שעות אחורה
   const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
   // הגדרות

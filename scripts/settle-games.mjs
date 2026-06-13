@@ -114,7 +114,7 @@ async function main() {
   const bankMap = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
 
   // Step 3: קרא settings
-  const { data: settings } = await supabase.from('settings').select('sport_keys, use_bank').single();
+  const { data: settings } = await supabase.from('settings').select('sport_keys, use_bank, no_bet_penalty').single();
   const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
   const useBank = settings?.use_bank ?? false;
 
@@ -232,8 +232,11 @@ async function main() {
 }
 
 // ── קנס גיבוי — שחקנים שלא המרו ולא קיבלו הימור אוטומטי ──
+// רלוונטי רק במצב בנק. במצב צבירה אין קנסות בכלל — הימור הוא הזדמנות לזכייה בלבד,
+// לא מורידים נקודות על אי-הימור ולא על הפסד.
 async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings) {
-  const penalty = settings?.penalty ?? 50;
+  if (!settings?.use_bank) return;
+  const penalty = settings?.no_bet_penalty ?? 50;
   const completedGames = games.filter(g => g.completed);
   if (!completedGames.length) return;
 

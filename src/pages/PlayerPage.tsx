@@ -568,22 +568,32 @@ export default function PlayerPage() {
     }
   }
 
-  // Group games by day, find active day
-  const gamesByDay = useMemo(() => {
-    const map = new Map<string, Game[]>();
-    for (const g of games) {
-      const k = dayKey(g.commence_time);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(g);
-    }
-    return map;
+  // כל המשחקים בטווח 48 שעות קדימה (+ חצי שעה אחורה למשחקים שהתחילו ממש עכשיו)
+  const WINDOW_MS = 48 * 60 * 60 * 1000;
+  const PAST_GRACE_MS = 30 * 60 * 1000;
+  const activeGames = useMemo(() => {
+    const now = Date.now();
+    return games
+      .filter(g => {
+        const t = new Date(g.commence_time).getTime();
+        return t > now - PAST_GRACE_MS && t < now + WINDOW_MS;
+      })
+      .sort((a, b) => new Date(a.commence_time).getTime() - new Date(b.commence_time).getTime());
   }, [games]);
 
   const today = todayKey();
-  const todayGames = gamesByDay.get(today) || [];
-  const firstDay = games[0] ? dayKey(games[0].commence_time) : null;
-  const activeDay = todayGames.length > 0 ? today : firstDay;
-  const activeGames = activeDay ? (gamesByDay.get(activeDay) || []) : [];
+
+  // קבץ לפי יום לצורך כותרות
+  const gameGroups = useMemo(() => {
+    const groups: { day: string; games: Game[] }[] = [];
+    for (const g of activeGames) {
+      const k = dayKey(g.commence_time);
+      let grp = groups.find(x => x.day === k);
+      if (!grp) { grp = { day: k, games: [] }; groups.push(grp); }
+      grp.games.push(g);
+    }
+    return groups;
+  }, [activeGames]);
 
   function getBet(id: string): BetState {
     return bets[id] ?? { pick: null, amount: settings?.min_bet ?? 50, exactHome: '', exactAway: '' };
@@ -728,19 +738,8 @@ export default function PlayerPage() {
         {profile && <SpecialBetsCard playerId={profile.id} />}
 
 
-        {/* ── Day header ── */}
-        {activeGames.length > 0 && (
-          <div className="day-row">
-            <span className="day-dot" />
-            <span className="day-title">
-              {activeDay === today ? 'משחקי היום' : 'משחקים קרובים'}
-            </span>
-            <span className="day-date">{fmtDateHe(activeGames[0].commence_time)}</span>
-          </div>
-        )}
-
-        {/* ── Games ── */}
-        {activeGames.length === 0 ? (
+        {/* ── Games — מקובצים לפי יום, כל המשחקים בטווח 48 שעות ── */}
+        {gameGroups.length === 0 ? (
           <div className="card p-10 text-center mt-2">
             <div className="text-5xl mb-4">⚽</div>
             {(() => {
@@ -764,19 +763,30 @@ export default function PlayerPage() {
             })()}
           </div>
         ) : (
-          <div className="games-list">
-            {activeGames.map(game => (
-              <GameCard
-                key={game.id}
-                game={game}
-                settings={settings!}
-                bet={getBet(game.id)}
-                existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
-                isStarted={new Date(game.commence_time).getTime() <= Date.now() + CUTOFF_MS}
-                onChange={upd => updateBet(game.id, upd)}
-              />
-            ))}
-          </div>
+          gameGroups.map(grp => (
+            <div key={grp.day}>
+              <div className="day-row">
+                <span className="day-dot" />
+                <span className="day-title">
+                  {grp.day === today ? 'משחקי היום' : 'משחקים קרובים'}
+                </span>
+                <span className="day-date">{fmtDateHe(grp.games[0].commence_time)}</span>
+              </div>
+              <div className="games-list">
+                {grp.games.map(game => (
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    settings={settings!}
+                    bet={getBet(game.id)}
+                    existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
+                    isStarted={new Date(game.commence_time).getTime() <= Date.now() + CUTOFF_MS}
+                    onChange={upd => updateBet(game.id, upd)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
         )}
 
         {/* ── Error ── */}
