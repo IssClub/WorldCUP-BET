@@ -33,8 +33,13 @@ export default function MyBetsPage() {
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [useBank, setUseBank] = useState(false);
 
   useEffect(() => { if (profile) loadBets(); }, [profile?.id]);
+  useEffect(() => {
+    supabase.from('settings').select('use_bank').single()
+      .then(({ data }) => setUseBank(data?.use_bank ?? false));
+  }, []);
 
   async function loadBets() {
     if (!profile) return;
@@ -62,8 +67,11 @@ export default function MyBetsPage() {
       setCancelling(null);
       return;
     }
-    await supabase.from('profiles').update({ bank: profile.bank + bet.amount }).eq('id', profile.id);
-    await refresh();
+    // במצב צבירה לא נוכה כסף בעת הימור, אז לא מחזירים כסף בביטול
+    if (useBank) {
+      await supabase.from('profiles').update({ bank: profile.bank + bet.amount }).eq('id', profile.id);
+      await refresh();
+    }
     await loadBets();
     setCancelling(null);
   }
@@ -301,7 +309,7 @@ export default function MyBetsPage() {
                       disabled={cancelling === bet.id}
                     >
                       <Trash2 size={13} />
-                      {cancelling === bet.id ? 'מבטל...' : 'בטל הימור — החזר ' + bet.amount + ' נק׳'}
+                      {cancelling === bet.id ? 'מבטל...' : useBank ? 'בטל הימור — החזר ' + bet.amount + ' נק׳' : 'בטל הימור'}
                     </button>
                   )}
                 </div>

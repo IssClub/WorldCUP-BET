@@ -389,9 +389,12 @@ async function maybeSendDailySummaryFromDB() {
 
   console.log('All games for today settled (manual) — sending daily summary push...');
 
+  const { data: settings } = await supabase.from('settings').select('use_bank').single();
+  const useBank = settings?.use_bank ?? false;
+
   const { data: allProfiles } = await supabase
     .from('profiles').select('id, bank, display_name');
-  const activePlayers = (allProfiles ?? []).filter(p => p.bank > 0);
+  const activePlayers = useBank ? (allProfiles ?? []).filter(p => p.bank > 0) : (allProfiles ?? []);
   const sorted = [...activePlayers].sort((a, b) => b.bank - a.bank);
   const rankMap = Object.fromEntries(sorted.map((p, i) => [p.id, i + 1]));
   const total = sorted.length;
@@ -408,8 +411,8 @@ async function maybeSendDailySummaryFromDB() {
   for (const bet of (todayBets ?? [])) {
     if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
     todayChange[bet.player_id] += bet.status === 'won'
-      ? (bet.payout - bet.amount)
-      : -bet.amount;
+      ? (useBank ? (bet.payout - bet.amount) : bet.payout)
+      : (useBank ? -bet.amount : 0);
   }
 
   for (const player of activePlayers) {

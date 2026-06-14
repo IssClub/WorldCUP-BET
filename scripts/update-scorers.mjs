@@ -56,6 +56,13 @@ if (!Array.isArray(data.response)) {
 
 console.log(`Got ${data.response.length} scorers`);
 
+if (data.response.length === 0) {
+  // אבחון: אם ריק, אולי יש שגיאת תוכנית/ליגה/עונה — מודפס ללוג ה-Action
+  console.log('results:', data.results);
+  console.log('paging:', JSON.stringify(data.paging));
+  console.log('errors:', JSON.stringify(data.errors));
+}
+
 const rows = data.response.slice(0, 20).map(item => ({
   id:          String(item.player.id),
   player_name: item.player.name,
