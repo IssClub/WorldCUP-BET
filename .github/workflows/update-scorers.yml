@@ -3,7 +3,7 @@ name: Update top scorers
 on:
   schedule:
     # כל 2 שעות בחודשי הטורניר (יוני–יולי 2026)
-    # 100 קריאות חינמיות ליום ÷ 12 קריאות = 8 קריאות ÷ 2h = מספיק
+    # football-data.org: 10 קריאות/דקה — קריאה אחת כל 2 שעות בלי שום בעיה
     - cron: '0 */2 * 6,7 *'
   workflow_dispatch:  # הפעלה ידנית
 
@@ -27,4 +27,4 @@ jobs:
         env:
           SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          APIFOOTBALL_KEY:      ${{ secrets.APIFOOTBALL_KEY }}
+          FOOTBALL_DATA_TOKEN:  ${{ secrets.FOOTBALL_DATA_TOKEN }}
