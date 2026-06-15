@@ -296,50 +296,44 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
 }
 
 // ── Live scores ───────────────────────────────────────────
-interface ScoreGame {
+interface LiveScoreRow {
   id: string;
-  commence_time: string;
-  completed: boolean;
   home_team: string;
   away_team: string;
-  scores: { name: string; score: string }[] | null;
+  home_score: number | null;
+  away_score: number | null;
+  status: string;
+  kickoff_at: string;
 }
 
-const LIVE_POLL_MS = 2 * 60 * 1000; // 2 דקות — חוסך קרדיטים ב-Odds API
-const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000; // משחק נחשב "חי" עד 3 שעות מהפתיחה
+const LIVE_POLL_MS = 60 * 1000; // דקה — קוראים מהטבלה שלנו בסופאבייס, לא מ-API חיצוני
+const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000; // משחק שהסתיים מוצג עד 3 שעות מהפתיחה
+const isLiveStatus = (status: string) => status === 'IN_PLAY' || status === 'PAUSED';
 
-function LiveScoresCard({ sportKeys }: { sportKeys: string[] }) {
-  const [scores, setScores] = useState<ScoreGame[]>([]);
-  const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
+function LiveScoresCard() {
+  const [scores, setScores] = useState<LiveScoreRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const all: ScoreGame[] = [];
-      for (const key of sportKeys) {
-        try {
-          const res = await fetch(`https://api.the-odds-api.com/v4/sports/${key}/scores/?apiKey=${ODDS_KEY}&daysFrom=1`);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (Array.isArray(data)) all.push(...data);
-        } catch { /* ignore — לוח לייב לא חיוני */ }
-      }
-      if (!cancelled) setScores(all);
+      const { data } = await supabase.from('live_scores').select('*');
+      if (!cancelled) setScores((data as LiveScoreRow[]) ?? []);
     }
     load();
     const interval = setInterval(load, LIVE_POLL_MS);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [sportKeys.join(',')]);
+  }, []);
 
   const now = Date.now();
   const relevant = scores
     .filter(g => {
-      const t = new Date(g.commence_time).getTime();
-      return t <= now && now - t < LIVE_WINDOW_MS;
+      if (isLiveStatus(g.status)) return true;
+      if (g.status === 'FINISHED') return now - new Date(g.kickoff_at).getTime() < LIVE_WINDOW_MS;
+      return false;
     })
     .sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      return new Date(b.commence_time).getTime() - new Date(a.commence_time).getTime();
+      if (isLiveStatus(a.status) !== isLiveStatus(b.status)) return isLiveStatus(a.status) ? -1 : 1;
+      return new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime();
     });
 
   if (relevant.length === 0) return null;
@@ -352,8 +346,7 @@ function LiveScoresCard({ sportKeys }: { sportKeys: string[] }) {
       </div>
       <div className="live-rows">
         {relevant.map(g => {
-          const home = g.scores?.find(s => s.name === g.home_team)?.score ?? '-';
-          const away = g.scores?.find(s => s.name === g.away_team)?.score ?? '-';
+          const live = isLiveStatus(g.status);
           return (
             <div key={g.id} className="live-row">
               <div className="live-match">
@@ -361,14 +354,14 @@ function LiveScoresCard({ sportKeys }: { sportKeys: string[] }) {
                   <Flag team={g.home_team} size={22} />
                   <span className="live-team">{teamHe(g.home_team)}</span>
                 </div>
-                <span className="live-score">{home} : {away}</span>
+                <span className="live-score">{g.home_score ?? '-'} : {g.away_score ?? '-'}</span>
                 <div className="live-team-side live-team-side-away">
                   <span className="live-team">{teamHe(g.away_team)}</span>
                   <Flag team={g.away_team} size={22} />
                 </div>
               </div>
-              <span className={`live-badge ${g.completed ? 'done' : ''}`}>
-                {g.completed ? 'סופי' : <><span className="live-dot" />חי</>}
+              <span className={`live-badge ${live ? '' : 'done'}`}>
+                {live ? <><span className="live-dot" />חי</> : 'סופי'}
               </span>
             </div>
           );
@@ -629,7 +622,7 @@ export default function PlayerPage() {
         )}
 
         {/* ── תוצאות לייב ── */}
-        <LiveScoresCard sportKeys={settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup']} />
+        <LiveScoresCard />
 
 
         {/* ── Games — מקובצים לפי יום, כל המשחקים בטווח 48 שעות ── */}

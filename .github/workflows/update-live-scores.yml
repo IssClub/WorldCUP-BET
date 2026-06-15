@@ -1,0 +1,30 @@
+name: Update live scores
+
+on:
+  schedule:
+    # כל 10 דקות בחודשי הטורניר (יוני–יולי 2026)
+    # football-data.org: 10 קריאות/דקה — קריאה אחת כל 10 דקות בלי שום בעיה
+    - cron: '*/10 * * 6,7 *'
+  workflow_dispatch:  # הפעלה ידנית
+
+jobs:
+  update-live-scores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Update live scores
+        run: node scripts/update-live-scores.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FOOTBALL_DATA_TOKEN:  ${{ secrets.FOOTBALL_DATA_TOKEN }}
