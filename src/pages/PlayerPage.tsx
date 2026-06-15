@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import type { Settings, Bet, SpecialBet } from '../lib/supabase';
+import type { Settings, Bet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
-import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
-import { Coins, CheckCircle2, Zap, RefreshCw, Trophy, Lock } from 'lucide-react';
+import { Coins, CheckCircle2, Zap, RefreshCw, Lock, Radio } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -296,190 +295,85 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
   );
 }
 
-// ── WC 2026 Teams for winner prediction ───────────────────
-const WC_TEAMS = [
-  'Argentina','Brazil','Colombia','Uruguay','Ecuador','Venezuela','Chile','Peru',
-  'Spain','France','Germany','England','Portugal','Netherlands','Belgium','Croatia',
-  'Switzerland','Denmark','Poland','Serbia','Turkey','Austria','Georgia','Scotland',
-  'Romania','Slovakia','Czech Republic','Albania',
-  'United States','Canada','Mexico','Panama','Costa Rica','Honduras','Jamaica',
-  'Japan','Korea Republic','Iran','Australia','Saudi Arabia','Uzbekistan','Jordan','Iraq','China','Indonesia',
-  'Morocco','Nigeria','Egypt','Senegal','Ivory Coast','South Africa','DR Congo','Mali','Cameroon','Algeria',
-  'New Zealand',
-].sort((a, b) => {
-  const ha = (teamHe(a) || a), hb = (teamHe(b) || b);
-  return ha.localeCompare(hb, 'he');
-});
-
-const TOURNAMENT_START = new Date('2026-06-11T00:00:00');
-const WC_TEAM_SET = new Set(WC_TEAMS.map(t => t.toLowerCase()));
-
-type OddsItem = { name: string; price: number };
-
-function avgOddsFromEvent(ev: any): OddsItem[] {
-  const map: Record<string, number[]> = {};
-  for (const bm of ev.bookmakers ?? []) {
-    for (const mkt of bm.markets ?? []) {
-      for (const o of mkt.outcomes ?? []) {
-        if (!map[o.name]) map[o.name] = [];
-        map[o.name].push(o.price);
-      }
-    }
-  }
-  return Object.entries(map)
-    .map(([name, ps]) => ({ name, price: +(ps.reduce((a, b) => a + b, 0) / ps.length).toFixed(2) }))
-    .sort((a, b) => a.price - b.price);
+// ── Live scores ───────────────────────────────────────────
+interface ScoreGame {
+  id: string;
+  commence_time: string;
+  completed: boolean;
+  home_team: string;
+  away_team: string;
+  scores: { name: string; score: string }[] | null;
 }
 
-// ── Special bets (winner + top scorer) ───────────────────
-function SpecialBetsCard({ playerId }: { playerId: string }) {
-  const [winner, setWinner] = useState('');
-  const [topScorer, setTopScorer] = useState('');
-  const [existing, setExisting] = useState<SpecialBet[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [winnerOdds, setWinnerOdds] = useState<OddsItem[]>([]);
-  const [scorerOdds, setScorerOdds] = useState<(OddsItem & { team?: string })[]>([]);
-  const isLocked = new Date() >= TOURNAMENT_START;
+const LIVE_POLL_MS = 2 * 60 * 1000; // 2 דקות — חוסך קרדיטים ב-Odds API
+const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000; // משחק נחשב "חי" עד 3 שעות מהפתיחה
 
-  useEffect(() => { load(); fetchOdds(); }, [playerId]);
+function LiveScoresCard({ sportKeys }: { sportKeys: string[] }) {
+  const [scores, setScores] = useState<ScoreGame[]>([]);
+  const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
 
-  async function load() {
-    const { data } = await supabase.from('special_bets').select('*').eq('player_id', playerId);
-    if (!data) return;
-    setExisting(data as SpecialBet[]);
-    const w = data.find(d => d.type === 'winner');
-    const t = data.find(d => d.type === 'top_scorer');
-    if (w) setWinner(w.prediction);
-    if (t) setTopScorer(t.prediction);
-  }
-
-  async function fetchOdds() {
-    // Load hardcoded fallbacks immediately so there's always data
-    setWinnerOdds(WINNER_ODDS);
-    setScorerOdds(TOP_SCORER_ODDS.map(s => ({ name: s.name, price: s.price, team: s.team })));
-
-    try {
-      const key = import.meta.env.VITE_ODDS_API_KEY;
-      if (!key) return;
-      const res = await fetch(
-        `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/outrights/?apiKey=${key}&regions=eu&oddsFormat=decimal`
-      );
-      if (!res.ok) return;
-      const events: any[] = await res.json();
-      if (!Array.isArray(events) || !events.length) return;
-      let gotWinner = false, gotScorer = false;
-      for (const ev of events) {
-        const odds = avgOddsFromEvent(ev);
-        if (!odds.length) continue;
-        const countryHits = odds.filter(o => WC_TEAM_SET.has(o.name.toLowerCase())).length;
-        if (!gotWinner && countryHits / odds.length > 0.4) {
-          setWinnerOdds(odds);
-          gotWinner = true;
-        } else if (!gotScorer && odds.length >= 10) {
-          // Merge API scorer list with our team data
-          const merged = odds.slice(0, 30).map(o => {
-            const known = TOP_SCORER_ODDS.find(s => s.name === o.name);
-            return { name: o.name, price: o.price, team: known?.team ?? '' };
-          });
-          setScorerOdds(merged);
-          gotScorer = true;
-        }
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const all: ScoreGame[] = [];
+      for (const key of sportKeys) {
+        try {
+          const res = await fetch(`https://api.the-odds-api.com/v4/sports/${key}/scores/?apiKey=${ODDS_KEY}&daysFrom=1`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (Array.isArray(data)) all.push(...data);
+        } catch { /* ignore — לוח לייב לא חיוני */ }
       }
-    } catch {}
-  }
+      if (!cancelled) setScores(all);
+    }
+    load();
+    const interval = setInterval(load, LIVE_POLL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [sportKeys.join(',')]);
 
-  async function save() {
-    if (isLocked || (!winner && !topScorer)) return;
-    setSaving(true);
-    const upserts = [];
-    if (winner) upserts.push({ player_id: playerId, type: 'winner', prediction: winner, status: 'pending' });
-    if (topScorer) upserts.push({ player_id: playerId, type: 'top_scorer', prediction: topScorer, status: 'pending' });
-    await supabase.from('special_bets').upsert(upserts, { onConflict: 'player_id,type' });
-    await load();
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
+  const now = Date.now();
+  const relevant = scores
+    .filter(g => {
+      const t = new Date(g.commence_time).getTime();
+      return t <= now && now - t < LIVE_WINDOW_MS;
+    })
+    .sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      return new Date(b.commence_time).getTime() - new Date(a.commence_time).getTime();
+    });
 
-  const winnerBet = existing.find(e => e.type === 'winner');
-  const scorerBet = existing.find(e => e.type === 'top_scorer');
-
-  // Build winner options: if we got live odds use them (sorted by price), else fallback to WC_TEAMS
-  const winnerOptions: OddsItem[] = winnerOdds.length > 0
-    ? winnerOdds
-    : WC_TEAMS.map(t => ({ name: t, price: 0 }));
+  if (relevant.length === 0) return null;
 
   return (
-    <div className="special-card">
-      <div className="special-card-hdr">
-        <div className="flex items-center gap-2">
-          <Trophy size={16} style={{ color: 'var(--gold)' }} />
-          <span className="font-bold text-sm">ניחושי טורניר</span>
-        </div>
-        {isLocked
-          ? <span className="special-locked"><Lock size={11} /> נסגר</span>
-          : <span className="special-deadline">נסגר ב-11.6 · ללא ניכוי נקודות</span>}
+    <div className="live-card">
+      <div className="live-card-hdr">
+        <Radio size={15} />
+        <span>תוצאות לייב</span>
       </div>
-
-      <div className="special-fields">
-        {/* Winner */}
-        <div className="special-field">
-          <label className="special-label">🏆 מי יזכה בטורניר? {winnerOdds.length > 0 && <span style={{fontWeight:400,color:'var(--text-muted)'}}>· ממוין לפי סיכוי</span>}</label>
-          {isLocked
-            ? <div className="special-val">
-                {winnerBet
-                  ? <>
-                      {teamHe(winnerBet.prediction)}
-                      {(() => { const o = winnerOdds.find(x => x.name === winnerBet.prediction); return o ? <span className="special-odds-tag">×{o.price}</span> : null; })()}
-                    </>
-                  : '—'}
+      <div className="live-rows">
+        {relevant.map(g => {
+          const home = g.scores?.find(s => s.name === g.home_team)?.score ?? '-';
+          const away = g.scores?.find(s => s.name === g.away_team)?.score ?? '-';
+          return (
+            <div key={g.id} className="live-row">
+              <div className="live-match">
+                <div className="live-team-side">
+                  <Flag team={g.home_team} size={22} />
+                  <span className="live-team">{teamHe(g.home_team)}</span>
+                </div>
+                <span className="live-score">{home} : {away}</span>
+                <div className="live-team-side live-team-side-away">
+                  <span className="live-team">{teamHe(g.away_team)}</span>
+                  <Flag team={g.away_team} size={22} />
+                </div>
               </div>
-            : <select className="special-select" value={winner} onChange={e => setWinner(e.target.value)}>
-                <option value="">בחר נבחרת...</option>
-                {winnerOptions.map(o => (
-                  <option key={o.name} value={o.name}>
-                    {teamHe(o.name)}{o.price > 0 ? `  ×${o.price}` : ''}
-                  </option>
-                ))}
-              </select>}
-        </div>
-
-        {/* Top scorer */}
-        <div className="special-field">
-          <label className="special-label">👟 מי יהיה מלך השערים? {scorerOdds.length > 0 && <span style={{fontWeight:400,color:'var(--text-muted)'}}>· ממוין לפי סיכוי</span>}</label>
-          {isLocked
-            ? <div className="special-val">
-                {scorerBet
-                  ? <>
-                      {scorerBet.prediction}
-                      {(() => { const o = scorerOdds.find(x => x.name === scorerBet.prediction); return o ? <span className="special-odds-tag">×{o.price}</span> : null; })()}
-                    </>
-                  : '—'}
-              </div>
-            : scorerOdds.length > 0
-              ? <select className="special-select" value={topScorer} onChange={e => setTopScorer(e.target.value)}>
-                  <option value="">בחר שחקן...</option>
-                  {scorerOdds.map(o => (
-                    <option key={o.name} value={o.name}>
-                      {o.name}{o.team ? ` (${teamHe(o.team)})` : ''}{'  '}×{o.price}
-                    </option>
-                  ))}
-                </select>
-              : <input
-                  className="special-input"
-                  value={topScorer}
-                  onChange={e => setTopScorer(e.target.value)}
-                  placeholder="שם השחקן..."
-                />}
-        </div>
+              <span className={`live-badge ${g.completed ? 'done' : ''}`}>
+                {g.completed ? 'סופי' : <><span className="live-dot" />חי</>}
+              </span>
+            </div>
+          );
+        })}
       </div>
-
-      {!isLocked && (
-        <button className="special-save" onClick={save} disabled={saving || (!winner && !topScorer)}>
-          {saved ? '✓ נשמר!' : saving ? 'שומר...' : 'שמור ניחושים'}
-        </button>
-      )}
     </div>
   );
 }
@@ -734,8 +628,8 @@ export default function PlayerPage() {
           </div>
         )}
 
-        {/* ── ניחושי טורניר ── */}
-        {profile && <SpecialBetsCard playerId={profile.id} />}
+        {/* ── תוצאות לייב ── */}
+        <LiveScoresCard sportKeys={settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup']} />
 
 
         {/* ── Games — מקובצים לפי יום, כל המשחקים בטווח 48 שעות ── */}
