@@ -428,7 +428,7 @@ function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
         <div className="ko-team ko-team-home">
           {!isTbd(m.home_team) && <Flag team={m.home_team} size={22} />}
           <span className={`ko-team-name ${isTbd(m.home_team) ? 'ko-tbd' : ''}`}>
-            {isTbd(m.home_team) ? 'TBD' : teamHe(m.home_team)}
+            {isTbd(m.home_team) ? 'ממתין לתוצאה' : teamHe(m.home_team)}
           </span>
         </div>
 
@@ -450,7 +450,7 @@ function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
         {/* אורח */}
         <div className="ko-team ko-team-away">
           <span className={`ko-team-name ${isTbd(m.away_team) ? 'ko-tbd' : ''}`}>
-            {isTbd(m.away_team) ? 'TBD' : teamHe(m.away_team)}
+            {isTbd(m.away_team) ? 'ממתין לתוצאה' : teamHe(m.away_team)}
           </span>
           {!isTbd(m.away_team) && <Flag team={m.away_team} size={22} />}
         </div>
