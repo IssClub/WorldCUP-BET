@@ -28,12 +28,11 @@ if (Date.now() < TOURNAMENT_START) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// טווח: מאתמול עד מחר — מספיק לכסות "תוצאות לייב" ומשחקים שהסתיימו לאחרונה
-const today = new Date();
-const dateFrom = new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-const dateTo   = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+// כל משחקי הטורניר — קבוצות + נוקאאוט — כדי שה-bracket יתמלא אוטומטית
+const dateFrom = '2026-06-11';
+const dateTo   = '2026-07-20';
 
-console.log(`Fetching matches from football-data.org (${dateFrom} → ${dateTo})...`);
+console.log(`Fetching all tournament matches from football-data.org (${dateFrom} → ${dateTo})...`);
 
 const res = await fetch(
   `https://api.football-data.org/v4/competitions/WC/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`,
@@ -56,11 +55,13 @@ console.log(`Got ${data.matches.length} matches`);
 
 const rows = data.matches.map(m => ({
   id:          String(m.id),
-  home_team:   m.homeTeam?.name ?? '',
-  away_team:   m.awayTeam?.name ?? '',
+  home_team:   m.homeTeam?.name ?? 'TBD',
+  away_team:   m.awayTeam?.name ?? 'TBD',
   home_score:  m.score?.fullTime?.home ?? null,
   away_score:  m.score?.fullTime?.away ?? null,
   status:      m.status,
+  stage:       m.stage ?? null,
+  matchday:    m.matchday ?? null,
   kickoff_at:  m.utcDate,
   updated_at:  new Date().toISOString(),
 }));

@@ -186,6 +186,53 @@ export default function MyBetsPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">
+        {/* התראות פוש — בראש הדף */}
+        {pushSupported() && (
+          <div className="mb-4">
+            {Notification.permission === 'denied' ? (
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <BellOff size={13} />
+                התראות חסומות — הפעל ב-הגדרות האייפון → Safari / האפליקציה
+              </div>
+            ) : (
+              <>
+                <div className="card p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div className="text-sm font-semibold">התראות פוש</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      תזכורות לפני משחק, תוצאות הימורים וסיכום יומי
+                    </div>
+                  </div>
+                  <button
+                    onClick={togglePush}
+                    disabled={pushBusy}
+                    style={{
+                      width: 48, height: 26, borderRadius: 13, border: 'none', cursor: pushBusy ? 'default' : 'pointer',
+                      background: pushEnabled ? 'var(--green)' : 'var(--border)',
+                      position: 'relative', flexShrink: 0, transition: 'background 0.2s', opacity: pushBusy ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 3,
+                      left: pushEnabled ? 25 : 3,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: '#fff', transition: 'left 0.2s',
+                    }} />
+                  </button>
+                </div>
+                {pushEnabled && (
+                  <div className="mt-2 text-center">
+                    <button onClick={sendTestPush} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <BellRing size={13} />
+                      בדוק התראות
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* שגיאת טעינה */}
         {loadError && (
           <div className="err-banner mb-4">
@@ -338,53 +385,6 @@ export default function MyBetsPage() {
                 </div>
               );
             })}
-          </div>
-        )}
-        {/* התראות פוש */}
-        {pushSupported() && (
-          <div className="mt-6">
-            {Notification.permission === 'denied' ? (
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <BellOff size={13} />
-                התראות חסומות — הפעל ב-הגדרות האייפון → Safari / האפליקציה
-              </div>
-            ) : (
-              <>
-                <div className="card p-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div className="text-sm font-semibold">התראות פוש</div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      תזכורות לפני משחק, תוצאות הימורים וסיכום יומי
-                    </div>
-                  </div>
-                  <button
-                    onClick={togglePush}
-                    disabled={pushBusy}
-                    style={{
-                      width: 48, height: 26, borderRadius: 13, border: 'none', cursor: pushBusy ? 'default' : 'pointer',
-                      background: pushEnabled ? 'var(--green)' : 'var(--border)',
-                      position: 'relative', flexShrink: 0, transition: 'background 0.2s', opacity: pushBusy ? 0.6 : 1,
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: 3,
-                      left: pushEnabled ? 25 : 3,
-                      width: 20, height: 20, borderRadius: '50%',
-                      background: '#fff', transition: 'left 0.2s',
-                    }} />
-                  </button>
-                </div>
-
-                {pushEnabled && (
-                  <div className="mt-2 text-center">
-                    <button onClick={sendTestPush} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: '0.8rem', padding: '6px 14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <BellRing size={13} />
-                      בדוק התראות
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
           </div>
         )}
       </div>

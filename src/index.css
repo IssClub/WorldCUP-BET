@@ -943,3 +943,58 @@ body {
 /* ── Top scorer first row highlight ─────────────────────── */
 .scorer-first td { background: rgba(255,214,0,0.04); }
 .scorer-first .trn-td-pos { color: var(--gold); }
+
+/* ── Knockout bracket ────────────────────────────────────── */
+.ko-stage-tabs {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.ko-stage-tab {
+  padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.05);
+  color: var(--text-muted); cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.ko-stage-tab-on {
+  background: var(--gold); color: #000; border-color: var(--gold);
+}
+.ko-grid { display: flex; flex-direction: column; gap: 8px; }
+.ko-grid-small { gap: 12px; }
+.ko-match-card {
+  background: rgba(19,40,64,0.75); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px; overflow: hidden; backdrop-filter: blur(8px);
+}
+.ko-match-inner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px;
+}
+.ko-team {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0;
+}
+.ko-team-away { flex-direction: row-reverse; }
+.ko-team-name {
+  font-weight: 600; font-size: 0.8rem; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ko-tbd { color: var(--text-muted); font-style: italic; }
+.ko-center {
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0; min-width: 64px;
+}
+.ko-score {
+  display: flex; align-items: center; gap: 4px;
+  font-family: 'Bebas Neue', cursive; font-size: 1.3rem; line-height: 1;
+}
+.ko-score-sep { color: var(--text-muted); font-size: 1rem; }
+.ko-time { font-size: 0.7rem; color: var(--text-muted); text-align: center; }
+.ko-live-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.6rem; font-weight: 800; color: #f87171;
+  background: rgba(248,113,113,0.12); border-radius: 6px;
+  padding: 2px 6px; margin-top: 3px;
+}
+.ko-done-badge {
+  font-size: 0.6rem; font-weight: 700; color: var(--text-muted);
+  background: rgba(255,255,255,0.07); border-radius: 6px;
+  padding: 2px 6px; margin-top: 3px;
+}

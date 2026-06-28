@@ -187,17 +187,16 @@ async function main() {
       if (won) playerData[bet.player_id].payout += payout;
       else playerData[bet.player_id].lostAmount += bet.amount;
 
-      // Track today's change
+      // Track today's change (הפסד = 0, לא מינוס — ההמרה מוחזרת בסגירה)
       if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
-      todayChange[bet.player_id] += won ? payout : (useBank ? -bet.amount : 0);
+      todayChange[bet.player_id] += won ? payout : 0;
     }
 
     // Update bank
     for (const [playerId, { payout, lostAmount }] of Object.entries(playerData)) {
       const current = bankMap[playerId] ?? 0;
-      const newBank = useBank
-        ? current + payout  // הפסד כבר נוכה בעת ההימור
-        : current + payout; // צבירה: רק זוכים מקבלים
+      // במצב בנק: הפסד = מחזירים את ההימור (0 שינוי נטו). רק זכייה מוסיפה נקודות.
+      const newBank = current + payout + (useBank ? lostAmount : 0);
       if (newBank === current) continue;
       bankMap[playerId] = newBank;
       await supabase.from('profiles').update({ bank: newBank }).eq('id', playerId);
@@ -412,7 +411,7 @@ async function maybeSendDailySummaryFromDB() {
     if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
     todayChange[bet.player_id] += bet.status === 'won'
       ? (useBank ? (bet.payout - bet.amount) : bet.payout)
-      : (useBank ? -bet.amount : 0);
+      : 0; // הפסד = 0 שינוי נטו (ההמרה הוחזרה)
   }
 
   for (const player of activePlayers) {

@@ -3,7 +3,7 @@ import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
 import type { TopScorer } from '../lib/supabase';
-import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen } from 'lucide-react';
+import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen, Trophy } from 'lucide-react';
 
 interface Game {
   id: string;
@@ -29,26 +29,30 @@ function getChannel(home: string, away: string): string {
   return m?.channel ?? 'Sport 5';
 }
 
-// ── Calendar ICS — כל המשחקים ────────────────────────────
-function addAllToCalendar(games: Game[]) {
-  const fmt = (iso: string) => iso.replace(/[-:.]/g, '').slice(0, 15) + 'Z';
-  const events = games.map(g => [
-    'BEGIN:VEVENT',
-    `DTSTART:${fmt(g.commence_time)}`,
-    `DTEND:${fmt(new Date(new Date(g.commence_time).getTime() + 2 * 3600000).toISOString())}`,
-    `SUMMARY:⚽ ${teamHe(g.home_team)} נגד ${teamHe(g.away_team)}`,
-    'DESCRIPTION:FIFA World Cup 2026',
-    'END:VEVENT',
-  ].join('\r\n'));
+// ── Calendar ICS helpers ──────────────────────────────────
+function buildIcs(events: string[][], filename: string) {
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WorldCup Bets//HE',
-    ...events,
+    ...events.map(e => e.join('\r\n')),
     'END:VCALENDAR',
   ].join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
-  a.download = 'worldcup2026.ics';
+  a.download = filename;
   a.click();
+}
+const icsDate = (iso: string) => iso.replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+const icsEvent = (kickoff: string, home: string, away: string, desc: string) => [
+  'BEGIN:VEVENT',
+  `DTSTART:${icsDate(kickoff)}`,
+  `DTEND:${icsDate(new Date(new Date(kickoff).getTime() + 2 * 3600000).toISOString())}`,
+  `SUMMARY:⚽ ${teamHe(home)} נגד ${teamHe(away)}`,
+  `DESCRIPTION:${desc}`,
+  'END:VEVENT',
+];
+
+function addAllToCalendar(games: Game[]) {
+  buildIcs(games.map(g => icsEvent(g.commence_time, g.home_team, g.away_team, 'FIFA World Cup 2026 — שלב הבתים')), 'worldcup2026-groups.ics');
 }
 
 // ── Flag ──────────────────────────────────────────────────
@@ -383,9 +387,152 @@ function StandingsView({ groups, scoreMap }: {
   );
 }
 
+// ── Knockout bracket ──────────────────────────────────────
+interface KnockoutMatch {
+  id: string;
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
+  status: string;
+  stage: string;
+  kickoff_at: string;
+}
+
+const STAGE_ORDER = ['ROUND_OF_32', 'ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'];
+const STAGE_HE: Record<string, string> = {
+  ROUND_OF_32:    'סיבוב 32',
+  ROUND_OF_16:    'שמינית גמר',
+  QUARTER_FINALS: 'רבע גמר',
+  SEMI_FINALS:    'חצי גמר',
+  FINAL:          'גמר',
+  THIRD_PLACE:    'מקום שלישי',
+};
+const KNOCKOUT_STAGES = new Set(STAGE_ORDER);
+const isLive = (s: string) => s === 'IN_PLAY' || s === 'PAUSED';
+const isFinished = (s: string) => s === 'FINISHED';
+const isTbd = (name: string) => !name || name === 'TBD';
+
+function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
+  const live = isLive(m.status);
+  const done = isFinished(m.status);
+  const TZ = 'Asia/Jerusalem';
+  const timeStr = new Date(m.kickoff_at).toLocaleString('he-IL', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ,
+  });
+
+  return (
+    <div className="ko-match-card">
+      <div className="ko-match-inner">
+        {/* בית */}
+        <div className="ko-team ko-team-home">
+          {!isTbd(m.home_team) && <Flag team={m.home_team} size={22} />}
+          <span className={`ko-team-name ${isTbd(m.home_team) ? 'ko-tbd' : ''}`}>
+            {isTbd(m.home_team) ? 'TBD' : teamHe(m.home_team)}
+          </span>
+        </div>
+
+        {/* תוצאה / שעה */}
+        <div className="ko-center">
+          {(done || live) && m.home_score !== null ? (
+            <div className="ko-score">
+              <span>{m.home_score}</span>
+              <span className="ko-score-sep">:</span>
+              <span>{m.away_score}</span>
+            </div>
+          ) : (
+            <div className="ko-time">{timeStr}</div>
+          )}
+          {live && <div className="ko-live-badge"><span className="live-dot" />חי</div>}
+          {done && <div className="ko-done-badge">סופי</div>}
+        </div>
+
+        {/* אורח */}
+        <div className="ko-team ko-team-away">
+          <span className={`ko-team-name ${isTbd(m.away_team) ? 'ko-tbd' : ''}`}>
+            {isTbd(m.away_team) ? 'TBD' : teamHe(m.away_team)}
+          </span>
+          {!isTbd(m.away_team) && <Flag team={m.away_team} size={22} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KnockoutBracketView() {
+  const [matches, setMatches] = useState<KnockoutMatch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeStage, setActiveStage] = useState('');
+
+  useEffect(() => {
+    supabase
+      .from('live_scores')
+      .select('*')
+      .then(({ data }) => {
+        const ko = ((data ?? []) as KnockoutMatch[]).filter(m => KNOCKOUT_STAGES.has(m.stage));
+        ko.sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
+        setMatches(ko);
+        // Activate the earliest non-finished stage, or the first available
+        const stages = STAGE_ORDER.filter(s => ko.some(m => m.stage === s));
+        if (stages.length) {
+          const current = stages.find(s => ko.some(m => m.stage === s && !isFinished(m.status)));
+          setActiveStage(current ?? stages[stages.length - 1]);
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const availableStages = STAGE_ORDER.filter(s => matches.some(m => m.stage === s));
+  const stageMatches = matches.filter(m => m.stage === activeStage);
+
+  function addKnockoutToCalendar() {
+    const upcoming = matches.filter(m => !isFinished(m.status) && !isTbd(m.home_team) && !isTbd(m.away_team));
+    if (!upcoming.length) { alert('אין משחקי נוקאאוט עתידיים ידועים עדיין'); return; }
+    buildIcs(upcoming.map(m => icsEvent(m.kickoff_at, m.home_team, m.away_team, `FIFA World Cup 2026 — ${STAGE_HE[m.stage] ?? m.stage}`)), 'worldcup2026-knockout.ics');
+  }
+
+  if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
+
+  if (!availableStages.length) return (
+    <div className="card p-10 text-center mt-4">
+      <div className="text-5xl mb-4">🏆</div>
+      <div className="font-bold text-lg">שלב הנוקאאוט טרם החל</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>הטבלה תתמלא אוטומטית עם התקדמות הטורניר</div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* כפתור יומן */}
+      <button className="sch-cal-all-btn" onClick={addKnockoutToCalendar}>
+        <CalendarPlus size={15} />
+        הוסף משחקי נוקאאוט ליומן
+      </button>
+
+      {/* בחירת שלב */}
+      <div className="ko-stage-tabs">
+        {availableStages.map(s => (
+          <button
+            key={s}
+            className={`ko-stage-tab ${activeStage === s ? 'ko-stage-tab-on' : ''}`}
+            onClick={() => setActiveStage(s)}
+          >
+            {STAGE_HE[s] ?? s}
+          </button>
+        ))}
+      </div>
+
+      {/* משחקי השלב הנוכחי */}
+      <div className={`ko-grid ko-grid-${stageMatches.length <= 2 ? 'small' : 'large'}`}>
+        {stageMatches.map(m => <KnockoutMatchCard key={m.id} m={m} />)}
+      </div>
+    </div>
+  );
+}
+
 // ── Rules view ────────────────────────────────────────────
 const RULES_SECTIONS = [
-  { icon: '🏦', title: 'בנק נקודות', items: ['כל שחקן מתחיל עם 1,000 נקודות','ניחוש נכון = כפל לפי יחסי הסיכויים','ניחוש שגוי = הפסד סכום ההימור','יתרה 0 = פרישה מהמשחק'] },
+  { icon: '🏦', title: 'בנק נקודות', items: ['כל שחקן מתחיל עם 1,000 נקודות','ניחוש נכון = כפל לפי יחסי הסיכויים','ניחוש שגוי = 0 נקודות (ללא ניכוי)','לא הימרת על משחק = קנס קבוע','יתרה 0 = פרישה מהמשחק'] },
   { icon: '⚽', title: 'הימור רגיל', items: ['בחר ניצחון בית / תיקו / ניצחון חוץ','קבע כמה נקודות להמר (מינימום 50, מקסימום 500)','הימורים נסגרים עם תחילת המשחק','ניתן לבטל הימור לפני תחילת המשחק'] },
   { icon: '🎯', title: 'בונוס תוצאה מדויקת', items: ['ניחוש תוצאה מדויקת מוסיף בונוס ×1.5','הבונוס מחושב על הרווח הסופי','דוגמה: 100 × 2.00 = 200 נק׳, עם בונוס = 300 נק׳','חובה לנחש גם את הכיוון (ניצחון/תיקו) נכון'] },
   { icon: '🏆', title: 'ניחושי טורניר', items: ['ניחוש זוכה הטורניר — נפתח עד 11 ביוני','ניחוש מלך השערים — נפתח עד 11 ביוני','ניחוש נכון = בונוס 500 נקודות × יחס הסיכויים','אין ניכוי נקודות על ניחוש שגוי'] },
@@ -423,7 +570,7 @@ export default function TournamentPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [scoreMap, setScoreMap] = useState<ScoreMap>({});
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'schedule' | 'standings' | 'scorers' | 'rules'>('schedule');
+  const [view, setView] = useState<'schedule' | 'standings' | 'knockout' | 'scorers' | 'rules'>('schedule');
   useEffect(() => {
     // קורא מ-wc_schedule — לוח משחקים סטטי, לא שורף קרדיטים
     // תוצאות (home_score/away_score/completed) מתעדכנות ע"י אדמין או settle-games
@@ -497,11 +644,15 @@ export default function TournamentPage() {
         <div className="trn-toggle">
           <button className={`trn-tog-btn ${view === 'schedule' ? 'trn-tog-on' : ''}`} onClick={() => setView('schedule')}>
             <CalendarDays size={15} />
-            לוח משחקים
+            לוח
           </button>
           <button className={`trn-tog-btn ${view === 'standings' ? 'trn-tog-on' : ''}`} onClick={() => setView('standings')}>
             <LayoutList size={15} />
-            טבלת בתים
+            בתים
+          </button>
+          <button className={`trn-tog-btn ${view === 'knockout' ? 'trn-tog-on' : ''}`} onClick={() => setView('knockout')}>
+            <Trophy size={15} />
+            נוקאאוט
           </button>
           <button className={`trn-tog-btn ${view === 'scorers' ? 'trn-tog-on' : ''}`} onClick={() => setView('scorers')}>
             <Shirt size={15} />
@@ -515,6 +666,7 @@ export default function TournamentPage() {
 
         {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />}
         {view === 'standings' && <StandingsView groups={groups} scoreMap={scoreMap} />}
+        {view === 'knockout' && <KnockoutBracketView />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
       </div>
