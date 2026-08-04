@@ -91,4 +91,5 @@ export type Settings = {
   special_bet_stake: number;
   auto_bet_amount: number;
   group_stage_bonus: number;
+  sport_keys: string[] | null;
 };

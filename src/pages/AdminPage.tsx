@@ -322,6 +322,7 @@ export default function AdminPage() {
       special_bet_stake: settings.special_bet_stake,
       auto_bet_amount: settings.auto_bet_amount,
       group_stage_bonus: settings.group_stage_bonus,
+      sport_keys: settings.sport_keys ?? ['soccer_fifa_world_cup'],
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -826,6 +827,46 @@ export default function AdminPage() {
             <h2 className="font-bold text-lg mb-4">הגדרות מערכת</h2>
             <div className="card p-6">
               <div className="flex flex-col gap-5">
+
+                {/* ── בחירת ספורט / ליגה ── */}
+                <div>
+                  <div className="text-sm font-semibold mb-2" style={{color: 'var(--text)'}}>ספורט פעיל</div>
+                  <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                    קובע על איזו ליגה מהמרים — משפיע על לוח המשחקים, הטבלה וסגירת הימורים
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { key: 'soccer_fifa_world_cup', label: '🌍 FIFA World Cup 2026', sub: 'מונדיאל יוני–יולי 2026' },
+                      { key: 'soccer_israel_premier_league', label: '⚽ ליגת העל', sub: 'הליגה הישראלית לכדורגל' },
+                    ].map(opt => {
+                      const active = (settings.sport_keys ?? ['soccer_fifa_world_cup'])[0] === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          onClick={() => setSettings(prev => prev ? {...prev, sport_keys: [opt.key]} : prev)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                            borderRadius: 10, border: active ? '2px solid var(--green)' : '1px solid var(--border)',
+                            background: active ? 'rgba(0,200,83,0.06)' : 'transparent',
+                            cursor: 'pointer', textAlign: 'right',
+                          }}
+                        >
+                          <span style={{
+                            width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                            border: active ? '5px solid var(--green)' : '2px solid var(--border)',
+                            background: active ? 'var(--green)' : 'transparent',
+                          }} />
+                          <div>
+                            <div className="text-sm font-semibold" style={{color: active ? 'var(--green)' : 'var(--text)'}}>{opt.label}</div>
+                            <div className="text-xs" style={{color: 'var(--text-muted)'}}>{opt.sub}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{height: 1, background: 'var(--border)'}} />
 
                 {/* ── Toggle: מצב בנק / צבירה ── */}
                 <div>
