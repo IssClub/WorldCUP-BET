@@ -414,21 +414,24 @@ export default function PlayerPage() {
         oddsLocked: true,
       }));
 
-      // WC API — נכשלה? ממשיכים עם custom בלבד
-      let wcProcessed: Game[] = [];
+      // Odds API — שולף לפי sport_keys מההגדרות
+      const sportKeys: string[] = settingsRes.data?.sport_keys ?? ['soccer_fifa_world_cup'];
+      let oddsProcessed: Game[] = [];
       try {
-        const gamesRes = await fetch(
-          `https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`
-        );
-        if (gamesRes.ok) {
+        for (const sportKey of sportKeys) {
+          const gamesRes = await fetch(
+            `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`
+          );
+          if (!gamesRes.ok) continue;
           const raw: any[] = await gamesRes.json();
+          if (!Array.isArray(raw)) continue;
           const gameIds = raw.map(g => g.id);
           const { data: lockedOdds } = await supabase
             .from('locked_odds').select('*').in('external_game_id', gameIds);
           const lockedMap = new Map(
             (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
           );
-          wcProcessed = raw.map(g => {
+          const sportGames = raw.map(g => {
             const locked = lockedMap.get(g.id);
             if (locked) {
               return {
@@ -444,10 +447,11 @@ export default function PlayerPage() {
               home_win: 0, draw: 0, away_win: 0, oddsLocked: false,
             };
           }) as Game[];
+          oddsProcessed.push(...sportGames);
         }
-      } catch { /* WC API failed — showing custom games only */ }
+      } catch { /* Odds API failed — showing custom games only */ }
 
-      setGames([...customProcessed, ...wcProcessed]);
+      setGames([...customProcessed, ...oddsProcessed]);
     } catch {
       setError('שגיאה בטעינת המשחקים');
     } finally {
@@ -569,7 +573,7 @@ export default function PlayerPage() {
           <div className="text-sm font-bold mb-2" style={{ color: 'var(--gold)' }}>🏆 עדיין אפשר לעקוב:</div>
           <div className="text-sm" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
             • טבלת דירוג — ראה איפה אתה עומד<br />
-            • לשונית מונדיאל — תוצאות ולוח משחקים<br />
+            • לשונית הליגה — תוצאות ולוח משחקים<br />
             • בסוף שלב הבתים — כל השחקנים מתחילים מחדש
           </div>
         </div>
@@ -629,25 +633,12 @@ export default function PlayerPage() {
         {gameGroups.length === 0 ? (
           <div className="card p-10 text-center mt-2">
             <div className="text-5xl mb-4">⚽</div>
-            {(() => {
-              const now = new Date();
-              const tournamentStart = new Date('2026-06-11');
-              const tournamentEnd   = new Date('2026-07-20');
-              const duringTournament = now >= tournamentStart && now <= tournamentEnd;
-              return duringTournament ? (
-                <>
-                  <div className="font-bold text-lg mb-1">משחקי היום החלו</div>
-                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    אין הימורים פתוחים כרגע — עבור ללשונית מונדיאל לתוצאות
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="font-bold text-lg mb-1">אין משחקים בקרוב</div>
-                  <div className="text-sm" style={{ color: 'var(--text-muted)' }}>המונדיאל מתחיל ב-11 ביוני 2026</div>
-                </>
-              );
-            })()}
+            <>
+              <div className="font-bold text-lg mb-1">אין משחקים פתוחים להימור</div>
+              <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                יחסים יופיעו כאשר יהיו משחקים בטווח 48 שעות
+              </div>
+            </>
           </div>
         ) : (
           gameGroups.map(grp => (

@@ -816,7 +816,7 @@ export default function TournamentPage() {
           <div className="trn-banner">
             <span className="trn-banner-icon">⚽</span>
             <div>
-              <div className="font-bold text-sm">ליגת העל 2025/26</div>
+              <div className="font-bold text-sm">ליגת העל {(() => { const y = new Date().getFullYear(); const m = new Date().getMonth(); const s = m >= 6 ? y : y - 1; return `${s}/${String(s + 1).slice(2)}`; })()}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>הליגה הישראלית לכדורגל</div>
             </div>
           </div>

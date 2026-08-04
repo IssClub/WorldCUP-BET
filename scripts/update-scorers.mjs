@@ -19,14 +19,22 @@ if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_DATA_TOKEN) {
   process.exit(1);
 }
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// רץ רק במצב מונדיאל — ליגת העל לא נתמכת ב-football-data.org free tier
+const { data: settings } = await supabase.from('settings').select('sport_keys').single();
+const sportKeys = settings?.sport_keys ?? ['soccer_fifa_world_cup'];
+if (!sportKeys.includes('soccer_fifa_world_cup')) {
+  console.log(`Sport keys: ${sportKeys.join(', ')} — top scorers not available. Skipping.`);
+  process.exit(0);
+}
+
 // אל תריץ לפני שהטורניר מתחיל (חוסך קריאות יומיות)
 const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
 if (Date.now() < TOURNAMENT_START) {
   console.log('Tournament has not started yet — skipping.');
   process.exit(0);
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 console.log('Fetching top scorers from football-data.org (competition=WC)...');
 
