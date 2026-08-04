@@ -18,6 +18,16 @@ interface Game {
 interface GameScore { homeScore: number; awayScore: number; completed: boolean }
 type ScoreMap = Record<string, GameScore>;
 
+interface LiveScoreRow {
+  id: string;
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
+  status: string;
+  kickoff_at: string;
+}
+
 // שידורים ישראל — עדכן כשתהיה רשימה רשמית
 const CHANNEL_MAP: { home: string; away: string; channel: string }[] = [
   // { home: 'Argentina', away: 'France', channel: 'ערוץ 12 + Sport 5' },
@@ -55,10 +65,32 @@ function addAllToCalendar(games: Game[]) {
   buildIcs(games.map(g => icsEvent(g.commence_time, g.home_team, g.away_team, 'FIFA World Cup 2026 — שלב הבתים')), 'worldcup2026-groups.ics');
 }
 
+// ── Team badge color (deterministic hash) ─────────────────
+function teamColor(team: string): string {
+  const palette = ['#e74c3c', '#3498db', '#27ae60', '#9b59b6', '#e67e22', '#16a085', '#2c3e50', '#c0392b'];
+  let h = 0;
+  for (const c of team) h = ((h << 5) - h + c.charCodeAt(0)) & 0x7fffffff;
+  return palette[h % palette.length];
+}
+
 // ── Flag ──────────────────────────────────────────────────
 function Flag({ team, size = 28 }: { team: string; size?: number }) {
   const url = flagUrl(team, 'w80');
-  if (!url) return <span style={{ fontSize: 16 }}>🏳️</span>;
+  if (!url) {
+    // Club team: show colored initials badge
+    const label = teamHe(team).slice(0, 2);
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: size, height: Math.round(size * 0.65),
+        background: teamColor(team), borderRadius: 3,
+        color: '#fff', fontWeight: 700, fontSize: Math.round(size * 0.38),
+        flexShrink: 0, fontFamily: 'system-ui', userSelect: 'none',
+      }}>
+        {label}
+      </span>
+    );
+  }
   return (
     <img
       src={url} alt={team} width={size} height={Math.round(size * 0.65)}
@@ -147,19 +179,17 @@ function inferGroups(games: Game[]): Map<string, { teams: string[]; games: Game[
   return result;
 }
 
-// ── Schedule view (chronological + group badge + channel) ─
+// ── WC Schedule view (chronological + group badge + channel) ──
 function ScheduleView({ games, groups, scoreMap }: {
   games: Game[];
   groups: Map<string, { teams: string[]; games: Game[] }>;
   scoreMap: ScoreMap;
 }) {
-  // Map each game ID → group letter
   const gameToGroup = new Map<string, string>();
   for (const [letter, { games: gGames }] of groups) {
     for (const g of gGames) gameToGroup.set(g.id, letter);
   }
 
-  // Group games by calendar day
   const byDay = useMemo(() => {
     const map = new Map<string, Game[]>();
     const sorted = [...games].sort((a, b) => a.commence_time.localeCompare(b.commence_time));
@@ -181,7 +211,6 @@ function ScheduleView({ games, groups, scoreMap }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* כפתור הוספה ליומן — כל המשחקים */}
       <button className="sch-cal-all-btn" onClick={() => addAllToCalendar(games)}>
         <CalendarPlus size={15} />
         הוסף את כל המשחקים ליומן
@@ -196,14 +225,12 @@ function ScheduleView({ games, groups, scoreMap }: {
               const ch = getChannel(g.home_team, g.away_team);
               return (
                 <div key={g.id} className="sch-row">
-                  {/* Top bar: badge + time + channel */}
                   <div className="sch-row-top">
                     {grp && <span className="sch-badge">בית {grp}</span>}
                     <span className="sch-time">{fmtTime(g.commence_time)}</span>
                     {ch && <span className="sch-channel">{ch}</span>}
                   </div>
 
-                  {/* Match row: home | VS/score | away */}
                   <div className="sch-match">
                     <div className="sch-home">
                       <Flag team={g.home_team} size={28} />
@@ -229,8 +256,6 @@ function ScheduleView({ games, groups, scoreMap }: {
                       <Flag team={g.away_team} size={28} />
                     </div>
                   </div>
-
-
                 </div>
               );
             })}
@@ -238,7 +263,6 @@ function ScheduleView({ games, groups, scoreMap }: {
         </div>
       ))}
 
-      {/* Knockout stage */}
       <div className="sch-knockout">
         <div className="sch-knockout-title">🏆 שלב הנוק-אאוט</div>
         {[
@@ -259,6 +283,90 @@ function ScheduleView({ games, groups, scoreMap }: {
   );
 }
 
+// ── League Schedule view (from live_scores) ───────────────
+function LeagueScheduleView() {
+  const [rows, setRows] = useState<LiveScoreRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('live_scores').select('*').order('kickoff_at')
+      .then(({ data }) => { setRows((data ?? []) as LiveScoreRow[]); setLoading(false); });
+  }, []);
+
+  const byDay = useMemo(() => {
+    // Live first, then upcoming (SCHEDULED), then completed — within each group sorted by kickoff
+    const sorted = [...rows].sort((a, b) => {
+      const aLive = a.status === 'IN_PLAY' || a.status === 'PAUSED';
+      const bLive = b.status === 'IN_PLAY' || b.status === 'PAUSED';
+      if (aLive !== bLive) return aLive ? -1 : 1;
+      return a.kickoff_at.localeCompare(b.kickoff_at);
+    });
+    const map = new Map<string, LiveScoreRow[]>();
+    for (const r of sorted) {
+      const k = dayKey(r.kickoff_at);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(r);
+    }
+    return Array.from(map.entries());
+  }, [rows]);
+
+  if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
+
+  if (byDay.length === 0) return (
+    <div className="card p-8 text-center mt-4">
+      <div className="text-4xl mb-3">📅</div>
+      <div className="font-bold">אין נתוני משחקים</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+        נתונים יופיעו לאחר ריצת ה-GitHub Action הראשונה
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      {byDay.map(([dk, dayRows]) => (
+        <div key={dk}>
+          <div className="sch-day-hdr">{fmtDayFull(dayRows[0].kickoff_at)}</div>
+          <div className="flex flex-col gap-2">
+            {dayRows.map(g => {
+              const live = g.status === 'IN_PLAY' || g.status === 'PAUSED';
+              const done = g.status === 'FINISHED';
+              return (
+                <div key={g.id} className="sch-row">
+                  <div className="sch-row-top">
+                    <span className="sch-time">{fmtTime(g.kickoff_at)}</span>
+                    {live && <span className="sch-score-live" style={{ marginRight: 6 }}>● חי</span>}
+                  </div>
+                  <div className="sch-match">
+                    <div className="sch-home">
+                      <Flag team={g.home_team} size={28} />
+                      <span className="sch-tname">{teamHe(g.home_team)}</span>
+                    </div>
+                    {(done || live) && g.home_score !== null ? (
+                      <div className="sch-score">
+                        <span className="sch-score-num">{g.home_score}</span>
+                        <span className="sch-score-sep">:</span>
+                        <span className="sch-score-num">{g.away_score}</span>
+                        {done && <span className="sch-score-ft">סיים</span>}
+                      </div>
+                    ) : (
+                      <span className="sch-vs">VS</span>
+                    )}
+                    <div className="sch-away">
+                      <span className="sch-tname">{teamHe(g.away_team)}</span>
+                      <Flag team={g.away_team} size={28} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Top Scorers view ──────────────────────────────────────
 function TopScorersView() {
   const [scorers, setScorers] = useState<TopScorer[]>([]);
@@ -274,8 +382,8 @@ function TopScorersView() {
   if (scorers.length === 0) return (
     <div className="card p-10 text-center mt-4">
       <div className="text-5xl mb-4">👟</div>
-      <div className="font-bold text-lg">הטורניר טרם התחיל</div>
-      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>סטטיסטיקות מלכי השערים יופיעו כאן עם תחילת המשחקים</div>
+      <div className="font-bold text-lg">אין נתוני מלכי שערים</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>סטטיסטיקות יופיעו כאן עם תחילת המשחקים</div>
     </div>
   );
 
@@ -314,11 +422,12 @@ function TopScorersView() {
   );
 }
 
-// ── Standings row ─────────────────────────────────────────
+// ── Standings row interface ───────────────────────────────
 interface Standing {
   team: string; p: number; w: number; d: number; l: number; pts: number; gf: number; ga: number;
 }
 
+// ── WC Group Standings view ───────────────────────────────
 function StandingsView({ groups, scoreMap }: {
   groups: Map<string, { teams: string[]; games: Game[] }>;
   scoreMap: ScoreMap;
@@ -328,7 +437,6 @@ function StandingsView({ groups, scoreMap }: {
       {Array.from(groups.entries()).map(([letter, { teams, games: grpGames }]) => {
         const rows: Standing[] = teams.map(t => ({ team: t, p: 0, w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0 }));
 
-        // Calculate from actual scores
         for (const g of grpGames) {
           const sc = scoreMap[g.id];
           if (!sc || !sc.completed) continue;
@@ -387,6 +495,87 @@ function StandingsView({ groups, scoreMap }: {
   );
 }
 
+// ── League Standings view (from live_scores) ──────────────
+function LeagueStandingsView() {
+  const [rows, setRows] = useState<LiveScoreRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('live_scores').select('*').eq('status', 'FINISHED')
+      .then(({ data }) => { setRows((data ?? []) as LiveScoreRow[]); setLoading(false); });
+  }, []);
+
+  const standings = useMemo((): Standing[] => {
+    const map = new Map<string, Standing>();
+    for (const g of rows) {
+      if (g.home_score === null || g.away_score === null) continue;
+      for (const t of [g.home_team, g.away_team]) {
+        if (!map.has(t)) map.set(t, { team: t, p: 0, w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0 });
+      }
+      const h = map.get(g.home_team)!;
+      const a = map.get(g.away_team)!;
+      h.p++; a.p++;
+      h.gf += g.home_score; h.ga += g.away_score;
+      a.gf += g.away_score; a.ga += g.home_score;
+      if (g.home_score > g.away_score) { h.w++; h.pts += 3; a.l++; }
+      else if (g.away_score > g.home_score) { a.w++; a.pts += 3; h.l++; }
+      else { h.d++; a.d++; h.pts++; a.pts++; }
+    }
+    return [...map.values()].sort((a, b) =>
+      b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf
+    );
+  }, [rows]);
+
+  if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
+
+  if (standings.length === 0) return (
+    <div className="card p-8 text-center mt-4">
+      <div className="text-4xl mb-3">📊</div>
+      <div className="font-bold">טרם נסגרו משחקים</div>
+      <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+        הטבלה תתמלא לאחר תחילת עונת הליגה
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="trn-group-card">
+      <div className="trn-standings-hdr">
+        <span className="trn-group-letter">טבלת הליגה</span>
+      </div>
+      <table className="trn-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th className="trn-th-team">קבוצה</th>
+            <th>מ׳</th>
+            <th>נ׳</th>
+            <th>ת׳</th>
+            <th>ה׳</th>
+            <th className="trn-th-pts">נק׳</th>
+          </tr>
+        </thead>
+        <tbody>
+          {standings.map((r, i) => (
+            <tr key={r.team}>
+              <td className="trn-td-pos">{i + 1}</td>
+              <td className="trn-td-team">
+                <Flag team={r.team} size={20} />
+                <span>{teamHe(r.team)}</span>
+              </td>
+              <td>{r.p}</td>
+              <td>{r.w}</td>
+              <td>{r.d}</td>
+              <td>{r.l}</td>
+              <td className="trn-td-pts">{r.pts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Knockout bracket ──────────────────────────────────────
 interface KnockoutMatch {
   id: string;
@@ -416,7 +605,6 @@ const isTbd = (name: string) => !name || name === 'TBD';
 function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
   const live = isLive(m.status);
   const done = isFinished(m.status);
-  const TZ = 'Asia/Jerusalem';
   const timeStr = new Date(m.kickoff_at).toLocaleString('he-IL', {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TZ,
   });
@@ -424,7 +612,6 @@ function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
   return (
     <div className="ko-match-card">
       <div className="ko-match-inner">
-        {/* בית */}
         <div className="ko-team ko-team-home">
           {!isTbd(m.home_team) && <Flag team={m.home_team} size={22} />}
           <span className={`ko-team-name ${isTbd(m.home_team) ? 'ko-tbd' : ''}`}>
@@ -432,7 +619,6 @@ function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
           </span>
         </div>
 
-        {/* תוצאה / שעה */}
         <div className="ko-center">
           {(done || live) && m.home_score !== null ? (
             <div className="ko-score">
@@ -447,7 +633,6 @@ function KnockoutMatchCard({ m }: { m: KnockoutMatch }) {
           {done && <div className="ko-done-badge">סופי</div>}
         </div>
 
-        {/* אורח */}
         <div className="ko-team ko-team-away">
           <span className={`ko-team-name ${isTbd(m.away_team) ? 'ko-tbd' : ''}`}>
             {isTbd(m.away_team) ? 'ממתין לתוצאה' : teamHe(m.away_team)}
@@ -472,7 +657,6 @@ function KnockoutBracketView() {
         const ko = ((data ?? []) as KnockoutMatch[]).filter(m => KNOCKOUT_STAGES.has(m.stage));
         ko.sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
         setMatches(ko);
-        // Activate the earliest non-finished stage, or the first available
         const stages = STAGE_ORDER.filter(s => ko.some(m => m.stage === s));
         if (stages.length) {
           const current = stages.find(s => ko.some(m => m.stage === s && !isFinished(m.status)));
@@ -503,13 +687,11 @@ function KnockoutBracketView() {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* כפתור יומן */}
       <button className="sch-cal-all-btn" onClick={addKnockoutToCalendar}>
         <CalendarPlus size={15} />
         הוסף משחקי נוקאאוט ליומן
       </button>
 
-      {/* בחירת שלב */}
       <div className="ko-stage-tabs">
         {availableStages.map(s => (
           <button
@@ -522,7 +704,6 @@ function KnockoutBracketView() {
         ))}
       </div>
 
-      {/* משחקי השלב הנוכחי */}
       <div className={`ko-grid ko-grid-${stageMatches.length <= 2 ? 'small' : 'large'}`}>
         {stageMatches.map(m => <KnockoutMatchCard key={m.id} m={m} />)}
       </div>
@@ -570,38 +751,37 @@ export default function TournamentPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [scoreMap, setScoreMap] = useState<ScoreMap>({});
   const [loading, setLoading] = useState(true);
+  const [isLeagueMode, setIsLeagueMode] = useState(false);
   const [view, setView] = useState<'schedule' | 'standings' | 'knockout' | 'scorers' | 'rules'>('schedule');
-  useEffect(() => {
-    // קורא מ-wc_schedule — לוח משחקים סטטי, לא שורף קרדיטים
-    // תוצאות (home_score/away_score/completed) מתעדכנות ע"י אדמין או settle-games
-    supabase.from('wc_schedule').select('*').order('kickoff_at')
-      .then(({ data }) => {
-        const rows = data ?? [];
-        const processed = rows.map((g: any) => ({
-          id:           g.id,
-          home_team:    g.home_team,
-          away_team:    g.away_team,
-          commence_time: g.kickoff_at,
-          home_win:     0,
-          draw:         0,
-          away_win:     0,
-        })) as Game[];
-        setGames(processed);
 
-        // תוצאות ישירות מ-wc_schedule
+  useEffect(() => {
+    async function load() {
+      const { data: s } = await supabase.from('settings').select('sport_keys').single();
+      const keys: string[] = s?.sport_keys ?? ['soccer_fifa_world_cup'];
+      const league = !keys.includes('soccer_fifa_world_cup');
+      setIsLeagueMode(league);
+
+      if (!league) {
+        const { data } = await supabase.from('wc_schedule').select('*').order('kickoff_at');
+        const rows = data ?? [];
+        setGames(rows.map((g: any) => ({
+          id: g.id,
+          home_team: g.home_team,
+          away_team: g.away_team,
+          commence_time: g.kickoff_at,
+          home_win: 0, draw: 0, away_win: 0,
+        })));
         const map: ScoreMap = {};
         for (const g of rows) {
           if (g.home_score !== null && g.away_score !== null) {
-            map[g.id] = {
-              homeScore: g.home_score,
-              awayScore: g.away_score,
-              completed: g.completed ?? false,
-            };
+            map[g.id] = { homeScore: g.home_score, awayScore: g.away_score, completed: g.completed ?? false };
           }
         }
         setScoreMap(map);
-      })
-      .finally(() => setLoading(false));
+      }
+      setLoading(false);
+    }
+    load();
   }, []);
 
   const groups = useMemo(() => inferGroups(games), [games]);
@@ -610,7 +790,7 @@ export default function TournamentPage() {
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <div className="text-5xl mb-4 animate-pulse">🌍</div>
+        <div className="text-5xl mb-4 animate-pulse">⚽</div>
         <div className="bebas text-2xl" style={{ color: 'var(--green)' }}>טוען...</div>
       </div>
     </div>
@@ -620,27 +800,41 @@ export default function TournamentPage() {
     <div className="min-h-screen pb-24">
       <header className="hdr">
         <div className="hdr-inner">
-          <span className="font-bold">מונדיאל 2026</span>
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{games.length} משחקים · {groups.size} בתים</span>
+          <span className="font-bold">{isLeagueMode ? 'ליגת העל' : 'מונדיאל 2026'}</span>
+          {!isLeagueMode && (
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              {games.length} משחקים · {groups.size} בתים
+            </span>
+          )}
         </div>
       </header>
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">
         {/* Banner */}
-        <div className="trn-banner">
-          <span className="trn-banner-icon">🏆</span>
-          <div>
-            <div className="font-bold text-sm">FIFA World Cup 2026</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ארה״ב, קנדה ומקסיקו · יוני–יולי 2026</div>
+        {isLeagueMode ? (
+          <div className="trn-banner">
+            <span className="trn-banner-icon">⚽</span>
+            <div>
+              <div className="font-bold text-sm">ליגת העל 2025/26</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>הליגה הישראלית לכדורגל</div>
+            </div>
           </div>
-          <div className="trn-days-left">
-            <span className="trn-days-num">{daysLeft}</span>
-            <span className="trn-days-lbl">ימים</span>
+        ) : (
+          <div className="trn-banner">
+            <span className="trn-banner-icon">🏆</span>
+            <div>
+              <div className="font-bold text-sm">FIFA World Cup 2026</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ארה״ב, קנדה ומקסיקו · יוני–יולי 2026</div>
+            </div>
+            <div className="trn-days-left">
+              <span className="trn-days-num">{daysLeft}</span>
+              <span className="trn-days-lbl">ימים</span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Toggle */}
+        {/* Tab toggle */}
         <div className="trn-toggle">
           <button className={`trn-tog-btn ${view === 'schedule' ? 'trn-tog-on' : ''}`} onClick={() => setView('schedule')}>
             <CalendarDays size={15} />
@@ -648,12 +842,14 @@ export default function TournamentPage() {
           </button>
           <button className={`trn-tog-btn ${view === 'standings' ? 'trn-tog-on' : ''}`} onClick={() => setView('standings')}>
             <LayoutList size={15} />
-            בתים
+            {isLeagueMode ? 'טבלה' : 'בתים'}
           </button>
-          <button className={`trn-tog-btn ${view === 'knockout' ? 'trn-tog-on' : ''}`} onClick={() => setView('knockout')}>
-            <Trophy size={15} />
-            נוקאאוט
-          </button>
+          {!isLeagueMode && (
+            <button className={`trn-tog-btn ${view === 'knockout' ? 'trn-tog-on' : ''}`} onClick={() => setView('knockout')}>
+              <Trophy size={15} />
+              נוקאאוט
+            </button>
+          )}
           <button className={`trn-tog-btn ${view === 'scorers' ? 'trn-tog-on' : ''}`} onClick={() => setView('scorers')}>
             <Shirt size={15} />
             שערים
@@ -664,9 +860,17 @@ export default function TournamentPage() {
           </button>
         </div>
 
-        {view === 'schedule' && <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />}
-        {view === 'standings' && <StandingsView groups={groups} scoreMap={scoreMap} />}
-        {view === 'knockout' && <KnockoutBracketView />}
+        {view === 'schedule' && (
+          isLeagueMode
+            ? <LeagueScheduleView />
+            : <ScheduleView games={games} groups={groups} scoreMap={scoreMap} />
+        )}
+        {view === 'standings' && (
+          isLeagueMode
+            ? <LeagueStandingsView />
+            : <StandingsView groups={groups} scoreMap={scoreMap} />
+        )}
+        {view === 'knockout' && !isLeagueMode && <KnockoutBracketView />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
       </div>

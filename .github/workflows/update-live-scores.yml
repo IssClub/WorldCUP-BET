@@ -2,9 +2,8 @@ name: Update live scores
 
 on:
   schedule:
-    # כל 10 דקות בחודשי הטורניר (יוני–יולי 2026)
-    # football-data.org: 10 קריאות/דקה — קריאה אחת כל 10 דקות בלי שום בעיה
-    - cron: '*/10 * * 6,7 *'
+    # כל 30 דקות — מתאים לכל ליגה לאורך השנה
+    - cron: '*/30 * * * *'
   workflow_dispatch:  # הפעלה ידנית
 
 jobs:
@@ -27,4 +26,4 @@ jobs:
         env:
           SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          FOOTBALL_DATA_TOKEN:  ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}

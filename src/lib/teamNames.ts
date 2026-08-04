@@ -130,6 +130,34 @@ const HE: Record<string, string> = {
 
   // OFC
   'New Zealand': 'ניו זילנד',
+
+  // ── ליגת העל הישראלית ────────────────────────────────────
+  'Maccabi Tel Aviv': 'מכבי ת"א',
+  'Hapoel Beer Sheva': 'הפועל ב"ש',
+  "Hapoel Be'er Sheva": 'הפועל ב"ש',
+  'Hapoel Beer-Sheva': 'הפועל ב"ש',
+  'Maccabi Haifa': 'מכבי חיפה',
+  'Hapoel Tel Aviv': 'הפועל ת"א',
+  'Beitar Jerusalem': 'בית"ר י-ם',
+  'Hapoel Jerusalem': 'הפועל י-ם',
+  'Bnei Sakhnin': 'בני סכנין',
+  'Maccabi Petah Tikva': 'מכבי פ"ת',
+  "Maccabi Petah-Tikva": 'מכבי פ"ת',
+  'Ironi Kiryat Shmona': 'עירוני ק"ש',
+  'Hapoel Haifa': 'הפועל חיפה',
+  'Bnei Yehuda': 'בני יהודה',
+  'FC Ashdod': 'א.ס. אשדוד',
+  'MS Ashdod': 'א.ס. אשדוד',
+  'Maccabi Bnei Raina': 'מכבי בני ריינה',
+  'Bnei Raina': 'בני ריינה',
+  'Hapoel Nof Hagalil': 'הפועל נוף הגליל',
+  'Ironi Nof Hagalil': 'עירוני נוף הגליל',
+  'Hapoel Hadera': 'הפועל חדרה',
+  'Maccabi Netanya': 'מכבי נתניה',
+  'Ironi Tiberias': 'עירוני טבריה',
+  'Hapoel Petah Tikva': 'הפועל פ"ת',
+  'Maccabi Umm al-Fahm': 'מכבי אום אל-פחם',
+  'Ironi Tel Aviv': 'עירוני ת"א',
 };
 
 export function teamHe(name: string): string {

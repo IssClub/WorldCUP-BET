@@ -1,79 +1,105 @@
 /**
- * update-live-scores.mjs — רץ כל 10 דקות (בפועל לפי GitHub) דרך GitHub Actions
+ * update-live-scores.mjs — runs via GitHub Actions cron
  *
- * שולף תוצאות משחקים של מונדיאל 2026 מ-football-data.org (אותו טוקן חינמי
- * כמו update-scorers.mjs) ומעדכן את טבלת live_scores בסופאבייס.
- * הדף הראשי קורא מהטבלה הזו — לא קורא ל-API החיצוני בכלל.
+ * Fetches match scores from The Odds API for all sport_keys configured
+ * in the Settings table, then upserts into live_scores in Supabase.
+ * The frontend reads from live_scores only — never calls external APIs.
  *
- * הרשמה חינמית: https://www.football-data.org/client/register
- * הגדרה ב-GitHub Secrets: FOOTBALL_DATA_TOKEN
+ * Uses the same ODDS_API_KEY already set up for settle-games.mjs.
+ * No additional secrets or API registrations needed.
  */
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL        = process.env.SUPABASE_URL;
-const SUPABASE_KEY        = process.env.SUPABASE_SERVICE_KEY;
-const FOOTBALL_DATA_TOKEN = process.env.FOOTBALL_DATA_TOKEN;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const ODDS_API_KEY = process.env.ODDS_API_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_DATA_TOKEN) {
-  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, FOOTBALL_DATA_TOKEN');
+if (!SUPABASE_URL || !SUPABASE_KEY || !ODDS_API_KEY) {
+  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, ODDS_API_KEY');
   process.exit(1);
-}
-
-// אל תריץ לפני שהטורניר מתחיל (חוסך קריאות)
-const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
-if (Date.now() < TOURNAMENT_START) {
-  console.log('Tournament has not started yet — skipping.');
-  process.exit(0);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// כל משחקי הטורניר — קבוצות + נוקאאוט — כדי שה-bracket יתמלא אוטומטית
-const dateFrom = '2026-06-11';
-const dateTo   = '2026-07-20';
+// Read active sport_keys from Settings
+const { data: settings } = await supabase.from('settings').select('sport_keys').single();
+const sportKeys = settings?.sport_keys?.length
+  ? settings.sport_keys
+  : ['soccer_fifa_world_cup'];
 
-console.log(`Fetching all tournament matches from football-data.org (${dateFrom} → ${dateTo})...`);
+console.log(`Active sport keys: ${sportKeys.join(', ')}`);
 
-const res = await fetch(
-  `https://api.football-data.org/v4/competitions/WC/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`,
-  { headers: { 'X-Auth-Token': FOOTBALL_DATA_TOKEN } }
-);
+const allRows = [];
 
-if (!res.ok) {
-  console.error('football-data.org error:', res.status, await res.text());
-  process.exit(1);
+for (const sportKey of sportKeys) {
+  console.log(`Fetching scores for ${sportKey}...`);
+
+  const url =
+    `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/` +
+    `?apiKey=${ODDS_API_KEY}&daysFrom=3`;
+
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    console.error(`Odds API error for ${sportKey}: ${res.status}`, await res.text());
+    continue;
+  }
+
+  const games = await res.json();
+
+  if (!Array.isArray(games)) {
+    console.error(`Unexpected response for ${sportKey}:`, JSON.stringify(games).slice(0, 200));
+    continue;
+  }
+
+  const completed = games.filter(g => g.completed).length;
+  const live = games.filter(g => !g.completed && g.scores?.length).length;
+  console.log(`[${sportKey}] ${games.length} games — ${completed} finished, ${live} live`);
+
+  for (const g of games) {
+    const homeScore = g.completed
+      ? parseInt(g.scores?.find(s => s.name === g.home_team)?.score ?? '-1')
+      : null;
+    const awayScore = g.completed
+      ? parseInt(g.scores?.find(s => s.name === g.away_team)?.score ?? '-1')
+      : null;
+
+    let status;
+    if (g.completed) {
+      status = 'FINISHED';
+    } else if (g.scores?.length) {
+      status = 'IN_PLAY';
+    } else {
+      status = 'SCHEDULED';
+    }
+
+    allRows.push({
+      id:         g.id,
+      home_team:  g.home_team,
+      away_team:  g.away_team,
+      home_score: homeScore !== null && homeScore >= 0 ? homeScore : null,
+      away_score: awayScore !== null && awayScore >= 0 ? awayScore : null,
+      status,
+      stage:      null,
+      matchday:   null,
+      kickoff_at: g.commence_time,
+      updated_at: new Date().toISOString(),
+    });
+  }
 }
 
-const data = await res.json();
-
-if (!Array.isArray(data.matches)) {
-  console.error('Unexpected response:', JSON.stringify(data).slice(0, 300));
-  process.exit(1);
+if (!allRows.length) {
+  console.log('No games returned by API — nothing to store.');
+  process.exit(0);
 }
-
-console.log(`Got ${data.matches.length} matches`);
-
-const rows = data.matches.map(m => ({
-  id:          String(m.id),
-  home_team:   m.homeTeam?.name ?? 'TBD',
-  away_team:   m.awayTeam?.name ?? 'TBD',
-  home_score:  m.score?.fullTime?.home ?? null,
-  away_score:  m.score?.fullTime?.away ?? null,
-  status:      m.status,
-  stage:       m.stage ?? null,
-  matchday:    m.matchday ?? null,
-  kickoff_at:  m.utcDate,
-  updated_at:  new Date().toISOString(),
-}));
 
 const { error } = await supabase
   .from('live_scores')
-  .upsert(rows, { onConflict: 'id' });
+  .upsert(allRows, { onConflict: 'id' });
 
 if (error) {
-  console.error('Supabase error:', error.message);
+  console.error('Supabase upsert error:', error.message);
   process.exit(1);
 }
 
-console.log(`✅ Updated ${rows.length} live scores`);
-console.log('Requests remaining:', res.headers.get('x-requests-available-minute'));
+console.log(`✅ Upserted ${allRows.length} rows into live_scores`);
