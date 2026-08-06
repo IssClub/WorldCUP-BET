@@ -89,14 +89,40 @@ async function sendPush(playerId, payload) {
 }
 
 async function main() {
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
 
-  // Step 1: early exit if no pending bets on started games
+  // ── Step 0: בדוק אם אנחנו בחלון משחק פעיל לפי league_schedule ──
+  // (חוסך קריאות Odds API בימים ללא משחקים)
+  const { data: settingsCheck } = await supabase.from('settings').select('sport_keys').single();
+  const sportKeysCheck = settingsCheck?.sport_keys ?? ['soccer_fifa_world_cup'];
+  const isLeague = !sportKeysCheck.includes('soccer_fifa_world_cup');
+
+  if (isLeague) {
+    const windowStart = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(); // 3 שעות אחורה
+    const windowEnd   = new Date(now.getTime() + 15 * 60 * 1000).toISOString();      // 15 דקות קדימה
+    const { count: inWindow } = await supabase
+      .from('league_schedule')
+      .select('id', { count: 'exact', head: true })
+      .eq('completed', false)
+      .gte('kickoff_at', windowStart)
+      .lte('kickoff_at', windowEnd);
+
+    if (!inWindow || inWindow === 0) {
+      console.log('Not in active match window — skipping Odds API call.');
+      await processPushQueue();
+      await maybeSendDailySummaryFromDB();
+      return;
+    }
+    console.log(`In match window: ${inWindow} active game(s) found.`);
+  }
+
+  // ── Step 1: early exit if no pending bets on started games ──
   const { count } = await supabase
     .from('bets')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'pending')
-    .lte('kickoff_at', now);
+    .lte('kickoff_at', nowIso);
 
   if (!count || count === 0) {
     console.log('No pending bets on started games — nothing to do.');
@@ -107,7 +133,7 @@ async function main() {
 
   console.log(`Found ${count} pending bet(s) on started games. Fetching scores...`);
 
-  // Step 2: fetch all players
+  // Step 2: fetch all players (nowIso already defined above)
   const { data: allProfiles } = await supabase
     .from('profiles').select('id, bank, display_name');
   const activePlayers = allProfiles ?? [];

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
@@ -294,29 +294,84 @@ function ScheduleView({ games, groups, scoreMap }: {
   );
 }
 
-// ── League Schedule view (from league_schedule) ──────────
+// ── League Schedule view — מחוזר, auto-scroll, כפתור צף ──
 function LeagueScheduleView() {
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showJump, setShowJump] = useState(false);
+  const roundRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     supabase.from('league_schedule').select('*').order('kickoff_at')
       .then(({ data }) => { setFixtures((data ?? []) as LeagueFixture[]); setLoading(false); });
+
+    const ch = supabase.channel('league_sch_view')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'league_schedule' }, payload => {
+        const updated = payload.new as LeagueFixture;
+        setFixtures(prev => {
+          const idx = prev.findIndex(f => f.id === updated.id);
+          if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n; }
+          return [...prev, updated].sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
+        });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, LeagueFixture[]>();
+  // קבוצה לפי מחזור
+  const byRound = useMemo(() => {
+    const map = new Map<number, LeagueFixture[]>();
     for (const f of fixtures) {
-      const k = dayKey(f.kickoff_at);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(f);
+      const r = f.round_num ?? 0;
+      if (!map.has(r)) map.set(r, []);
+      map.get(r)!.push(f);
     }
-    return Array.from(map.entries());
+    return Array.from(map.entries()).sort(([a], [b]) => a - b);
   }, [fixtures]);
+
+  // המחזור הנוכחי — ראשון עם משחק שלא הסתיים, או האחרון אם הכל נגמר
+  const currentRound = useMemo(() => {
+    const now = new Date();
+    for (const [r, rFix] of byRound) {
+      if (rFix.some(f => !f.completed || new Date(f.kickoff_at) > now)) return r;
+    }
+    return byRound[byRound.length - 1]?.[0] ?? 1;
+  }, [byRound]);
+
+  // scroll למחזור הנוכחי אחרי טעינה
+  useEffect(() => {
+    if (loading || byRound.length === 0) return;
+    const el = roundRefs.current.get(currentRound);
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, [loading, currentRound, byRound.length]);
+
+  // IntersectionObserver על המחזור הנוכחי — מציג כפתור "חזרה" כשהוא מחוץ למסך
+  const setCurrentRoundRef = useCallback((el: HTMLDivElement | null) => {
+    if (observerRef.current) observerRef.current.disconnect();
+    if (!el) return;
+    roundRefs.current.set(currentRound, el);
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => setShowJump(!entry.isIntersecting),
+      { threshold: 0.05 }
+    );
+    observerRef.current.observe(el);
+  }, [currentRound]);
+
+  const scrollToCurrent = () => {
+    const el = roundRefs.current.get(currentRound);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const fmtRoundDate = (rFix: LeagueFixture[]) => {
+    const sorted = [...rFix].sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
+    return new Date(sorted[0].kickoff_at).toLocaleDateString('he-IL', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ,
+    });
+  };
 
   if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
 
-  if (byDay.length === 0) return (
+  if (byRound.length === 0) return (
     <div className="card p-8 text-center mt-4">
       <div className="text-4xl mb-3">📅</div>
       <div className="font-bold">אין לוח משחקים</div>
@@ -327,22 +382,31 @@ function LeagueScheduleView() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      {byDay.map(([dk, dayFixtures]) => {
-        const round = dayFixtures[0].round_num;
+    <div className="flex flex-col gap-6" style={{ position: 'relative' }}>
+      {byRound.map(([round, rFix]) => {
+        const isCurrent = round === currentRound;
         return (
-          <div key={dk}>
-            <div className="sch-day-hdr">
-              {fmtDayFull(dayFixtures[0].kickoff_at)}
-              {round != null && (
-                <span style={{ marginRight: 8, fontSize: '0.72rem', opacity: 0.65 }}>מחזור {round}</span>
+          <div
+            key={round}
+            ref={isCurrent ? setCurrentRoundRef : el => { if (el) roundRefs.current.set(round, el); }}
+          >
+            <div className="sch-day-hdr" style={isCurrent ? { color: 'var(--accent)' } : {}}>
+              <span style={{ fontWeight: 700 }}>מחזור {round}</span>
+              <span style={{ marginRight: 8, fontSize: '0.8rem', opacity: 0.75 }}>
+                — {fmtRoundDate(rFix)}
+              </span>
+              {isCurrent && (
+                <span style={{
+                  marginRight: 8, fontSize: '0.65rem', background: 'var(--accent)',
+                  color: '#fff', borderRadius: 10, padding: '1px 7px',
+                }}>נוכחי</span>
               )}
             </div>
             <div className="flex flex-col gap-2">
-              {dayFixtures.map(f => (
+              {rFix.map(f => (
                 <div key={f.id} className="sch-row">
                   <div className="sch-row-top">
-                    <span className="sch-time">{fmtTime(f.kickoff_at)}</span>
+                    <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
                   </div>
                   <div className="sch-match">
                     <div className="sch-home">
@@ -370,6 +434,22 @@ function LeagueScheduleView() {
           </div>
         );
       })}
+
+      {/* כפתור צף — חזרה למחזור הנוכחי */}
+      {showJump && (
+        <button
+          onClick={scrollToCurrent}
+          style={{
+            position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 20,
+            padding: '8px 18px', fontWeight: 700, fontSize: '0.85rem',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.35)', cursor: 'pointer', zIndex: 100,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          📍 מחזור {currentRound} — נוכחי
+        </button>
+      )}
     </div>
   );
 }
@@ -502,23 +582,40 @@ function StandingsView({ groups, scoreMap }: {
   );
 }
 
-// ── League Standings view (from league_schedule) ─────────
+// ── League Standings — כל הקבוצות + Realtime ─────────────
 function LeagueStandingsView() {
+  // טוענים את כל השורות (לא רק completed) — כדי לדעת מי שייך לליגה
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('league_schedule').select('*').eq('completed', true)
+    supabase.from('league_schedule').select('*').order('kickoff_at')
       .then(({ data }) => { setFixtures((data ?? []) as LeagueFixture[]); setLoading(false); });
+
+    // Realtime: עדכון אוטומטי ברגע שתוצאה נכנסת
+    const ch = supabase.channel('league_standings_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'league_schedule' }, payload => {
+        const updated = payload.new as LeagueFixture;
+        setFixtures(prev => {
+          const idx = prev.findIndex(f => f.id === updated.id);
+          if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n; }
+          return [...prev, updated];
+        });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   const standings = useMemo((): Standing[] => {
+    // כל קבוצה שמופיעה בכל משחק (גם עתידי) — מקבלת שורה בטבלה
     const map = new Map<string, Standing>();
     for (const f of fixtures) {
-      if (f.home_score === null || f.away_score === null) continue;
       for (const t of [f.home_team, f.away_team]) {
         if (!map.has(t)) map.set(t, { team: t, p: 0, w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0 });
       }
+    }
+    // חישוב נקודות רק ממשחקים שהסתיימו
+    for (const f of fixtures) {
+      if (!f.completed || f.home_score === null || f.away_score === null) continue;
       const h = map.get(f.home_team)!;
       const a = map.get(f.away_team)!;
       h.p++; a.p++;
@@ -535,12 +632,12 @@ function LeagueStandingsView() {
 
   if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
 
-  if (standings.length === 0) return (
+  if (fixtures.length === 0) return (
     <div className="card p-8 text-center mt-4">
       <div className="text-4xl mb-3">📊</div>
-      <div className="font-bold">טרם נסגרו משחקים</div>
+      <div className="font-bold">לוח המשחקים טרם נטען</div>
       <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-        הטבלה תתמלא לאחר תחילת עונת הליגה
+        הפעל "Seed league schedule" ב-GitHub Actions
       </div>
     </div>
   );
@@ -548,7 +645,7 @@ function LeagueStandingsView() {
   return (
     <div className="trn-group-card">
       <div className="trn-standings-hdr">
-        <span className="trn-group-letter">טבלת הליגה</span>
+        <span className="trn-group-letter">טבלת הליגה 2026/27</span>
       </div>
       <table className="trn-table">
         <thead>
@@ -559,12 +656,13 @@ function LeagueStandingsView() {
             <th>נ׳</th>
             <th>ת׳</th>
             <th>ה׳</th>
+            <th>הפרש</th>
             <th className="trn-th-pts">נק׳</th>
           </tr>
         </thead>
         <tbody>
           {standings.map((r, i) => (
-            <tr key={r.team}>
+            <tr key={r.team} style={i < 2 ? { background: 'rgba(var(--accent-rgb,39,174,96),0.08)' } : i > standings.length - 3 ? { background: 'rgba(231,76,60,0.06)' } : {}}>
               <td className="trn-td-pos">{i + 1}</td>
               <td className="trn-td-team">
                 <Flag team={r.team} size={20} />
@@ -574,11 +672,17 @@ function LeagueStandingsView() {
               <td>{r.w}</td>
               <td>{r.d}</td>
               <td>{r.l}</td>
+              <td style={{ color: r.gf - r.ga > 0 ? 'var(--accent)' : r.gf - r.ga < 0 ? '#e74c3c' : 'var(--text-muted)' }}>
+                {r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}
+              </td>
               <td className="trn-td-pts">{r.pts}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '6px 12px', textAlign: 'right' }}>
+        🟢 2 ראשונים — אירופה · 🔴 2 אחרונים — ירידה
+      </div>
     </div>
   );
 }

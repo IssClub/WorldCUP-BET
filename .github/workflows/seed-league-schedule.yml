@@ -1,7 +1,9 @@
 name: Seed league schedule
 
 on:
-  workflow_dispatch:  # ידני בלבד — הרץ פעם בתחילת עונה (או כשלוח עודכן)
+  workflow_dispatch:  # הרצה ידנית
+  schedule:
+    - cron: '0 21 * * 0'  # כל יום ראשון בשעה 21:00 UTC (00:00 שעון ישראל)
 
 jobs:
   seed:
