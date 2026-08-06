@@ -1,0 +1,25 @@
+name: Seed league schedule
+
+on:
+  workflow_dispatch:  # ידני בלבד — הרץ פעם בתחילת עונה (או כשלוח עודכן)
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Seed league schedule from TheSportsDB
+        run: node scripts/seed-league-schedule.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

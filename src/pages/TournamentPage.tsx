@@ -28,6 +28,17 @@ interface LiveScoreRow {
   kickoff_at: string;
 }
 
+interface LeagueFixture {
+  id: string;
+  home_team: string;
+  away_team: string;
+  kickoff_at: string;
+  home_score: number | null;
+  away_score: number | null;
+  completed: boolean;
+  round_num: number | null;
+}
+
 // שידורים ישראל — עדכן כשתהיה רשימה רשמית
 const CHANNEL_MAP: { home: string; away: string; channel: string }[] = [
   // { home: 'Argentina', away: 'France', channel: 'ערוץ 12 + Sport 5' },
@@ -283,86 +294,82 @@ function ScheduleView({ games, groups, scoreMap }: {
   );
 }
 
-// ── League Schedule view (from live_scores) ───────────────
+// ── League Schedule view (from league_schedule) ──────────
 function LeagueScheduleView() {
-  const [rows, setRows] = useState<LiveScoreRow[]>([]);
+  const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('live_scores').select('*').order('kickoff_at')
-      .then(({ data }) => { setRows((data ?? []) as LiveScoreRow[]); setLoading(false); });
+    supabase.from('league_schedule').select('*').order('kickoff_at')
+      .then(({ data }) => { setFixtures((data ?? []) as LeagueFixture[]); setLoading(false); });
   }, []);
 
   const byDay = useMemo(() => {
-    // Live first, then upcoming (SCHEDULED), then completed — within each group sorted by kickoff
-    const sorted = [...rows].sort((a, b) => {
-      const aLive = a.status === 'IN_PLAY' || a.status === 'PAUSED';
-      const bLive = b.status === 'IN_PLAY' || b.status === 'PAUSED';
-      if (aLive !== bLive) return aLive ? -1 : 1;
-      return a.kickoff_at.localeCompare(b.kickoff_at);
-    });
-    const map = new Map<string, LiveScoreRow[]>();
-    for (const r of sorted) {
-      const k = dayKey(r.kickoff_at);
+    const map = new Map<string, LeagueFixture[]>();
+    for (const f of fixtures) {
+      const k = dayKey(f.kickoff_at);
       if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(r);
+      map.get(k)!.push(f);
     }
     return Array.from(map.entries());
-  }, [rows]);
+  }, [fixtures]);
 
   if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
 
   if (byDay.length === 0) return (
     <div className="card p-8 text-center mt-4">
       <div className="text-4xl mb-3">📅</div>
-      <div className="font-bold">אין נתוני משחקים</div>
+      <div className="font-bold">אין לוח משחקים</div>
       <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-        נתונים יופיעו לאחר ריצת ה-GitHub Action הראשונה
+        הפעל "Seed league schedule" ב-GitHub Actions כדי לטעון את לוח המשחקים
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col gap-4">
-      {byDay.map(([dk, dayRows]) => (
-        <div key={dk}>
-          <div className="sch-day-hdr">{fmtDayFull(dayRows[0].kickoff_at)}</div>
-          <div className="flex flex-col gap-2">
-            {dayRows.map(g => {
-              const live = g.status === 'IN_PLAY' || g.status === 'PAUSED';
-              const done = g.status === 'FINISHED';
-              return (
-                <div key={g.id} className="sch-row">
+      {byDay.map(([dk, dayFixtures]) => {
+        const round = dayFixtures[0].round_num;
+        return (
+          <div key={dk}>
+            <div className="sch-day-hdr">
+              {fmtDayFull(dayFixtures[0].kickoff_at)}
+              {round != null && (
+                <span style={{ marginRight: 8, fontSize: '0.72rem', opacity: 0.65 }}>מחזור {round}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              {dayFixtures.map(f => (
+                <div key={f.id} className="sch-row">
                   <div className="sch-row-top">
-                    <span className="sch-time">{fmtTime(g.kickoff_at)}</span>
-                    {live && <span className="sch-score-live" style={{ marginRight: 6 }}>● חי</span>}
+                    <span className="sch-time">{fmtTime(f.kickoff_at)}</span>
                   </div>
                   <div className="sch-match">
                     <div className="sch-home">
-                      <Flag team={g.home_team} size={28} />
-                      <span className="sch-tname">{teamHe(g.home_team)}</span>
+                      <Flag team={f.home_team} size={28} />
+                      <span className="sch-tname">{teamHe(f.home_team)}</span>
                     </div>
-                    {(done || live) && g.home_score !== null ? (
+                    {f.completed && f.home_score !== null ? (
                       <div className="sch-score">
-                        <span className="sch-score-num">{g.home_score}</span>
+                        <span className="sch-score-num">{f.home_score}</span>
                         <span className="sch-score-sep">:</span>
-                        <span className="sch-score-num">{g.away_score}</span>
-                        {done && <span className="sch-score-ft">סיים</span>}
+                        <span className="sch-score-num">{f.away_score}</span>
+                        <span className="sch-score-ft">סיים</span>
                       </div>
                     ) : (
                       <span className="sch-vs">VS</span>
                     )}
                     <div className="sch-away">
-                      <span className="sch-tname">{teamHe(g.away_team)}</span>
-                      <Flag team={g.away_team} size={28} />
+                      <span className="sch-tname">{teamHe(f.away_team)}</span>
+                      <Flag team={f.away_team} size={28} />
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -495,36 +502,36 @@ function StandingsView({ groups, scoreMap }: {
   );
 }
 
-// ── League Standings view (from live_scores) ──────────────
+// ── League Standings view (from league_schedule) ─────────
 function LeagueStandingsView() {
-  const [rows, setRows] = useState<LiveScoreRow[]>([]);
+  const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('live_scores').select('*').eq('status', 'FINISHED')
-      .then(({ data }) => { setRows((data ?? []) as LiveScoreRow[]); setLoading(false); });
+    supabase.from('league_schedule').select('*').eq('completed', true)
+      .then(({ data }) => { setFixtures((data ?? []) as LeagueFixture[]); setLoading(false); });
   }, []);
 
   const standings = useMemo((): Standing[] => {
     const map = new Map<string, Standing>();
-    for (const g of rows) {
-      if (g.home_score === null || g.away_score === null) continue;
-      for (const t of [g.home_team, g.away_team]) {
+    for (const f of fixtures) {
+      if (f.home_score === null || f.away_score === null) continue;
+      for (const t of [f.home_team, f.away_team]) {
         if (!map.has(t)) map.set(t, { team: t, p: 0, w: 0, d: 0, l: 0, pts: 0, gf: 0, ga: 0 });
       }
-      const h = map.get(g.home_team)!;
-      const a = map.get(g.away_team)!;
+      const h = map.get(f.home_team)!;
+      const a = map.get(f.away_team)!;
       h.p++; a.p++;
-      h.gf += g.home_score; h.ga += g.away_score;
-      a.gf += g.away_score; a.ga += g.home_score;
-      if (g.home_score > g.away_score) { h.w++; h.pts += 3; a.l++; }
-      else if (g.away_score > g.home_score) { a.w++; a.pts += 3; h.l++; }
+      h.gf += f.home_score; h.ga += f.away_score;
+      a.gf += f.away_score; a.ga += f.home_score;
+      if (f.home_score > f.away_score) { h.w++; h.pts += 3; a.l++; }
+      else if (f.away_score > f.home_score) { a.w++; a.pts += 3; h.l++; }
       else { h.d++; a.d++; h.pts++; a.pts++; }
     }
     return [...map.values()].sort((a, b) =>
       b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf
     );
-  }, [rows]);
+  }, [fixtures]);
 
   if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
 

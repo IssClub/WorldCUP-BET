@@ -158,13 +158,30 @@ async function main() {
     settledAnyGame = true;
     console.log(`Settling: ${game.home_team} ${homeScore}:${awayScore} ${game.away_team} (${bets.length} bets)`);
 
-    // עדכן wc_schedule — כך לוח המשחקים יציג את הציון אוטומטית
-    const { error: wcErr } = await supabase.from('wc_schedule')
-      .update({ home_score: homeScore, away_score: awayScore, completed: true })
-      .eq('home_team', wcName(game.home_team))
-      .eq('away_team', wcName(game.away_team));
-    if (wcErr) console.log(`  wc_schedule note: ${wcErr.message}`);
-    else console.log(`  wc_schedule updated ✓`);
+    // עדכן טבלת הלוח המתאימה למצב
+    if (sportKeys.includes('soccer_fifa_world_cup')) {
+      // WC mode — עדכן wc_schedule עם פילטר תאריך למניעת בעיית double-leg
+      const gameDate = game.commence_time ? game.commence_time.slice(0, 10) : null;
+      let wcQuery = supabase.from('wc_schedule')
+        .update({ home_score: homeScore, away_score: awayScore, completed: true })
+        .eq('home_team', wcName(game.home_team))
+        .eq('away_team', wcName(game.away_team));
+      if (gameDate) {
+        wcQuery = wcQuery
+          .gte('kickoff_at', gameDate + 'T00:00:00Z')
+          .lte('kickoff_at', gameDate + 'T23:59:59Z');
+      }
+      const { error: wcErr } = await wcQuery;
+      if (wcErr) console.log(`  wc_schedule note: ${wcErr.message}`);
+      else console.log(`  wc_schedule updated ✓`);
+    } else {
+      // League mode — עדכן league_schedule לפי external_id
+      const { error: lsErr } = await supabase.from('league_schedule')
+        .update({ home_score: homeScore, away_score: awayScore, completed: true })
+        .eq('external_id', game.id);
+      if (lsErr) console.log(`  league_schedule note: ${lsErr.message}`);
+      else console.log(`  league_schedule updated ✓`);
+    }
 
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
     const playerData = {}; // playerId -> { payout, lostAmount }
