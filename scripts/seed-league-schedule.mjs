@@ -31,7 +31,7 @@ const season = `${seasonYear}-${seasonYear + 1}`;
 console.log(`Fetching Israeli Premier League (Ligat ha'Al) fixtures`);
 console.log(`Season: ${season} | Source: TheSportsDB (free)`);
 
-const LEAGUE_ID = 4350;
+const LEAGUE_ID = 4644;
 const url = `https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=${LEAGUE_ID}&s=${season}`;
 
 const res = await fetch(url);
