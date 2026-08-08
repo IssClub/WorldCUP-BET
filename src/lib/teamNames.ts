@@ -141,6 +141,8 @@ const HE: Record<string, string> = {
   'Hapoel Tel-Aviv': 'הפועל ת"א',
   'Hapoel Ironi Kiryat Shmona': 'עירוני ק"ש',
   'Hapoel Ramat Gan': 'הפועל ר"ג',
+  'Hapoel Ramat-Gan': 'הפועל ר"ג',
+  'Hapoel Ramat Gan Givatayim': 'הפועל ר"ג גבעתיים',
   'Beitar Jerusalem': 'בית"ר י-ם',
   'Hapoel Jerusalem': 'הפועל י-ם',
   'Bnei Sakhnin': 'בני סכנין',
