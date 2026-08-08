@@ -18,16 +18,6 @@ interface Game {
 interface GameScore { homeScore: number; awayScore: number; completed: boolean }
 type ScoreMap = Record<string, GameScore>;
 
-interface LiveScoreRow {
-  id: string;
-  home_team: string;
-  away_team: string;
-  home_score: number | null;
-  away_score: number | null;
-  status: string;
-  kickoff_at: string;
-}
-
 interface LeagueFixture {
   id: string;
   home_team: string;
@@ -76,7 +66,27 @@ function addAllToCalendar(games: Game[]) {
   buildIcs(games.map(g => icsEvent(g.commence_time, g.home_team, g.away_team, 'FIFA World Cup 2026 — שלב הבתים')), 'worldcup2026-groups.ics');
 }
 
-// ── Team badge color (deterministic hash) ─────────────────
+// ── Israeli Premier League badge URLs (TheSportsDB) ──────
+const LEAGUE_BADGES: Record<string, string> = {
+  "Hapoel Be'er Sheva":       'https://r2.thesportsdb.com/images/media/team/badge/ar5zft1781239007.png',
+  'Hapoel Haifa':             'https://r2.thesportsdb.com/images/media/team/badge/ytmoe71639433126.png',
+  'Maccabi Tel Aviv':         'https://r2.thesportsdb.com/images/media/team/badge/oeer261781239315.png',
+  'Maccabi Haifa':            'https://r2.thesportsdb.com/images/media/team/badge/kh3psh1781805608.png',
+  'Beitar Jerusalem':         'https://r2.thesportsdb.com/images/media/team/badge/lsg64h1781239463.png',
+  'Hapoel Jerusalem':         'https://r2.thesportsdb.com/images/media/team/badge/cvh4ec1639431062.png',
+  'Hapoel Tel-Aviv':          'https://r2.thesportsdb.com/images/media/team/badge/19siqf1781239772.png',
+  'Bnei Sakhnin':             'https://r2.thesportsdb.com/images/media/team/badge/u65rj91781805478.png',
+  'Hapoel Ironi Kiryat Shmona': 'https://r2.thesportsdb.com/images/media/team/badge/401ntu1579020023.png',
+  'Maccabi Petah Tikva':      'https://r2.thesportsdb.com/images/media/team/badge/3bvby91720417514.png',
+  'Hapoel Petah Tikva':       'https://r2.thesportsdb.com/images/media/team/badge/yots411781805526.png',
+  'Hapoel Ramat Gan':         'https://r2.thesportsdb.com/images/media/team/badge/p7r2td1781805776.png',
+  'Maccabi Netanya':          'https://r2.thesportsdb.com/images/media/team/badge/s51yht1781805956.png',
+  'Bnei Yehuda':              'https://r2.thesportsdb.com/images/media/team/badge/axtvuc1579019984.png',
+  'Hapoel Hadera':            'https://r2.thesportsdb.com/images/media/team/badge/4xg82f1579020005.png',
+  'Ironi Tiberias':           'https://r2.thesportsdb.com/images/media/team/badge/78q5ez1656067666.png',
+};
+
+// ── Team badge color (fallback for unknown teams) ─────────
 function teamColor(team: string): string {
   const palette = ['#e74c3c', '#3498db', '#27ae60', '#9b59b6', '#e67e22', '#16a085', '#2c3e50', '#c0392b'];
   let h = 0;
@@ -86,27 +96,38 @@ function teamColor(team: string): string {
 
 // ── Flag ──────────────────────────────────────────────────
 function Flag({ team, size = 28 }: { team: string; size?: number }) {
-  const url = flagUrl(team, 'w80');
-  if (!url) {
-    // Club team: show colored initials badge
-    const label = teamHe(team).slice(0, 2);
+  // 1. Israeli league badge
+  const leagueBadge = LEAGUE_BADGES[team];
+  if (leagueBadge) {
     return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: size, height: Math.round(size * 0.65),
-        background: teamColor(team), borderRadius: 3,
-        color: '#fff', fontWeight: 700, fontSize: Math.round(size * 0.38),
-        flexShrink: 0, fontFamily: 'system-ui', userSelect: 'none',
-      }}>
-        {label}
-      </span>
+      <img
+        src={leagueBadge} alt={team} width={size} height={size}
+        style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }}
+      />
     );
   }
+  // 2. National team flag
+  const url = flagUrl(team, 'w80');
+  if (url) {
+    return (
+      <img
+        src={url} alt={team} width={size} height={Math.round(size * 0.65)}
+        style={{ borderRadius: 3, objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', flexShrink: 0 }}
+      />
+    );
+  }
+  // 3. Fallback: colored initials
+  const label = teamHe(team).slice(0, 2);
   return (
-    <img
-      src={url} alt={team} width={size} height={Math.round(size * 0.65)}
-      style={{ borderRadius: 3, objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', flexShrink: 0 }}
-    />
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: size, height: size,
+      background: teamColor(team), borderRadius: 4,
+      color: '#fff', fontWeight: 700, fontSize: Math.round(size * 0.38),
+      flexShrink: 0, fontFamily: 'system-ui', userSelect: 'none',
+    }}>
+      {label}
+    </span>
   );
 }
 
