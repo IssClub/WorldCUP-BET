@@ -58,7 +58,7 @@ export default function LoginPage() {
                style={{background: 'rgba(0,200,83,0.15)', border: '2px solid rgba(0,200,83,0.4)'}}>
             <Trophy size={36} style={{color: 'var(--green)'}} />
           </div>
-          <h1 className="bebas text-5xl tracking-wider" style={{color: 'var(--text)'}}>מונדיאל הימורים</h1>
+          <h1 className="bebas text-5xl tracking-wider" style={{color: 'var(--text)'}}>ליגת העל הימורים</h1>
           <p style={{color: 'var(--text-muted)'}} className="mt-1 text-sm">טורניר חברים — בלבד בהזמנה</p>
         </div>
 

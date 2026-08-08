@@ -77,9 +77,9 @@ export default function InfoPage() {
       <div className="page-wrap pt-4 flex flex-col gap-4">
         {/* Banner */}
         <div className="info-banner">
-          <span style={{ fontSize: '2.5rem' }}>🌍</span>
+          <span style={{ fontSize: '2.5rem' }}>⚽</span>
           <div>
-            <div className="font-bold text-base">FIFA World Cup 2026</div>
+            <div className="font-bold text-base">ליגת העל 2026/27</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>מדריך למשתתף — קרא לפני שמתחיל</div>
           </div>
         </div>

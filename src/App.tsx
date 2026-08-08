@@ -163,7 +163,7 @@ function AppShell() {
     { key: 'bets' as Tab, label: 'הימורים', icon: Swords },
     { key: 'mybets' as Tab, label: 'שלי', icon: Ticket },
     { key: 'leaderboard' as Tab, label: 'טבלה', icon: BarChart2 },
-    { key: 'tournament' as Tab, label: 'מונדיאל', icon: Globe },
+    { key: 'tournament' as Tab, label: 'ליגה', icon: Globe },
     ...(isAdmin ? [{ key: 'admin' as Tab, label: 'ניהול', icon: Trophy }] : []),
   ];
 

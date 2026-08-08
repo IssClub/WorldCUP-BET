@@ -682,27 +682,43 @@ function LeagueStandingsView() {
           </tr>
         </thead>
         <tbody>
-          {standings.map((r, i) => (
-            <tr key={r.team} style={i < 2 ? { background: 'rgba(var(--accent-rgb,39,174,96),0.08)' } : i > standings.length - 3 ? { background: 'rgba(231,76,60,0.06)' } : {}}>
-              <td className="trn-td-pos">{i + 1}</td>
-              <td className="trn-td-team">
-                <Flag team={r.team} size={20} />
-                <span>{teamHe(r.team)}</span>
-              </td>
-              <td>{r.p}</td>
-              <td>{r.w}</td>
-              <td>{r.d}</td>
-              <td>{r.l}</td>
-              <td style={{ color: r.gf - r.ga > 0 ? 'var(--accent)' : r.gf - r.ga < 0 ? '#e74c3c' : 'var(--text-muted)' }}>
-                {r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}
-              </td>
-              <td className="trn-td-pts">{r.pts}</td>
-            </tr>
-          ))}
+          {standings.map((r, i) => {
+            const isChampion  = i === 0;
+            const isConf      = i === 1;
+            const isRelegated = i >= standings.length - 2;
+            const rowStyle = isChampion
+              ? { background: 'rgba(52,152,219,0.10)', borderRight: '3px solid #3498db' }
+              : isConf
+              ? { background: 'rgba(39,174,96,0.08)', borderRight: '3px solid #27ae60' }
+              : isRelegated
+              ? { background: 'rgba(231,76,60,0.07)', borderRight: '3px solid #e74c3c' }
+              : {};
+            return (
+              <tr key={r.team} style={rowStyle}>
+                <td className="trn-td-pos">{i + 1}</td>
+                <td className="trn-td-team">
+                  <Flag team={r.team} size={20} />
+                  <span>{teamHe(r.team)}</span>
+                </td>
+                <td>{r.p}</td>
+                <td>{r.w}</td>
+                <td>{r.d}</td>
+                <td>{r.l}</td>
+                <td style={{ color: r.gf - r.ga > 0 ? 'var(--accent)' : r.gf - r.ga < 0 ? '#e74c3c' : 'var(--text-muted)' }}>
+                  {r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}
+                </td>
+                <td className="trn-td-pts">{r.pts}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '6px 12px', textAlign: 'right' }}>
-        🟢 2 ראשונים — אירופה · 🔴 2 אחרונים — ירידה
+      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '6px 12px 8px', textAlign: 'right', lineHeight: 1.8 }}>
+        <span style={{ color: '#3498db' }}>■</span> מקום 1 — אלופה + מוקדמות ליגת אלופות
+        {'  ·  '}
+        <span style={{ color: '#27ae60' }}>■</span> מקום 2 — מוקדמות קונפרנס ליג
+        {'  ·  '}
+        <span style={{ color: '#e74c3c' }}>■</span> 2 אחרונים — ירידה
       </div>
     </div>
   );
