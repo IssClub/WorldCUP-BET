@@ -4,14 +4,17 @@ import { supabase } from '../lib/supabase';
 import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
+import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
 import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
 function Flag({ team }: { team: string }) {
+  const badge = LEAGUE_BADGES[team];
+  if (badge) return <img src={badge} alt={team} width={26} height={26} style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />;
   const url = flagUrl(team, 'w40');
-  if (!url) return <span>🏳️</span>;
-  return <img src={url} alt={team} width={28} height={17} style={{ borderRadius: 2, objectFit: 'cover' }} />;
+  if (url) return <img src={url} alt={team} width={28} height={17} style={{ borderRadius: 2, objectFit: 'cover' }} />;
+  return <span>🏳️</span>;
 }
 
 const TZ = 'Asia/Jerusalem';
@@ -267,7 +270,7 @@ export default function MyBetsPage() {
           <div className="mb-special-card">
             <div className="mb-special-hdr">
               <Trophy size={14} style={{ color: 'var(--gold)' }} />
-              <span>ניחושי טורניר</span>
+              <span>ניחושי עונה</span>
             </div>
             {specialBets.map(sb => {
               const isWinner = sb.type === 'winner';
@@ -282,7 +285,7 @@ export default function MyBetsPage() {
                     {isWinner ? '🏆' : '👟'}
                   </div>
                   <div className="mb-special-info">
-                    <div className="mb-special-label">{isWinner ? 'זוכה הטורניר' : 'מלך השערים'}</div>
+                    <div className="mb-special-label">{isWinner ? 'אלוף הליגה' : 'מלך השערים'}</div>
                     <div className="mb-special-pick">
                       {isWinner ? teamHe(sb.prediction) : sb.prediction}
                       {odds && <span className="mb-special-odds">×{odds}</span>}

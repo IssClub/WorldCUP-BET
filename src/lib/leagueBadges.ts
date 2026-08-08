@@ -1,0 +1,18 @@
+export const LEAGUE_BADGES: Record<string, string> = {
+  "Hapoel Be'er Sheva":          'https://r2.thesportsdb.com/images/media/team/badge/ar5zft1781239007.png',
+  'Hapoel Haifa':                'https://r2.thesportsdb.com/images/media/team/badge/ytmoe71639433126.png',
+  'Maccabi Tel Aviv':            'https://r2.thesportsdb.com/images/media/team/badge/oeer261781239315.png',
+  'Maccabi Haifa':               'https://r2.thesportsdb.com/images/media/team/badge/kh3psh1781805608.png',
+  'Beitar Jerusalem':            'https://r2.thesportsdb.com/images/media/team/badge/lsg64h1781239463.png',
+  'Hapoel Jerusalem':            'https://r2.thesportsdb.com/images/media/team/badge/cvh4ec1639431062.png',
+  'Hapoel Tel-Aviv':             'https://r2.thesportsdb.com/images/media/team/badge/19siqf1781239772.png',
+  'Bnei Sakhnin':                'https://r2.thesportsdb.com/images/media/team/badge/u65rj91781805478.png',
+  'Hapoel Ironi Kiryat Shmona':  'https://r2.thesportsdb.com/images/media/team/badge/401ntu1579020023.png',
+  'Maccabi Petah Tikva':         'https://r2.thesportsdb.com/images/media/team/badge/3bvby91720417514.png',
+  'Hapoel Petah Tikva':          'https://r2.thesportsdb.com/images/media/team/badge/yots411781805526.png',
+  'Hapoel Ramat Gan':            'https://r2.thesportsdb.com/images/media/team/badge/p7r2td1781805776.png',
+  'Maccabi Netanya':             'https://r2.thesportsdb.com/images/media/team/badge/s51yht1781805956.png',
+  'Bnei Yehuda':                 'https://r2.thesportsdb.com/images/media/team/badge/axtvuc1579019984.png',
+  'Hapoel Hadera':               'https://r2.thesportsdb.com/images/media/team/badge/4xg82f1579020005.png',
+  'Ironi Tiberias':              'https://r2.thesportsdb.com/images/media/team/badge/78q5ez1656067666.png',
+};
