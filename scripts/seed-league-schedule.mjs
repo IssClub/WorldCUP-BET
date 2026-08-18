@@ -84,9 +84,15 @@ if (fetchErr) {
   process.exit(1);
 }
 
-// מיפוי: "home|away" → { id, external_id, completed }
+// נרמול שם: הסרת מקפים/גרשיים/רווחים כפולים להשוואה עמידה
+const normalize = name =>
+  name.toLowerCase().replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
+
+// מיפוי: "home_normalized|away_normalized" → { id, external_id, completed }
 const existingMap = new Map(
-  (existing ?? []).map(r => [`${r.home_team}|${r.away_team}`, r])
+  (existing ?? []).map(r => [
+    `${normalize(r.home_team)}|${normalize(r.away_team)}`, r
+  ])
 );
 
 // ── חלק לעדכון (מיפוי נמצא) מול הוספה (חדש) ─────────────
@@ -94,7 +100,7 @@ const toUpdate = [];
 const toUpsert = [];
 
 for (const row of incoming) {
-  const key     = `${row.home_team}|${row.away_team}`;
+  const key     = `${normalize(row.home_team)}|${normalize(row.away_team)}`;
   const current = existingMap.get(key);
 
   if (current) {
