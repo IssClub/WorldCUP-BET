@@ -5,7 +5,6 @@ import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
-import { WINNER_ODDS, TOP_SCORER_ODDS, RELEGATED_ODDS } from '../lib/tournamentOdds';
 import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
@@ -274,15 +273,11 @@ export default function MyBetsPage() {
             </div>
             {specialBets.map(sb => {
               const typeIcon =
-                sb.type === 'winner'   ? '🏆' :
+                sb.type === 'winner'    ? '🏆' :
                 sb.type === 'relegated' ? '📉' : '👟';
               const typeLabel =
-                sb.type === 'winner'   ? 'אלוף הליגה' :
+                sb.type === 'winner'    ? 'אלוף הליגה' :
                 sb.type === 'relegated' ? 'יורד לליגה א׳' : 'מלך השערים';
-              const odds =
-                sb.type === 'winner'   ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price :
-                sb.type === 'relegated' ? RELEGATED_ODDS.find(o => o.name === sb.prediction)?.price :
-                TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price;
               const displayName =
                 (sb.type === 'winner' || sb.type === 'relegated') ? teamHe(sb.prediction) : sb.prediction;
               const statusColor = sb.status === 'won' ? 'var(--green)' : sb.status === 'lost' ? '#f87171' : 'var(--gold)';
@@ -292,10 +287,7 @@ export default function MyBetsPage() {
                   <div className="mb-special-icon">{typeIcon}</div>
                   <div className="mb-special-info">
                     <div className="mb-special-label">{typeLabel}</div>
-                    <div className="mb-special-pick">
-                      {displayName}
-                      {odds && <span className="mb-special-odds">×{odds}</span>}
-                    </div>
+                    <div className="mb-special-pick">{displayName}</div>
                   </div>
                   <span className="mb-special-status" style={{ color: statusColor }}>{statusLabel}</span>
                 </div>

@@ -6,7 +6,7 @@ import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
 import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star } from 'lucide-react';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
-import { WINNER_ODDS, TOP_SCORER_ODDS, RELEGATED_ODDS, LEAGUE_TEAMS } from '../lib/tournamentOdds';
+import { LEAGUE_TEAMS } from '../lib/tournamentOdds';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -103,26 +103,17 @@ export default function AdminPage() {
 
     for (const sb of toSettle) {
       let won = false;
-      let odds = 1;
-
-      if (sb.type === 'winner') {
-        won = sb.prediction === actualWinner;
-        odds = WINNER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
-      } else if (sb.type === 'top_scorer') {
-        won = sb.prediction === actualScorer;
-        odds = TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
-      } else if (sb.type === 'relegated') {
-        won = relegatedPair.includes(sb.prediction);
-        odds = RELEGATED_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
-      }
+      if (sb.type === 'winner')     won = sb.prediction === actualWinner;
+      else if (sb.type === 'top_scorer') won = sb.prediction.trim().toLowerCase() === actualScorer.trim().toLowerCase();
+      else if (sb.type === 'relegated')  won = relegatedPair.includes(sb.prediction);
 
       await supabase.from('special_bets')
         .update({ status: won ? 'won' : 'lost' })
         .eq('id', sb.id);
 
       if (won) {
-        const stake = settings?.special_bet_stake ?? 100;
-        playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + Math.floor(stake * odds);
+        const bonus = settings?.special_bet_stake ?? 100;
+        playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + bonus;
       }
     }
 
@@ -842,17 +833,17 @@ export default function AdminPage() {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>👟 מי מלך השערים?</label>
-                          <select
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>👟 מי מלך השערים? (שם מלא)</label>
+                          <input
                             className="input w-full"
+                            placeholder="שם השחקן — חייב להתאים לניחוש"
                             value={actualScorer}
                             onChange={e => setActualScorer(e.target.value)}
-                          >
-                            <option value="">— לא מסגר —</option>
-                            {TOP_SCORER_ODDS.map(o => (
-                              <option key={o.name} value={o.name}>{o.name} ({o.team}) ×{o.price}</option>
-                            ))}
-                          </select>
+                            dir="auto"
+                          />
+                          <div className="text-xs mt-1" style={{color:'var(--text-muted)'}}>
+                            ההשוואה אינה תלוית רישיות (A = a)
+                          </div>
                         </div>
 
                         {specialMsg && (

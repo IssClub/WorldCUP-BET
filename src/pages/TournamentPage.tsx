@@ -6,7 +6,7 @@ import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen, Trophy, Star } from 'lucide-react';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
-import { LEAGUE_WINNER_ODDS, RELEGATED_ODDS, LEAGUE_SCORER_ODDS } from '../lib/tournamentOdds';
+import { LEAGUE_TEAMS } from '../lib/tournamentOdds';
 
 interface Game {
   id: string;
@@ -851,7 +851,7 @@ function PredictionCard({
   icon: string;
   title: string;
   isOpen: boolean;
-  existing: { label: string; odds?: number; status: string } | null;
+  existing: { label: string; status: string } | null;
   msg?: string;
   children?: React.ReactNode;
 }) {
@@ -865,10 +865,7 @@ function PredictionCard({
       </div>
       {existing ? (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{existing.label}</div>
-            {existing.odds != null && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>×{existing.odds}</div>}
-          </div>
+          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{existing.label}</span>
           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: statusColor }}>{statusLabel}</span>
         </div>
       ) : isOpen ? (
@@ -895,7 +892,6 @@ function PredictionCard({
 function SeasonPredictionsView() {
   const { profile } = useAuth();
   const [existingBets, setExistingBets] = useState<SpecialBet[]>([]);
-  const [stake, setStake] = useState(100);
   const [loading, setLoading] = useState(true);
   const [winnerPick, setWinnerPick] = useState('');
   const [relegated1, setRelegated1] = useState('');
@@ -912,14 +908,11 @@ function SeasonPredictionsView() {
 
   useEffect(() => {
     if (!profile) return;
-    Promise.all([
-      supabase.from('special_bets').select('*').eq('player_id', profile.id),
-      supabase.from('settings').select('special_bet_stake').single(),
-    ]).then(([betsRes, settingsRes]) => {
-      setExistingBets((betsRes.data as SpecialBet[]) || []);
-      if (settingsRes.data?.special_bet_stake) setStake(settingsRes.data.special_bet_stake);
-      setLoading(false);
-    });
+    supabase.from('special_bets').select('*').eq('player_id', profile.id)
+      .then(({ data }) => {
+        setExistingBets((data as SpecialBet[]) || []);
+        setLoading(false);
+      });
   }, [profile?.id]);
 
   async function refreshBets() {
@@ -984,7 +977,7 @@ function SeasonPredictionsView() {
           {isOpen ? 'נסגרים: ' : 'נסגרו: '}{deadlineStr}
         </div>
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-          ניחוש נכון = {stake} נק׳ × יחס הסיכויים · אין ניכוי על שגוי
+          ניחוש נכון = בונוס נקודות קבוע · אין ניכוי על שגוי
         </div>
       </div>
 
@@ -993,17 +986,13 @@ function SeasonPredictionsView() {
         icon="🏆"
         title="אלוף הליגה"
         isOpen={isOpen}
-        existing={winnerBet ? {
-          label: teamHe(winnerBet.prediction),
-          odds: LEAGUE_WINNER_ODDS.find(o => o.name === winnerBet.prediction)?.price,
-          status: winnerBet.status,
-        } : null}
+        existing={winnerBet ? { label: teamHe(winnerBet.prediction), status: winnerBet.status } : null}
         msg={msgs['winner']}
       >
         <select style={selectStyle} value={winnerPick} onChange={e => setWinnerPick(e.target.value)}>
           <option value="">— בחר קבוצה —</option>
-          {LEAGUE_WINNER_ODDS.map(o => (
-            <option key={o.name} value={o.name}>{teamHe(o.name)} — ×{o.price}</option>
+          {LEAGUE_TEAMS.map(t => (
+            <option key={t} value={t}>{teamHe(t)}</option>
           ))}
         </select>
         <button
@@ -1011,7 +1000,7 @@ function SeasonPredictionsView() {
           disabled={!winnerPick || submitting === 'winner'}
           onClick={() => submitSingle('winner', winnerPick)}
         >
-          {submitting === 'winner' ? 'שומר...' : `שמור — פוטנציאל: ${stake} × יחס`}
+          {submitting === 'winner' ? 'שומר...' : 'שמור ניחוש'}
         </button>
       </PredictionCard>
 
@@ -1029,18 +1018,14 @@ function SeasonPredictionsView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <select style={selectStyle} value={relegated1} onChange={e => setRelegated1(e.target.value)}>
             <option value="">— קבוצה ראשונה —</option>
-            {RELEGATED_ODDS.map(o => (
-              <option key={o.name} value={o.name} disabled={o.name === relegated2}>
-                {teamHe(o.name)} — ×{o.price}
-              </option>
+            {LEAGUE_TEAMS.map(t => (
+              <option key={t} value={t} disabled={t === relegated2}>{teamHe(t)}</option>
             ))}
           </select>
           <select style={selectStyle} value={relegated2} onChange={e => setRelegated2(e.target.value)}>
             <option value="">— קבוצה שנייה —</option>
-            {RELEGATED_ODDS.map(o => (
-              <option key={o.name} value={o.name} disabled={o.name === relegated1}>
-                {teamHe(o.name)} — ×{o.price}
-              </option>
+            {LEAGUE_TEAMS.map(t => (
+              <option key={t} value={t} disabled={t === relegated1}>{teamHe(t)}</option>
             ))}
           </select>
           <button
@@ -1048,7 +1033,7 @@ function SeasonPredictionsView() {
             disabled={!relegated1 || !relegated2 || relegated1 === relegated2 || submitting === 'relegated'}
             onClick={submitRelegated}
           >
-            {submitting === 'relegated' ? 'שומר...' : `שמור — ${stake} × יחס לכל קבוצה`}
+            {submitting === 'relegated' ? 'שומר...' : 'שמור ניחוש'}
           </button>
         </div>
       </PredictionCard>
@@ -1058,25 +1043,23 @@ function SeasonPredictionsView() {
         icon="👟"
         title="מלך השערים"
         isOpen={isOpen}
-        existing={scorerBet ? {
-          label: scorerBet.prediction,
-          odds: LEAGUE_SCORER_ODDS.find(o => o.name === scorerBet.prediction)?.price,
-          status: scorerBet.status,
-        } : null}
+        existing={scorerBet ? { label: scorerBet.prediction, status: scorerBet.status } : null}
         msg={msgs['top_scorer']}
       >
-        <select style={selectStyle} value={scorerPick} onChange={e => setScorerPick(e.target.value)}>
-          <option value="">— בחר שחקן —</option>
-          {LEAGUE_SCORER_ODDS.map(o => (
-            <option key={o.name} value={o.name}>{o.name} ({teamHe(o.team)}) — ×{o.price}</option>
-          ))}
-        </select>
+        <input
+          style={{ ...selectStyle, outline: 'none' }}
+          placeholder="שם השחקן (כתיב חופשי)"
+          value={scorerPick}
+          onChange={e => setScorerPick(e.target.value)}
+          maxLength={60}
+          dir="auto"
+        />
         <button
           className="btn-primary" style={{ width: '100%', marginTop: 8, fontSize: '0.85rem' }}
-          disabled={!scorerPick || submitting === 'top_scorer'}
-          onClick={() => submitSingle('top_scorer', scorerPick)}
+          disabled={!scorerPick.trim() || submitting === 'top_scorer'}
+          onClick={() => submitSingle('top_scorer', scorerPick.trim())}
         >
-          {submitting === 'top_scorer' ? 'שומר...' : `שמור — פוטנציאל: ${stake} × יחס`}
+          {submitting === 'top_scorer' ? 'שומר...' : 'שמור ניחוש'}
         </button>
       </PredictionCard>
     </div>
