@@ -6,7 +6,7 @@ import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
 import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star } from 'lucide-react';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
-import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
+import { WINNER_ODDS, TOP_SCORER_ODDS, RELEGATED_ODDS, LEAGUE_TEAMS } from '../lib/tournamentOdds';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [actualWinner, setActualWinner] = useState('');
   const [actualScorer, setActualScorer] = useState('');
+  const [actualRelegated1, setActualRelegated1] = useState('');
+  const [actualRelegated2, setActualRelegated2] = useState('');
   const [settlingSpecial, setSettlingSpecial] = useState(false);
   const [specialMsg, setSpecialMsg] = useState('');
 
@@ -80,34 +82,45 @@ export default function AdminPage() {
   }, []);
 
   async function settleSpecialBets() {
-    if (!actualWinner && !actualScorer) return;
+    const relegatedPair = [actualRelegated1, actualRelegated2].filter(Boolean);
+    if (!actualWinner && !actualScorer && relegatedPair.length < 2) return;
     const lines = [];
-    if (actualWinner) lines.push(`זוכה הטורניר: ${teamHe(actualWinner)}`);
+    if (actualWinner) lines.push(`זוכה הליגה: ${teamHe(actualWinner)}`);
+    if (relegatedPair.length === 2) lines.push(`יורדות: ${teamHe(actualRelegated1)} + ${teamHe(actualRelegated2)}`);
     if (actualScorer) lines.push(`מלך השערים: ${actualScorer}`);
-    if (!confirm(`לסגור ניחושי טורניר?\n${lines.join('\n')}\n\nפעולה זו בלתי הפיכה.`)) return;
+    if (!confirm(`לסגור ניחושי עונה?\n${lines.join('\n')}\n\nפעולה זו בלתי הפיכה.`)) return;
 
     setSettlingSpecial(true);
     setSpecialMsg('');
 
     const toSettle = specialBets.filter(sb =>
-      (sb.type === 'winner' && actualWinner) || (sb.type === 'top_scorer' && actualScorer)
+      (sb.type === 'winner' && actualWinner) ||
+      (sb.type === 'top_scorer' && actualScorer) ||
+      (sb.type === 'relegated' && relegatedPair.length === 2)
     );
 
     const playerPayouts: Record<string, number> = {};
 
     for (const sb of toSettle) {
-      const isWinner = sb.type === 'winner'
-        ? sb.prediction === actualWinner
-        : sb.prediction === actualScorer;
+      let won = false;
+      let odds = 1;
+
+      if (sb.type === 'winner') {
+        won = sb.prediction === actualWinner;
+        odds = WINNER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
+      } else if (sb.type === 'top_scorer') {
+        won = sb.prediction === actualScorer;
+        odds = TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
+      } else if (sb.type === 'relegated') {
+        won = relegatedPair.includes(sb.prediction);
+        odds = RELEGATED_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
+      }
 
       await supabase.from('special_bets')
-        .update({ status: isWinner ? 'won' : 'lost' })
+        .update({ status: won ? 'won' : 'lost' })
         .eq('id', sb.id);
 
-      if (isWinner) {
-        const odds = sb.type === 'winner'
-          ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1
-          : TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price ?? 1;
+      if (won) {
         const stake = settings?.special_bet_stake ?? 100;
         playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + Math.floor(stake * odds);
       }
@@ -724,12 +737,15 @@ export default function AdminPage() {
 
             {/* סיכום ניחושים */}
             {(() => {
-              const winnerBets = specialBets.filter(sb => sb.type === 'winner');
-              const scorerBets = specialBets.filter(sb => sb.type === 'top_scorer');
+              const winnerBets   = specialBets.filter(sb => sb.type === 'winner');
+              const scorerBets   = specialBets.filter(sb => sb.type === 'top_scorer');
+              const relegatedBets = specialBets.filter(sb => sb.type === 'relegated');
               const winnerGroups: Record<string, number> = {};
               const scorerGroups: Record<string, number> = {};
+              const relegatedGroups: Record<string, number> = {};
               winnerBets.forEach(sb => { winnerGroups[sb.prediction] = (winnerGroups[sb.prediction] || 0) + 1; });
               scorerBets.forEach(sb => { scorerGroups[sb.prediction] = (scorerGroups[sb.prediction] || 0) + 1; });
+              relegatedBets.forEach(sb => { relegatedGroups[sb.prediction] = (relegatedGroups[sb.prediction] || 0) + 1; });
               const alreadySettled = specialBets.some(sb => sb.status !== 'pending');
 
               return (
@@ -749,6 +765,17 @@ export default function AdminPage() {
                       </div>
                     ))}
                     {winnerBets.length === 0 && <div className="text-sm" style={{color:'var(--text-muted)'}}>אין ניחושים עדיין</div>}
+                  </div>
+
+                  <div className="card p-4 mb-4">
+                    <div className="font-semibold text-sm mb-3" style={{color:'var(--gold)'}}>📉 יורדות — {relegatedBets.length} ניחושים</div>
+                    {Object.entries(relegatedGroups).sort((a,b) => b[1]-a[1]).map(([team, count]) => (
+                      <div key={team} className="flex justify-between text-sm py-1" style={{borderBottom:'1px solid var(--border)'}}>
+                        <span>{teamHe(team)}</span>
+                        <span style={{color:'var(--text-muted)'}}>{count} שחקן{count > 1 ? 'ים' : ''}</span>
+                      </div>
+                    ))}
+                    {relegatedBets.length === 0 && <div className="text-sm" style={{color:'var(--text-muted)'}}>אין ניחושים עדיין</div>}
                   </div>
 
                   <div className="card p-4 mb-6">
@@ -773,7 +800,7 @@ export default function AdminPage() {
 
                       <div className="flex flex-col gap-4">
                         <div>
-                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>🏆 מי זכה בטורניר?</label>
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>🏆 מי זכה בליגה?</label>
                           <select
                             className="input w-full"
                             value={actualWinner}
@@ -782,6 +809,34 @@ export default function AdminPage() {
                             <option value="">— לא מסגר —</option>
                             {WINNER_ODDS.map(o => (
                               <option key={o.name} value={o.name}>{teamHe(o.name)} (×{o.price})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>📉 קבוצה ראשונה שירדה</label>
+                          <select
+                            className="input w-full"
+                            value={actualRelegated1}
+                            onChange={e => setActualRelegated1(e.target.value)}
+                          >
+                            <option value="">— לא מסגר —</option>
+                            {LEAGUE_TEAMS.filter(t => t !== actualRelegated2).map(t => (
+                              <option key={t} value={t}>{teamHe(t)}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>📉 קבוצה שנייה שירדה</label>
+                          <select
+                            className="input w-full"
+                            value={actualRelegated2}
+                            onChange={e => setActualRelegated2(e.target.value)}
+                          >
+                            <option value="">— לא מסגר —</option>
+                            {LEAGUE_TEAMS.filter(t => t !== actualRelegated1).map(t => (
+                              <option key={t} value={t}>{teamHe(t)}</option>
                             ))}
                           </select>
                         </div>
@@ -809,7 +864,7 @@ export default function AdminPage() {
                         <button
                           className="btn-primary"
                           onClick={settleSpecialBets}
-                          disabled={settlingSpecial || (!actualWinner && !actualScorer)}
+                          disabled={settlingSpecial || (!actualWinner && !actualScorer && (!actualRelegated1 || !actualRelegated2))}
                         >
                           {settlingSpecial ? 'מעדכן...' : '✓ סגור ניחושים וחלק נקודות'}
                         </button>

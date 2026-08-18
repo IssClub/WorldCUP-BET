@@ -66,7 +66,7 @@ export type Bet = {
 export type SpecialBet = {
   id: string;
   player_id: string;
-  type: 'winner' | 'top_scorer';
+  type: 'winner' | 'top_scorer' | 'relegated';
   prediction: string;
   status: 'pending' | 'won' | 'lost';
   created_at: string;

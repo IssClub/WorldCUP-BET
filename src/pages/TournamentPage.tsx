@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
-import type { TopScorer } from '../lib/supabase';
-import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen, Trophy } from 'lucide-react';
+import type { TopScorer, SpecialBet } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen, Trophy, Star } from 'lucide-react';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
+import { LEAGUE_WINNER_ODDS, RELEGATED_ODDS, LEAGUE_SCORER_ODDS } from '../lib/tournamentOdds';
 
 interface Game {
   id: string;
@@ -840,6 +842,247 @@ function KnockoutBracketView() {
   );
 }
 
+// ── Season Predictions view ───────────────────────────────
+const PREDICTIONS_DEADLINE = new Date('2026-08-22T17:00:00Z'); // 20:00 ישראל
+
+function PredictionCard({
+  icon, title, isOpen, existing, msg, children,
+}: {
+  icon: string;
+  title: string;
+  isOpen: boolean;
+  existing: { label: string; odds?: number; status: string } | null;
+  msg?: string;
+  children?: React.ReactNode;
+}) {
+  const statusColor = existing?.status === 'won' ? 'var(--green)' : existing?.status === 'lost' ? '#f87171' : 'var(--gold)';
+  const statusLabel = existing?.status === 'won' ? '✓ זכייה' : existing?.status === 'lost' ? '✗ הפסד' : '⏳ ממתין';
+  return (
+    <div className="card p-4" style={{ border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: '1.25rem' }}>{icon}</span>
+        <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</span>
+      </div>
+      {existing ? (
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{existing.label}</div>
+            {existing.odds != null && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>×{existing.odds}</div>}
+          </div>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: statusColor }}>{statusLabel}</span>
+        </div>
+      ) : isOpen ? (
+        children
+      ) : (
+        <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          🔒 לא הוגש ניחוש
+        </div>
+      )}
+      {msg && (
+        <div style={{
+          marginTop: 8, fontSize: '0.82rem', padding: '6px 12px', borderRadius: 8,
+          background: msg.startsWith('✓') ? 'rgba(0,200,83,0.1)' : 'rgba(248,113,113,0.1)',
+          color: msg.startsWith('✓') ? 'var(--green)' : '#f87171',
+          border: `1px solid ${msg.startsWith('✓') ? 'rgba(0,200,83,0.2)' : 'rgba(248,113,113,0.2)'}`,
+        }}>
+          {msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeasonPredictionsView() {
+  const { profile } = useAuth();
+  const [existingBets, setExistingBets] = useState<SpecialBet[]>([]);
+  const [stake, setStake] = useState(100);
+  const [loading, setLoading] = useState(true);
+  const [winnerPick, setWinnerPick] = useState('');
+  const [relegated1, setRelegated1] = useState('');
+  const [relegated2, setRelegated2] = useState('');
+  const [scorerPick, setScorerPick] = useState('');
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [msgs, setMsgs] = useState<Record<string, string>>({});
+
+  const isOpen = new Date() < PREDICTIONS_DEADLINE;
+  const deadlineStr = PREDICTIONS_DEADLINE.toLocaleString('he-IL', {
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
+  });
+
+  useEffect(() => {
+    if (!profile) return;
+    Promise.all([
+      supabase.from('special_bets').select('*').eq('player_id', profile.id),
+      supabase.from('settings').select('special_bet_stake').single(),
+    ]).then(([betsRes, settingsRes]) => {
+      setExistingBets((betsRes.data as SpecialBet[]) || []);
+      if (settingsRes.data?.special_bet_stake) setStake(settingsRes.data.special_bet_stake);
+      setLoading(false);
+    });
+  }, [profile?.id]);
+
+  async function refreshBets() {
+    if (!profile) return;
+    const { data } = await supabase.from('special_bets').select('*').eq('player_id', profile.id);
+    setExistingBets((data as SpecialBet[]) || []);
+  }
+
+  function showMsg(key: string, text: string) {
+    setMsgs(m => ({ ...m, [key]: text }));
+    setTimeout(() => setMsgs(m => ({ ...m, [key]: '' })), 3500);
+  }
+
+  async function submitSingle(type: SpecialBet['type'], prediction: string) {
+    if (!profile || !prediction) return;
+    setSubmitting(type);
+    const { error } = await supabase.from('special_bets').insert({
+      player_id: profile.id, type, prediction, status: 'pending',
+    });
+    if (error) showMsg(type, '❌ שגיאה: ' + error.message);
+    else { await refreshBets(); showMsg(type, '✓ נשמר!'); }
+    setSubmitting(null);
+  }
+
+  async function submitRelegated() {
+    if (!profile || !relegated1 || !relegated2 || relegated1 === relegated2) return;
+    setSubmitting('relegated');
+    const { error } = await supabase.from('special_bets').insert([
+      { player_id: profile.id, type: 'relegated', prediction: relegated1, status: 'pending' },
+      { player_id: profile.id, type: 'relegated', prediction: relegated2, status: 'pending' },
+    ]);
+    if (error) showMsg('relegated', '❌ שגיאה: ' + error.message);
+    else { await refreshBets(); showMsg('relegated', '✓ נשמר!'); }
+    setSubmitting(null);
+  }
+
+  if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;
+
+  const winnerBet    = existingBets.find(b => b.type === 'winner');
+  const relegatedBets = existingBets.filter(b => b.type === 'relegated');
+  const scorerBet    = existingBets.find(b => b.type === 'top_scorer');
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    background: 'var(--surface2)', border: '1px solid var(--border)',
+    color: 'var(--text)', fontSize: '0.9rem',
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Deadline banner */}
+      <div style={{
+        padding: '12px 16px', borderRadius: 10, textAlign: 'center',
+        background: isOpen ? 'rgba(0,200,83,0.05)' : 'rgba(248,113,113,0.05)',
+        border: `1px solid ${isOpen ? 'rgba(0,200,83,0.2)' : 'rgba(248,113,113,0.2)'}`,
+      }}>
+        {isOpen
+          ? <div style={{ fontWeight: 700, color: 'var(--green)', fontSize: '0.9rem' }}>ניחושי עונה פתוחים ✓</div>
+          : <div style={{ fontWeight: 700, color: '#f87171', fontSize: '0.9rem' }}>ניחושי העונה נסגרו 🔒</div>
+        }
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+          {isOpen ? 'נסגרים: ' : 'נסגרו: '}{deadlineStr}
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+          ניחוש נכון = {stake} נק׳ × יחס הסיכויים · אין ניכוי על שגוי
+        </div>
+      </div>
+
+      {/* אלוף הליגה */}
+      <PredictionCard
+        icon="🏆"
+        title="אלוף הליגה"
+        isOpen={isOpen}
+        existing={winnerBet ? {
+          label: teamHe(winnerBet.prediction),
+          odds: LEAGUE_WINNER_ODDS.find(o => o.name === winnerBet.prediction)?.price,
+          status: winnerBet.status,
+        } : null}
+        msg={msgs['winner']}
+      >
+        <select style={selectStyle} value={winnerPick} onChange={e => setWinnerPick(e.target.value)}>
+          <option value="">— בחר קבוצה —</option>
+          {LEAGUE_WINNER_ODDS.map(o => (
+            <option key={o.name} value={o.name}>{teamHe(o.name)} — ×{o.price}</option>
+          ))}
+        </select>
+        <button
+          className="btn-primary" style={{ width: '100%', marginTop: 8, fontSize: '0.85rem' }}
+          disabled={!winnerPick || submitting === 'winner'}
+          onClick={() => submitSingle('winner', winnerPick)}
+        >
+          {submitting === 'winner' ? 'שומר...' : `שמור — פוטנציאל: ${stake} × יחס`}
+        </button>
+      </PredictionCard>
+
+      {/* יורדות */}
+      <PredictionCard
+        icon="📉"
+        title="יורדות לליגה א׳ (2 קבוצות)"
+        isOpen={isOpen}
+        existing={relegatedBets.length > 0 ? {
+          label: relegatedBets.map(b => teamHe(b.prediction)).join(' + '),
+          status: relegatedBets[0].status,
+        } : null}
+        msg={msgs['relegated']}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <select style={selectStyle} value={relegated1} onChange={e => setRelegated1(e.target.value)}>
+            <option value="">— קבוצה ראשונה —</option>
+            {RELEGATED_ODDS.map(o => (
+              <option key={o.name} value={o.name} disabled={o.name === relegated2}>
+                {teamHe(o.name)} — ×{o.price}
+              </option>
+            ))}
+          </select>
+          <select style={selectStyle} value={relegated2} onChange={e => setRelegated2(e.target.value)}>
+            <option value="">— קבוצה שנייה —</option>
+            {RELEGATED_ODDS.map(o => (
+              <option key={o.name} value={o.name} disabled={o.name === relegated1}>
+                {teamHe(o.name)} — ×{o.price}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn-primary" style={{ width: '100%', fontSize: '0.85rem' }}
+            disabled={!relegated1 || !relegated2 || relegated1 === relegated2 || submitting === 'relegated'}
+            onClick={submitRelegated}
+          >
+            {submitting === 'relegated' ? 'שומר...' : `שמור — ${stake} × יחס לכל קבוצה`}
+          </button>
+        </div>
+      </PredictionCard>
+
+      {/* מלך השערים */}
+      <PredictionCard
+        icon="👟"
+        title="מלך השערים"
+        isOpen={isOpen}
+        existing={scorerBet ? {
+          label: scorerBet.prediction,
+          odds: LEAGUE_SCORER_ODDS.find(o => o.name === scorerBet.prediction)?.price,
+          status: scorerBet.status,
+        } : null}
+        msg={msgs['top_scorer']}
+      >
+        <select style={selectStyle} value={scorerPick} onChange={e => setScorerPick(e.target.value)}>
+          <option value="">— בחר שחקן —</option>
+          {LEAGUE_SCORER_ODDS.map(o => (
+            <option key={o.name} value={o.name}>{o.name} ({teamHe(o.team)}) — ×{o.price}</option>
+          ))}
+        </select>
+        <button
+          className="btn-primary" style={{ width: '100%', marginTop: 8, fontSize: '0.85rem' }}
+          disabled={!scorerPick || submitting === 'top_scorer'}
+          onClick={() => submitSingle('top_scorer', scorerPick)}
+        >
+          {submitting === 'top_scorer' ? 'שומר...' : `שמור — פוטנציאל: ${stake} × יחס`}
+        </button>
+      </PredictionCard>
+    </div>
+  );
+}
+
 // ── Rules view ────────────────────────────────────────────
 const RULES_SECTIONS = [
   { icon: '🏦', title: 'בנק נקודות', items: ['כל שחקן מתחיל עם 1,000 נקודות','ניחוש נכון = כפל לפי יחסי הסיכויים','ניחוש שגוי = 0 נקודות (ללא ניכוי)','לא הימרת על משחק = קנס קבוע','יתרה 0 = פרישה מהמשחק'] },
@@ -881,7 +1124,7 @@ export default function TournamentPage() {
   const [scoreMap, setScoreMap] = useState<ScoreMap>({});
   const [loading, setLoading] = useState(true);
   const [isLeagueMode, setIsLeagueMode] = useState(false);
-  const [view, setView] = useState<'schedule' | 'standings' | 'knockout' | 'scorers' | 'rules'>('schedule');
+  const [view, setView] = useState<'schedule' | 'standings' | 'knockout' | 'scorers' | 'rules' | 'predictions'>('schedule');
 
   useEffect(() => {
     async function load() {
@@ -987,6 +1230,12 @@ export default function TournamentPage() {
             <BookOpen size={15} />
             חוקים
           </button>
+          {isLeagueMode && (
+            <button className={`trn-tog-btn ${view === 'predictions' ? 'trn-tog-on' : ''}`} onClick={() => setView('predictions')}>
+              <Star size={15} />
+              ניחושי עונה
+            </button>
+          )}
         </div>
 
         {view === 'schedule' && (
@@ -1002,6 +1251,7 @@ export default function TournamentPage() {
         {view === 'knockout' && !isLeagueMode && <KnockoutBracketView />}
         {view === 'scorers' && <TopScorersView />}
         {view === 'rules' && <RulesView />}
+        {view === 'predictions' && isLeagueMode && <SeasonPredictionsView />}
       </div>
     </div>
   );

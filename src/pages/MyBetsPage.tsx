@@ -5,7 +5,7 @@ import type { Bet, SpecialBet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
-import { WINNER_ODDS, TOP_SCORER_ODDS } from '../lib/tournamentOdds';
+import { WINNER_ODDS, TOP_SCORER_ODDS, RELEGATED_ODDS } from '../lib/tournamentOdds';
 import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
@@ -273,21 +273,27 @@ export default function MyBetsPage() {
               <span>ניחושי עונה</span>
             </div>
             {specialBets.map(sb => {
-              const isWinner = sb.type === 'winner';
-              const odds = isWinner
-                ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price
-                : TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price;
+              const typeIcon =
+                sb.type === 'winner'   ? '🏆' :
+                sb.type === 'relegated' ? '📉' : '👟';
+              const typeLabel =
+                sb.type === 'winner'   ? 'אלוף הליגה' :
+                sb.type === 'relegated' ? 'יורד לליגה א׳' : 'מלך השערים';
+              const odds =
+                sb.type === 'winner'   ? WINNER_ODDS.find(o => o.name === sb.prediction)?.price :
+                sb.type === 'relegated' ? RELEGATED_ODDS.find(o => o.name === sb.prediction)?.price :
+                TOP_SCORER_ODDS.find(o => o.name === sb.prediction)?.price;
+              const displayName =
+                (sb.type === 'winner' || sb.type === 'relegated') ? teamHe(sb.prediction) : sb.prediction;
               const statusColor = sb.status === 'won' ? 'var(--green)' : sb.status === 'lost' ? '#f87171' : 'var(--gold)';
               const statusLabel = sb.status === 'won' ? '✓ זכייה' : sb.status === 'lost' ? '✗ הפסד' : 'ממתין';
               return (
                 <div key={sb.id} className="mb-special-row">
-                  <div className="mb-special-icon">
-                    {isWinner ? '🏆' : '👟'}
-                  </div>
+                  <div className="mb-special-icon">{typeIcon}</div>
                   <div className="mb-special-info">
-                    <div className="mb-special-label">{isWinner ? 'אלוף הליגה' : 'מלך השערים'}</div>
+                    <div className="mb-special-label">{typeLabel}</div>
                     <div className="mb-special-pick">
-                      {isWinner ? teamHe(sb.prediction) : sb.prediction}
+                      {displayName}
                       {odds && <span className="mb-special-odds">×{odds}</span>}
                     </div>
                   </div>
