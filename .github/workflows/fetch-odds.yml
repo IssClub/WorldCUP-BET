@@ -1,14 +1,12 @@
 name: Fetch and lock odds
 
 on:
+  # כל שעה 11:00-20:00 UTC (14:00-23:00 ישראל) — מכסה את חלון הנעילה לפני משחקים
+  # game-window מסנן ריצות שאינן בחלון האמיתי (3h לפני first kickoff)
   schedule:
-    # כל 4 שעות בחודשי הטורניר (יוני–יולי 2026)
-    # עם commenceTimeTo=24h מחזיר 2-5 משחקים בלבד ← ~3-10 קרדיטים לקריאה
-    - cron: '0 0,4,8,12,16,20 * 6,7 *'
-    # פעם ביום מחוץ לטורניר (יחסים ראשוניים, לא רלוונטי לפני יוני)
-    - cron: '0 12 * 1-5,8-12 *'
+    - cron: '0 11-20 * * *'
 
-  workflow_dispatch:  # כפתור הפעלה ידנית
+  workflow_dispatch:
 
 jobs:
   fetch-odds:
@@ -20,14 +18,24 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '22'
           cache: npm
 
       - run: npm ci
 
+      # שלב 1: בדוק אם אנחנו בחלון יחסים
+      - name: Check game window
+        id: window
+        run: node scripts/game-window.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # שלב 2: נעל יחסים — רק אם בחלון odds
       - name: Fetch and lock odds
+        if: steps.window.outputs.IN_ODDS_WINDOW == 'true'
         run: node scripts/fetch-odds.mjs
         env:
-          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY }}

@@ -1,15 +1,14 @@
 name: Auto-settle games
 
 on:
-  # ── בשעות המשחקים (17:00-07:00 UTC = 20:00-10:00 ישראל) ──
-  # משחקים מוקדמים מתחילים ב-19:00 ישראל, מאוחרים מסתיימים ב-09:00 ישראל
+  # כל שעה בטווח 14:00-02:00 UTC (17:00-05:00 ישראל קיץ / 16:00-04:00 חורף)
+  # מספיק רחב לכל לוח המשחקים האפשרי של ליגת העל
+  # הסקריפט game-window בודק אם אנחנו בחלון אמיתי לפני שעושה קריאות יקרות
   schedule:
-    - cron: '*/10 17-23 * 5,6,7 *'   # 20:00–02:59 ישראל
-    - cron: '*/10 0-11  * 5,6,7 *'   # 03:00–14:59 ישראל (כולל משחקי בוקר + ריצה אחרי סגירה ידנית)
-    # מחוץ לטורניר — פעם ביום בלבד
-    - cron: '0 12 * 1-5,8-12 *'
+    - cron: '0 14-23 * * *'
+    - cron: '0 0-2   * * *'
 
-  workflow_dispatch:  # כפתור הפעלה ידנית ב-GitHub Actions
+  workflow_dispatch:
 
 jobs:
   settle:
@@ -20,16 +19,26 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '22'
           cache: npm
 
       - run: npm ci
 
+      # שלב 1: בדוק אם אנחנו בחלון משחקים
+      - name: Check game window
+        id: window
+        run: node scripts/game-window.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # שלב 2: סגור הימורים — רק אם בחלון תוצאות
       - name: Settle completed games
+        if: steps.window.outputs.IN_SETTLE_WINDOW == 'true'
         run: node scripts/settle-games.mjs
         env:
-          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY }}
           VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}

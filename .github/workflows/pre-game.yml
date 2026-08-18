@@ -1,12 +1,12 @@
 name: Pre-game reminders and auto-bets
 
 on:
+  # כל 30 דקות 12:00-21:00 UTC (15:00-00:00 ישראל) — מכסה 2h לפני כל משחק אפשרי
+  # game-window מסנן ריצות שאינן בחלון pre-game האמיתי
   schedule:
-    # כל 5 דקות בשעות המשחקים (15:00–04:00 UTC = 18:00–07:00 ישראל)
-    - cron: '*/5 15-23 * 5,6,7 *'
-    - cron: '*/5 0-4  * 5,6,7 *'
+    - cron: '*/30 12-21 * * *'
 
-  workflow_dispatch:  # כפתור הפעלה ידנית
+  workflow_dispatch:
 
 jobs:
   pre-game:
@@ -18,15 +18,25 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '22'
           cache: npm
 
       - run: npm ci
 
+      # שלב 1: בדוק אם אנחנו בחלון pre-game
+      - name: Check game window
+        id: window
+        run: node scripts/game-window.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # שלב 2: תזכורות + הימור אוטומטי — רק אם בחלון pre-game
       - name: Pre-game reminders and auto-bets
+        if: steps.window.outputs.IN_PREGAME_WINDOW == 'true'
         run: node scripts/pre-game.mjs
         env:
-          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}
