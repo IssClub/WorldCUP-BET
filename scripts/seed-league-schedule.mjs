@@ -105,12 +105,8 @@ for (const row of incoming) {
 
   if (current) {
     // אל תדרוס תוצאה שכבר סגרנו (settled) — רק עדכן kickoff + external_id אם השורה מ-CSV
-    const isCsvRow = current.external_id?.startsWith('csv_');
-    if (isCsvRow) {
-      // עדכן הכל — זו שורה שנזרעה ידנית בלי שעה אמיתית
-      toUpdate.push({ dbId: current.id, ...row });
-    } else if (!current.completed) {
-      // שורת TheSportsDB קיימת שעדיין לא הסתיימה — עדכן kickoff בלבד
+    if (!current.completed) {
+      // עדכן kickoff_at בלבד — שמור את external_id המקורי (csv_r* נשאר csv_r*)
       toUpdate.push({ dbId: current.id, kickoff_at: row.kickoff_at, updated_at: row.updated_at });
     }
     // אם הסתיים — אל תיגע בתוצאה (settle-games.mjs מטפל בזה)

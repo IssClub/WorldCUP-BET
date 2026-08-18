@@ -2,7 +2,8 @@ name: Sync League Schedule
 
 on:
   schedule:
-    - cron: '0 21 * * 0'   # כל ראשון 21:00 UTC = 23:00 ישראל
+    - cron: '0 2 * * 2'    # כל שלישי 02:00 UTC = 05:00 ישראל
+    - cron: '0 2 * * 3'    # כל רביעי 02:00 UTC = 05:00 ישראל
   workflow_dispatch:         # כפתור הרצה ידנית מ-GitHub
 
 jobs:
