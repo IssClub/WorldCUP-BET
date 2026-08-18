@@ -1,10 +1,13 @@
 name: Update live scores
 
 on:
+  # כל 30 דקות בטווח 14:00-02:00 UTC (שעות המשחקים האפשריות)
+  # game-window מסנן ריצות מחוץ לחלון settle האמיתי
   schedule:
-    # כל 30 דקות — מתאים לכל ליגה לאורך השנה
-    - cron: '*/30 * * * *'
-  workflow_dispatch:  # הפעלה ידנית
+    - cron: '*/30 14-23 * * *'
+    - cron: '*/30 0-2   * * *'
+
+  workflow_dispatch:
 
 jobs:
   update-live-scores:
@@ -16,14 +19,24 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '22'
           cache: npm
 
       - run: npm ci
 
+      # שלב 1: בדוק אם אנחנו בחלון משחקים
+      - name: Check game window
+        id: window
+        run: node scripts/game-window.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      # שלב 2: עדכן ציונים חיים — רק בחלון settle (first_kickoff+90min → last_kickoff+3h)
       - name: Update live scores
+        if: steps.window.outputs.IN_SETTLE_WINDOW == 'true'
         run: node scripts/update-live-scores.mjs
         env:
-          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ODDS_API_KEY:         ${{ secrets.VITE_ODDS_API_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY }}
