@@ -2,10 +2,11 @@ name: Update top scorers
 
 on:
   schedule:
-    # כל 2 שעות בחודשי הטורניר (יוני–יולי 2026)
-    # football-data.org: 10 קריאות/דקה — קריאה אחת כל 2 שעות בלי שום בעיה
-    - cron: '0 */2 * 6,7 *'
-  workflow_dispatch:  # הפעלה ידנית
+    # פעם ביום 22:00 UTC = 00:00 ישראל חורף / 01:00 קיץ
+    # אחרי שכל המשחקים היומיים הסתיימו
+    - cron: '0 22 * * *'
+
+  workflow_dispatch:
 
 jobs:
   update-scorers:
@@ -17,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: '22'
           cache: npm
 
       - run: npm ci
@@ -25,6 +26,6 @@ jobs:
       - name: Update top scorers
         run: node scripts/update-scorers.mjs
         env:
-          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          FOOTBALL_DATA_TOKEN:  ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          APISPORTS_KEY:        ${{ secrets.APISPORTS_KEY }}

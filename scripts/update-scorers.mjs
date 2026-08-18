@@ -1,70 +1,76 @@
 /**
- * update-scorers.mjs — רץ כל 2 שעות דרך GitHub Actions
- *
- * שולף מלכי שערים של מונדיאל 2026 מ-football-data.org (חינמי, 10 קריאות/דקה,
- * כולל את ה-World Cup ב-tier החינמי — בניגוד ל-API-Football שלא מכיל עונת 2026 בתוכנית החינמית)
- * ומעדכן את טבלת top_scorers בסופאבייס.
- *
- * הרשמה חינמית: https://www.football-data.org/client/register
- * הגדרה ב-GitHub Secrets: FOOTBALL_DATA_TOKEN
+ * update-scorers.mjs
+ * שולף מלכי שערים של ליגת העל מ-API-Football (api-sports.io)
+ * רץ פעם ביום אחרי המשחקים ומעדכן טבלת top_scorers בסופאבייס
  */
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL        = process.env.SUPABASE_URL;
-const SUPABASE_KEY        = process.env.SUPABASE_SERVICE_KEY;
-const FOOTBALL_DATA_TOKEN = process.env.FOOTBALL_DATA_TOKEN;
+const SUPABASE_URL  = process.env.SUPABASE_URL;
+const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
+const APISPORTS_KEY = process.env.APISPORTS_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !FOOTBALL_DATA_TOKEN) {
-  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, FOOTBALL_DATA_TOKEN');
+if (!SUPABASE_URL || !SUPABASE_KEY || !APISPORTS_KEY) {
+  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, APISPORTS_KEY');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// רץ רק במצב מונדיאל — ליגת העל לא נתמכת ב-football-data.org free tier
+// רץ רק במצב ליגה (לא מונדיאל)
 const { data: settings } = await supabase.from('settings').select('sport_keys').single();
 const sportKeys = settings?.sport_keys ?? ['soccer_fifa_world_cup'];
-if (!sportKeys.includes('soccer_fifa_world_cup')) {
-  console.log(`Sport keys: ${sportKeys.join(', ')} — top scorers not available. Skipping.`);
+if (sportKeys.includes('soccer_fifa_world_cup')) {
+  console.log('World Cup mode — skipping league scorers.');
   process.exit(0);
 }
 
-// אל תריץ לפני שהטורניר מתחיל (חוסך קריאות יומיות)
-const TOURNAMENT_START = new Date('2026-06-11T18:00:00Z').getTime();
-if (Date.now() < TOURNAMENT_START) {
-  console.log('Tournament has not started yet — skipping.');
-  process.exit(0);
-}
+// ליגת העל = league 271, עונה 2026 (שנת פתיחה)
+const LEAGUE_ID = 271;
+const SEASON    = 2026;
 
-console.log('Fetching top scorers from football-data.org (competition=WC)...');
+console.log(`Fetching top scorers — league ${LEAGUE_ID}, season ${SEASON}...`);
 
 const res = await fetch(
-  'https://api.football-data.org/v4/competitions/WC/scorers?limit=20',
-  { headers: { 'X-Auth-Token': FOOTBALL_DATA_TOKEN } }
+  `https://v3.football.api-sports.io/players/topscorers?league=${LEAGUE_ID}&season=${SEASON}`,
+  { headers: { 'x-apisports-key': APISPORTS_KEY } }
 );
 
 if (!res.ok) {
-  console.error('football-data.org error:', res.status, await res.text());
+  console.error('API-Football error:', res.status, await res.text());
   process.exit(1);
 }
 
 const data = await res.json();
 
-if (!Array.isArray(data.scorers)) {
+// הצג מגבלת קריאות נותרת
+const remaining = res.headers.get('x-ratelimit-requests-remaining');
+console.log(`Requests remaining today: ${remaining ?? 'unknown'}`);
+
+if (!Array.isArray(data.response)) {
   console.error('Unexpected response:', JSON.stringify(data).slice(0, 300));
   process.exit(1);
 }
 
-console.log(`Got ${data.scorers.length} scorers`);
+if (data.response.length === 0) {
+  console.log('No scorers returned yet — season may not have started or data not available.');
+  process.exit(0);
+}
 
-const rows = data.scorers.slice(0, 20).map(item => ({
+console.log(`Got ${data.response.length} scorers`);
+
+const rows = data.response.slice(0, 20).map(item => ({
   id:          String(item.player.id),
   player_name: item.player.name,
-  team:        item.team?.name ?? '',
-  goals:       item.goals ?? 0,
-  assists:     item.assists ?? 0,
+  team:        item.statistics[0]?.team?.name ?? '',
+  goals:       item.statistics[0]?.goals?.total  ?? 0,
+  assists:     item.statistics[0]?.goals?.assists ?? 0,
   updated_at:  new Date().toISOString(),
 }));
+
+// הצג top 5 לצורך לוג
+rows.slice(0, 5).forEach((r, i) =>
+  console.log(`  ${i + 1}. ${r.player_name} (${r.team}) — ${r.goals} שערים`)
+);
 
 const { error } = await supabase
   .from('top_scorers')
@@ -76,5 +82,3 @@ if (error) {
 }
 
 console.log(`✅ Updated ${rows.length} top scorers`);
-// football-data.org מחזיר את המגבלה הנותרת בכותרות:
-console.log('Requests remaining:', res.headers.get('x-requests-available-minute'));
