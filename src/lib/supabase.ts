@@ -92,4 +92,6 @@ export type Settings = {
   auto_bet_amount: number;
   group_stage_bonus: number;
   sport_keys: string[] | null;
+  result_points: number;
+  exact_score_points: number;
 };

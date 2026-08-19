@@ -140,9 +140,11 @@ async function main() {
   const bankMap = Object.fromEntries(activePlayers.map(p => [p.id, p.bank]));
 
   // Step 3: קרא settings
-  const { data: settings } = await supabase.from('settings').select('sport_keys, use_bank, no_bet_penalty').single();
+  const { data: settings } = await supabase.from('settings').select('sport_keys, use_bank, no_bet_penalty, result_points, exact_score_points').single();
   const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
   const useBank = settings?.use_bank ?? false;
+  const resultPts = settings?.result_points ?? 3;
+  const exactPts = settings?.exact_score_points ?? 5;
 
   // Step 4: fetch scores from Odds API — לכל sport key פעיל
   const allGames = [];
@@ -210,37 +212,27 @@ async function main() {
     }
 
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
-    const playerData = {}; // playerId -> { payout, lostAmount }
+    const playerPayouts = {}; // playerId -> payout
 
     // ── Settle bets ──
     for (const bet of bets) {
       const won = bet.pick === winner;
-      let payout = 0;
-      if (won) {
-        payout = Math.floor(bet.amount * bet.odds_value);
-        if (bet.exact_home !== null && bet.exact_home === homeScore && bet.exact_away === awayScore) {
-          payout = Math.floor(payout * 1.5);
-        }
-      }
+      const isExact = won && bet.exact_home !== null && bet.exact_home === homeScore && bet.exact_away === awayScore;
+      const payout = isExact ? exactPts : (won ? resultPts : 0);
       await supabase.from('bets')
-        .update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore })
+        .update({ status: won ? 'won' : 'lost', payout, actual_home: homeScore, actual_away: awayScore })
         .eq('id', bet.id);
 
-      if (!playerData[bet.player_id]) playerData[bet.player_id] = { payout: 0, lostAmount: 0 };
-      if (won) playerData[bet.player_id].payout += payout;
-      else playerData[bet.player_id].lostAmount += bet.amount;
+      if (payout > 0) playerPayouts[bet.player_id] = (playerPayouts[bet.player_id] ?? 0) + payout;
 
-      // Track today's change (הפסד = 0, לא מינוס — ההמרה מוחזרת בסגירה)
       if (!todayChange[bet.player_id]) todayChange[bet.player_id] = 0;
-      todayChange[bet.player_id] += won ? payout : 0;
+      todayChange[bet.player_id] += payout;
     }
 
-    // Update bank
-    for (const [playerId, { payout, lostAmount }] of Object.entries(playerData)) {
+    // Update bank (pure accumulation — only add points for wins)
+    for (const [playerId, payout] of Object.entries(playerPayouts)) {
       const current = bankMap[playerId] ?? 0;
-      // במצב בנק: הפסד = מחזירים את ההימור (0 שינוי נטו). רק זכייה מוסיפה נקודות.
-      const newBank = current + payout + (useBank ? lostAmount : 0);
-      if (newBank === current) continue;
+      const newBank = current + payout;
       bankMap[playerId] = newBank;
       await supabase.from('profiles').update({ bank: newBank }).eq('id', playerId);
     }
@@ -253,13 +245,14 @@ async function main() {
     const rankMap = Object.fromEntries(updatedProfiles.map((p, i) => [p.id, i + 1]));
 
     // ── Send bet result notifications ──
-    for (const [playerId, { payout }] of Object.entries(playerData)) {
-      const rank = rankMap[playerId];
+    for (const bet of bets) {
+      const payout = playerPayouts[bet.player_id] ?? 0;
+      const rank = rankMap[bet.player_id];
       const rankText = rank ? ` · מקום ${rank}` : '';
       const body = payout > 0
         ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳${rankText}`
         : `${randomPhrase(LOSS_PHRASES)} הפסד — 0 נק׳${rankText}`;
-      await sendPush(playerId, {
+      await sendPush(bet.player_id, {
         title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
         body,
         url: '/WorldCUP-BET/',
@@ -267,7 +260,7 @@ async function main() {
     }
   }
 
-  await applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings);
+  // No missing-bet penalties in accumulation mode (not betting = missed opportunity, not a penalty)
   await maybeSendDailySummary(settledAnyGame, bankMap, activePlayers, todayChange);
   await processPushQueue();
   console.log('Done.');

@@ -255,12 +255,12 @@ export default function MyBetsPage() {
             <span className="mb-stat-lbl">ממתינים</span>
           </div>
           <div className="mb-stat">
-            <span className="mb-stat-val">{totalBet.toLocaleString()}</span>
-            <span className="mb-stat-lbl">הושקעו</span>
+            <span className="mb-stat-val" style={{ color: 'var(--green)' }}>{bets.filter(b => b.status === 'won').length}</span>
+            <span className="mb-stat-lbl">ניחושים נכונים</span>
           </div>
           <div className="mb-stat">
             <span className="mb-stat-val" style={{ color: 'var(--green)' }}>{totalWon.toLocaleString()}</span>
-            <span className="mb-stat-lbl">זכיות</span>
+            <span className="mb-stat-lbl">נק' זכיות</span>
           </div>
         </div>
 
@@ -305,7 +305,6 @@ export default function MyBetsPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {bets.map(bet => {
-              const potential = Math.floor(bet.amount * bet.odds_value);
               const statusColor = bet.status === 'won' ? 'var(--green)' : bet.status === 'lost' ? '#f87171' : 'var(--gold)';
               const statusLabel = bet.status === 'won' ? 'זכייה ✓' : bet.status === 'lost' ? 'הפסד ✗' : 'ממתין';
               const cancellable = canCancel(bet);
@@ -330,34 +329,23 @@ export default function MyBetsPage() {
                   {/* Bet details */}
                   <div className="mb-details">
                     <div className="mb-pick">
-                      {pickLabel(bet.pick, bet.home_team, bet.away_team)}
+                      {bet.exact_home !== null
+                        ? `⚡ ניחוש: ${bet.exact_home}:${bet.exact_away}`
+                        : pickLabel(bet.pick, bet.home_team, bet.away_team)
+                      }
                     </div>
                     <div className="mb-nums">
-                      <span className="mb-num-item">
-                        <span className="mb-num-lbl">הימור</span>
-                        <span className="mb-num-val">{bet.amount}</span>
-                      </span>
-                      <span className="mb-sep">×</span>
-                      <span className="mb-num-item">
-                        <span className="mb-num-lbl">יחס</span>
-                        <span className="mb-num-val">{bet.odds_value.toFixed(2)}</span>
-                      </span>
-                      <span className="mb-sep">=</span>
-                      <span className="mb-num-item">
-                        <span className="mb-num-lbl">{bet.status === 'won' ? 'זכית' : 'פוטנציאל'}</span>
-                        <span className="mb-num-val" style={{ color: bet.status === 'won' ? 'var(--green)' : 'var(--text)' }}>
-                          {bet.status === 'won' ? (bet.payout ?? potential) : potential}
+                      {bet.status === 'won' ? (
+                        <span style={{ color: 'var(--green)', fontWeight: 700 }}>+{bet.payout ?? 0} נק׳</span>
+                      ) : bet.status === 'lost' ? (
+                        <span style={{ color: '#f87171', fontWeight: 700 }}>0 נק׳</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                          כיוון נכון: 3 נק׳ | 🎯 מדויק: 5 נק׳
                         </span>
-                      </span>
+                      )}
                     </div>
                   </div>
-
-                  {/* Exact score guess */}
-                  {bet.exact_home !== null && (
-                    <div className="mb-exact">
-                      ⚡ ניחוש: {pickLabel(bet.pick, bet.home_team, bet.away_team)} {bet.exact_home}:{bet.exact_away}
-                    </div>
-                  )}
 
                   {/* Actual result — only for settled bets */}
                   {(bet.status === 'won' || bet.status === 'lost') && bet.actual_home !== null && bet.actual_away !== null && (
@@ -380,7 +368,7 @@ export default function MyBetsPage() {
                       disabled={cancelling === bet.id}
                     >
                       <Trash2 size={13} />
-                      {cancelling === bet.id ? 'מבטל...' : useBank ? 'בטל הימור — החזר ' + bet.amount + ' נק׳' : 'בטל הימור'}
+                      {cancelling === bet.id ? 'מבטל...' : 'בטל הימור'}
                     </button>
                   )}
                 </div>

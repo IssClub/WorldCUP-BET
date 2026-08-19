@@ -3,8 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
 import { flagUrl } from '../lib/flagMap';
+import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
-import { Coins, CheckCircle2, Zap, RefreshCw, Lock, Radio } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Lock } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -13,30 +14,31 @@ interface Game {
   id: string;
   home_team: string;
   away_team: string;
-  commence_time: string;
-  home_win: number;
-  draw: number;
-  away_win: number;
-  oddsLocked: boolean;
+  kickoff_at: string;
+  round_num: number | null;
+  completed: boolean;
+  home_score: number | null;
+  away_score: number | null;
 }
 
 interface BetState {
-  pick: Pick | null;
-  amount: number;
   exactHome: string;
   exactAway: string;
 }
 
 // ── Flag component ────────────────────────────────────────
 function Flag({ team, size = 56 }: { team: string; size?: number }) {
+  const badge = LEAGUE_BADGES[team];
+  if (badge) {
+    return (
+      <img src={badge} alt={team} width={size} height={size}
+        style={{ borderRadius: 4, objectFit: 'contain', display: 'block' }} />
+    );
+  }
   const url = flagUrl(team, 'w80');
   if (!url) return <span style={{ fontSize: size * 0.6, lineHeight: 1 }}>🏳️</span>;
   return (
-    <img
-      src={url}
-      alt={team}
-      width={size}
-      height={Math.round(size * 0.6)}
+    <img src={url} alt={team} width={size} height={Math.round(size * 0.6)}
       style={{ borderRadius: 4, objectFit: 'cover', display: 'block', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
     />
   );
@@ -45,65 +47,71 @@ function Flag({ team, size = 56 }: { team: string; size?: number }) {
 // ── Time utils ────────────────────────────────────────────
 const TZ = 'Asia/Jerusalem';
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
-const todayKey = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const fmtDateHe = (iso: string) =>
   new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
 
-// ── Odds extraction ───────────────────────────────────────
-function extractOdds(g: any): { home_win: number; draw: number; away_win: number } | null {
-  const preferred = ['bet365', 'pinnacle', 'unibet_eu', 'betfair_ex_eu', 'marathonbet', 'coolbet'];
-  for (const key of preferred) {
-    const bm = g.bookmakers?.find((b: any) => b.key === key);
-    if (!bm) continue;
-    const mkt = bm.markets?.find((m: any) => m.key === 'h2h');
-    if (!mkt) continue;
-    const home = mkt.outcomes.find((o: any) => o.name === g.home_team);
-    const away = mkt.outcomes.find((o: any) => o.name === g.away_team);
-    const draw = mkt.outcomes.find((o: any) => o.name === 'Draw');
-    if (home && away && draw)
-      return { home_win: home.price, draw: draw.price, away_win: away.price };
-  }
-  // average fallback
-  const totals: Record<string, number[]> = { home: [], draw: [], away: [] };
-  for (const bm of (g.bookmakers || [])) {
-    const mkt = bm.markets?.find((m: any) => m.key === 'h2h');
-    if (!mkt) continue;
-    const home = mkt.outcomes.find((o: any) => o.name === g.home_team);
-    const away = mkt.outcomes.find((o: any) => o.name === g.away_team);
-    const draw = mkt.outcomes.find((o: any) => o.name === 'Draw');
-    if (home) totals.home.push(home.price);
-    if (away) totals.away.push(away.price);
-    if (draw) totals.draw.push(draw.price);
-  }
-  if (!totals.home.length) return null;
-  const avg = (arr: number[]) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 100) / 100;
-  return { home_win: avg(totals.home), draw: avg(totals.draw), away_win: avg(totals.away) };
-}
-
 // ── GameCard ──────────────────────────────────────────────
-function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
+function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange }: {
   game: Game;
-  settings: Settings;
+  resultPts: number;
+  exactPts: number;
   bet: BetState;
   existingBet: Bet | null;
   isStarted: boolean;
   onChange: (b: Partial<BetState>) => void;
 }) {
-  const odds: Record<Pick, number> = { home: game.home_win, draw: game.draw, away: game.away_win };
+  const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
+  const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
 
-  // ── No locked odds yet ──
-  if (!game.oddsLocked && !existingBet) {
+  // ── Settled bet (won or lost) ──
+  if (existingBet && (existingBet.status === 'won' || existingBet.status === 'lost')) {
+    const won = existingBet.status === 'won';
     return (
-      <div className="gc gc-locked">
+      <div className={`gc ${won ? 'gc-done' : 'gc-locked'}`}>
         <div className="gc-teams">
           <div className="gc-team">
             <Flag team={game.home_team} />
             <span className="gc-tname">{teamHe(game.home_team)}</span>
           </div>
           <div className="gc-mid">
-            <span className="gc-time">{fmtTime(game.commence_time)}</span>
+            {isCompleted
+              ? <span className="gc-time" style={{ color: 'var(--text)', fontSize: 20, fontWeight: 700 }}>{game.home_score}:{game.away_score}</span>
+              : <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
+            }
+            <span className="gc-vs">{isCompleted ? 'סופי' : 'VS'}</span>
+          </div>
+          <div className="gc-team">
+            <Flag team={game.away_team} />
+            <span className="gc-tname">{teamHe(game.away_team)}</span>
+          </div>
+        </div>
+        <div className="gc-submitted">
+          {won
+            ? <span style={{ color: 'var(--green)' }}>✓ ניחשת {existingBet.exact_home}:{existingBet.exact_away}</span>
+            : <span style={{ color: '#f87171' }}>✗ ניחשת {existingBet.exact_home}:{existingBet.exact_away}</span>
+          }
+          <span className="gc-submitted-sep">→</span>
+          <span style={{ color: won ? 'var(--green)' : '#f87171', fontWeight: 700 }}>
+            {won ? `+${existingBet.payout ?? 0} נק׳` : '0 נק׳'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Pending bet ──
+  if (existingBet) {
+    return (
+      <div className="gc gc-done">
+        <div className="gc-teams">
+          <div className="gc-team">
+            <Flag team={game.home_team} />
+            <span className="gc-tname">{teamHe(game.home_team)}</span>
+          </div>
+          <div className="gc-mid">
+            <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
             <span className="gc-vs">VS</span>
           </div>
           <div className="gc-team">
@@ -111,37 +119,22 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             <span className="gc-tname">{teamHe(game.away_team)}</span>
           </div>
         </div>
-        <div className="gc-lock-msg">
-          <Lock size={13} />
-          <span>יחסים ייפתחו 48 שעות לפני המשחק</span>
+        <div className="gc-submitted">
+          <CheckCircle2 size={14} />
+          <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
+          <span className="gc-submitted-sep">→</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>כיוון </span>
+          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{resultPts}</span>
+          <span style={{ color: 'var(--border)', margin: '0 3px' }}>|</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>🎯 מדויק </span>
+          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{exactPts} נק׳</span>
         </div>
       </div>
     );
   }
 
-  // תוצאה מדויקת בלבד — ניחוש הכיוון נגזר אוטומטית
-  const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
-  const derivedPick: Pick | null = hasScore
-    ? (parseInt(bet.exactHome) > parseInt(bet.exactAway) ? 'home'
-      : parseInt(bet.exactHome) < parseInt(bet.exactAway) ? 'away' : 'draw')
-    : null;
-  const derivedOdds = derivedPick ? odds[derivedPick] : null;
-  const betAmount = settings.use_bank ? bet.amount : settings.auto_bet_amount;
-  const potential = derivedOdds && betAmount > 0 ? Math.floor(betAmount * derivedOdds) : 0;
-  const bonusPotential = potential > 0 ? Math.floor(potential * 1.5) : 0;
-  const derivedLabel = derivedPick === 'home' ? `ניצחון ${teamHe(game.home_team).slice(0, 9)}`
-    : derivedPick === 'away' ? `ניצחון ${teamHe(game.away_team).slice(0, 9)}`
-    : derivedPick === 'draw' ? 'תיקו' : null;
-
-  const presets = settings.use_bank ? [
-    settings.min_bet,
-    Math.round(settings.max_bet * 0.33 / 25) * 25,
-    Math.round(settings.max_bet * 0.66 / 25) * 25,
-    settings.max_bet,
-  ].filter((v, i, a) => a.indexOf(v) === i && v >= settings.min_bet && v <= settings.max_bet) : [];
-
-  // ── Started & no bet ──
-  if (isStarted && !existingBet) {
+  // ── Completed game (no bet) ──
+  if (isCompleted) {
     return (
       <div className="gc gc-locked">
         <div className="gc-teams">
@@ -150,7 +143,30 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
             <span className="gc-tname">{teamHe(game.home_team)}</span>
           </div>
           <div className="gc-mid">
-            <span className="gc-time">{fmtTime(game.commence_time)}</span>
+            <span className="gc-time" style={{ color: 'var(--text)', fontSize: 20, fontWeight: 700 }}>{game.home_score}:{game.away_score}</span>
+            <span className="gc-vs">סופי</span>
+          </div>
+          <div className="gc-team">
+            <Flag team={game.away_team} />
+            <span className="gc-tname">{teamHe(game.away_team)}</span>
+          </div>
+        </div>
+        <div className="gc-lock-msg" style={{ color: 'var(--text-muted)' }}>לא הימרת על משחק זה</div>
+      </div>
+    );
+  }
+
+  // ── Game started, no bet ──
+  if (isStarted) {
+    return (
+      <div className="gc gc-locked">
+        <div className="gc-teams">
+          <div className="gc-team">
+            <Flag team={game.home_team} />
+            <span className="gc-tname">{teamHe(game.home_team)}</span>
+          </div>
+          <div className="gc-mid">
+            <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
             <span className="gc-vs">VS</span>
           </div>
           <div className="gc-team">
@@ -166,54 +182,16 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
     );
   }
 
-  // ── Already bet ──
-  if (existingBet) {
-    const pot = Math.floor(existingBet.amount * existingBet.odds_value);
-    const bonusPot = Math.floor(pot * 1.5);
-    const pickDir = existingBet.pick === 'home' ? teamHe(existingBet.home_team)
-      : existingBet.pick === 'away' ? teamHe(existingBet.away_team) : 'תיקו';
-    return (
-      <div className="gc gc-done">
-        <div className="gc-teams">
-          <div className="gc-team">
-            <Flag team={game.home_team} />
-            <span className="gc-tname">{teamHe(game.home_team)}</span>
-          </div>
-          <div className="gc-mid">
-            <span className="gc-time">{fmtTime(game.commence_time)}</span>
-            <span className="gc-vs">VS</span>
-          </div>
-          <div className="gc-team">
-            <Flag team={game.away_team} />
-            <span className="gc-tname">{teamHe(game.away_team)}</span>
-          </div>
-        </div>
-        <div className="gc-submitted">
-          <CheckCircle2 size={14} />
-          {existingBet.exact_home !== null
-            ? <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
-            : <span>{pickDir} × {existingBet.odds_value.toFixed(2)}</span>
-          }
-          <span className="gc-submitted-sep">→</span>
-          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{pot}</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 2px' }}>/</span>
-          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>🎯{bonusPot} נק׳</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Betting card ──
+  // ── Open for betting ──
   return (
     <div className={`gc ${hasScore ? 'gc-picked' : ''}`}>
-      {/* Teams */}
       <div className="gc-teams">
         <div className="gc-team">
           <Flag team={game.home_team} />
           <span className="gc-tname">{teamHe(game.home_team)}</span>
         </div>
         <div className="gc-mid">
-          <span className="gc-time">{fmtTime(game.commence_time)}</span>
+          <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
           <span className="gc-vs">VS</span>
         </div>
         <div className="gc-team">
@@ -222,21 +200,6 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         </div>
       </div>
 
-      {/* 1X2 — יחסים + הדגשה אוטומטית לפי תוצאה */}
-      <div className="gc-odds-row">
-        {(['home', 'draw', 'away'] as Pick[]).map(p => {
-          const label = p === 'draw' ? 'X'
-            : p === 'home' ? teamHe(game.home_team).slice(0, 7)
-            : teamHe(game.away_team).slice(0, 7);
-          return (
-            <div key={p} className={`gc-odds-cell ${derivedPick === p ? 'gc-odds-active' : ''}`}>
-              <span className="gc-odds-val">{odds[p].toFixed(2)}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Score inputs — הפעולה הראשית */}
       <div className="gc-exact-inputs gc-score-primary">
         <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
         <input
@@ -257,116 +220,19 @@ function GameCard({ game, settings, bet, existingBet, isStarted, onChange }: {
         <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
       </div>
 
-      {/* כמות + פוטנציאל — מופיע אחרי מילוי תוצאה */}
       {hasScore && (
         <div className="gc-amount fade-in">
-          {/* בחירת סכום — רק במצב בנק */}
-          {settings.use_bank && (
-            <>
-              <div className="gc-presets">
-                {presets.map(v => (
-                  <button key={v} className={`gc-preset ${bet.amount === v ? 'gc-preset-on' : ''}`}
-                    onClick={() => onChange({ amount: v })}>{v}</button>
-                ))}
-              </div>
-              <div className="gc-stepper">
-                <button className="gc-step" onClick={() => onChange({ amount: Math.max(settings.min_bet, bet.amount - 25) })}>−</button>
-                <div className="gc-amount-val">
-                  <span className="gc-amount-num">{bet.amount}</span>
-                  <span className="gc-amount-u">נק׳</span>
-                </div>
-                <button className="gc-step" onClick={() => onChange({ amount: Math.min(settings.max_bet, bet.amount + 25) })}>+</button>
-              </div>
-            </>
-          )}
           <div className="gc-potential">
-            <Zap size={13} style={{ color: 'var(--gold)' }} />
             <span className="gc-pot-label">כיוון נכון</span>
-            <span className="gc-pot-val">{potential}</span>
+            <span className="gc-pot-val">{resultPts}</span>
             <span className="gc-pot-u">נק׳</span>
-            <span style={{ color: 'var(--border)', margin: '0 2px' }}>|</span>
+            <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
             <span className="gc-pot-label">🎯 מדויק</span>
-            <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{bonusPotential}</span>
+            <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{exactPts}</span>
             <span className="gc-pot-u">נק׳</span>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Live scores ───────────────────────────────────────────
-interface LiveScoreRow {
-  id: string;
-  home_team: string;
-  away_team: string;
-  home_score: number | null;
-  away_score: number | null;
-  status: string;
-  kickoff_at: string;
-}
-
-const LIVE_POLL_MS = 60 * 1000; // דקה — קוראים מהטבלה שלנו בסופאבייס, לא מ-API חיצוני
-const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000; // משחק שהסתיים מוצג עד 3 שעות מהפתיחה
-const isLiveStatus = (status: string) => status === 'IN_PLAY' || status === 'PAUSED';
-
-function LiveScoresCard() {
-  const [scores, setScores] = useState<LiveScoreRow[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const { data } = await supabase.from('live_scores').select('*');
-      if (!cancelled) setScores((data as LiveScoreRow[]) ?? []);
-    }
-    load();
-    const interval = setInterval(load, LIVE_POLL_MS);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  const now = Date.now();
-  const relevant = scores
-    .filter(g => {
-      if (isLiveStatus(g.status)) return true;
-      if (g.status === 'FINISHED') return now - new Date(g.kickoff_at).getTime() < LIVE_WINDOW_MS;
-      return false;
-    })
-    .sort((a, b) => {
-      if (isLiveStatus(a.status) !== isLiveStatus(b.status)) return isLiveStatus(a.status) ? -1 : 1;
-      return new Date(b.kickoff_at).getTime() - new Date(a.kickoff_at).getTime();
-    });
-
-  if (relevant.length === 0) return null;
-
-  return (
-    <div className="live-card">
-      <div className="live-card-hdr">
-        <Radio size={15} />
-        <span>תוצאות לייב</span>
-      </div>
-      <div className="live-rows">
-        {relevant.map(g => {
-          const live = isLiveStatus(g.status);
-          return (
-            <div key={g.id} className="live-row">
-              <div className="live-match">
-                <div className="live-team-side">
-                  <Flag team={g.home_team} size={22} />
-                  <span className="live-team">{teamHe(g.home_team)}</span>
-                </div>
-                <span className="live-score">{g.home_score ?? '-'} : {g.away_score ?? '-'}</span>
-                <div className="live-team-side live-team-side-away">
-                  <span className="live-team">{teamHe(g.away_team)}</span>
-                  <Flag team={g.away_team} size={22} />
-                </div>
-              </div>
-              <span className={`live-badge ${live ? '' : 'done'}`}>
-                {live ? <><span className="live-dot" />חי</> : 'סופי'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -378,12 +244,11 @@ export default function PlayerPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [existingBets, setExistingBets] = useState<Bet[]>([]);
   const [bets, setBets] = useState<Record<string, BetState>>({});
+  const [currentRound, setCurrentRound] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [justSubmitted, setJustSubmitted] = useState(false);
-
-  const ODDS_KEY = import.meta.env.VITE_ODDS_API_KEY;
 
   useEffect(() => { loadData(); }, []);
 
@@ -391,67 +256,25 @@ export default function PlayerPage() {
     setLoading(true);
     setError('');
     try {
-      // שאילתות Supabase — תמיד חייבות לעבוד
-      const [settingsRes, betsRes, customGamesRes] = await Promise.all([
+      const [settingsRes, betsRes, schedRes] = await Promise.all([
         supabase.from('settings').select('*').single(),
         supabase.from('bets').select('*').eq('player_id', profile!.id),
-        supabase.from('custom_games').select('*')
-          .gte('kickoff_at', new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()),
+        supabase.from('league_schedule').select('*').order('kickoff_at'),
       ]);
 
-      if (settingsRes.data) setSettings(settingsRes.data);
+      if (settingsRes.data) setSettings(settingsRes.data as Settings);
       if (betsRes.data) setExistingBets(betsRes.data as Bet[]);
 
-      // משחקים מותאמים — תמיד מוצגים גם אם WC API נכשל
-      const customProcessed: Game[] = ((customGamesRes as any).data ?? []).map((cg: any) => ({
-        id: cg.id,
-        home_team: cg.home_team,
-        away_team: cg.away_team,
-        commence_time: cg.kickoff_at,
-        home_win: Number(cg.home_win),
-        draw: Number(cg.draw_win),
-        away_win: Number(cg.away_win),
-        oddsLocked: true,
-      }));
-
-      // Odds API — שולף לפי sport_keys מההגדרות
-      const sportKeys: string[] = settingsRes.data?.sport_keys ?? ['soccer_fifa_world_cup'];
-      let oddsProcessed: Game[] = [];
-      try {
-        for (const sportKey of sportKeys) {
-          const gamesRes = await fetch(
-            `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${ODDS_KEY}&regions=eu&markets=h2h&oddsFormat=decimal`
-          );
-          if (!gamesRes.ok) continue;
-          const raw: any[] = await gamesRes.json();
-          if (!Array.isArray(raw)) continue;
-          const gameIds = raw.map(g => g.id);
-          const { data: lockedOdds } = await supabase
-            .from('locked_odds').select('*').in('external_game_id', gameIds);
-          const lockedMap = new Map(
-            (lockedOdds ?? []).map(lo => [lo.external_game_id, lo])
-          );
-          const sportGames = raw.map(g => {
-            const locked = lockedMap.get(g.id);
-            if (locked) {
-              return {
-                id: g.id, home_team: g.home_team, away_team: g.away_team,
-                commence_time: g.commence_time,
-                home_win: Number(locked.home_win), draw: Number(locked.draw_win),
-                away_win: Number(locked.away_win), oddsLocked: true,
-              };
-            }
-            return {
-              id: g.id, home_team: g.home_team, away_team: g.away_team,
-              commence_time: g.commence_time,
-              home_win: 0, draw: 0, away_win: 0, oddsLocked: false,
-            };
-          }) as Game[];
-          oddsProcessed.push(...sportGames);
-        }
-      } catch { /* Odds API failed — showing custom games only */ }
-
-      setGames([...customProcessed, ...oddsProcessed]);
+      const allGames = (schedRes.data ?? []) as Game[];
+      const incomplete = allGames.filter(g => !g.completed);
+      const nextRound = incomplete.length > 0
+        ? Math.min(...incomplete.map(g => g.round_num ?? 99))
+        : null;
+      const roundGames = nextRound !== null
+        ? allGames.filter(g => g.round_num === nextRound)
+        : [];
+      setGames(roundGames);
+      setCurrentRound(nextRound);
     } catch {
       setError('שגיאה בטעינת המשחקים');
     } finally {
@@ -459,84 +282,42 @@ export default function PlayerPage() {
     }
   }
 
-  // כל המשחקים בטווח 48 שעות קדימה (+ חצי שעה אחורה למשחקים שהתחילו ממש עכשיו)
-  const WINDOW_MS = 48 * 60 * 60 * 1000;
-  const PAST_GRACE_MS = 30 * 60 * 1000;
-  const activeGames = useMemo(() => {
-    const now = Date.now();
-    return games
-      .filter(g => {
-        const t = new Date(g.commence_time).getTime();
-        return t > now - PAST_GRACE_MS && t < now + WINDOW_MS;
-      })
-      .sort((a, b) => new Date(a.commence_time).getTime() - new Date(b.commence_time).getTime());
-  }, [games]);
-
-  const today = todayKey();
-
-  // קבץ לפי יום לצורך כותרות
-  const gameGroups = useMemo(() => {
-    const groups: { day: string; games: Game[] }[] = [];
-    for (const g of activeGames) {
-      const k = dayKey(g.commence_time);
-      let grp = groups.find(x => x.day === k);
-      if (!grp) { grp = { day: k, games: [] }; groups.push(grp); }
-      grp.games.push(g);
-    }
-    return groups;
-  }, [activeGames]);
-
   function getBet(id: string): BetState {
-    return bets[id] ?? { pick: null, amount: settings?.min_bet ?? 50, exactHome: '', exactAway: '' };
+    return bets[id] ?? { exactHome: '', exactAway: '' };
   }
-
   function updateBet(id: string, upd: Partial<BetState>) {
     setBets(prev => ({ ...prev, [id]: { ...getBet(id), ...upd } }));
   }
 
-  // סגירת הימורים 5 דקות לפני kickoff
   const CUTOFF_MS = 5 * 60 * 1000;
-  const readyBets = activeGames.filter(g => {
-    if (!g.oddsLocked) return false;
-    if (new Date(g.commence_time).getTime() <= Date.now() + CUTOFF_MS) return false;
-    const b = bets[g.id];
-    return b != null && b.exactHome !== '' && b.exactAway !== '' && !existingBets.find(e => e.external_game_id === g.id);
-  });
 
-  const totalCost = settings?.use_bank
-    ? readyBets.reduce((s, g) => s + (bets[g.id]?.amount ?? 0), 0)
-    : readyBets.length * (settings?.auto_bet_amount ?? 10);
+  const readyBets = useMemo(() => games.filter(g => {
+    if (g.completed) return false;
+    if (new Date(g.kickoff_at).getTime() <= Date.now() + CUTOFF_MS) return false;
+    const b = bets[g.id];
+    return b != null && b.exactHome !== '' && b.exactAway !== ''
+      && !existingBets.find(e => e.external_game_id === g.id);
+  }), [games, bets, existingBets]);
 
   async function submitBets() {
-    if (!profile || !settings || readyBets.length === 0) return;
-    if (settings.use_bank && totalCost > (profile.bank ?? 0)) {
-      setError('אין מספיק נקודות בבנק'); return;
-    }
+    if (!profile || readyBets.length === 0) return;
     setSubmitting(true);
     setError('');
     const insertedBetIds: string[] = [];
     try {
-      // מצב בנק: נכה קודם, אחר כך הכנס הימורים
-      if (settings.use_bank) {
-        const { error: bankErr } = await supabase
-          .from('profiles').update({ bank: (profile.bank ?? 0) - totalCost }).eq('id', profile.id);
-        if (bankErr) throw new Error(bankErr.message);
-      }
       for (const g of readyBets) {
         const b = bets[g.id];
         const h = parseInt(b.exactHome), a = parseInt(b.exactAway);
         const derivedPick: Pick = h > a ? 'home' : h < a ? 'away' : 'draw';
-        const oddsVal = derivedPick === 'home' ? g.home_win : derivedPick === 'draw' ? g.draw : g.away_win;
-        const betAmt = settings.use_bank ? b.amount : settings.auto_bet_amount;
         const { data: inserted, error: insertErr } = await supabase.from('bets').insert({
           player_id: profile.id,
           external_game_id: g.id,
           home_team: g.home_team,
           away_team: g.away_team,
-          kickoff_at: g.commence_time,
+          kickoff_at: g.kickoff_at,
           pick: derivedPick,
-          amount: betAmt,
-          odds_value: oddsVal,
+          amount: 1,
+          odds_value: 1,
           exact_home: h,
           exact_away: a,
           status: 'pending',
@@ -551,44 +332,31 @@ export default function PlayerPage() {
       if (insertedBetIds.length > 0) {
         await supabase.from('bets').delete().in('id', insertedBetIds);
       }
-      if (settings.use_bank && insertedBetIds.length < readyBets.length) {
-        await supabase.from('profiles').update({ bank: profile.bank ?? 0 }).eq('id', profile.id);
-      }
       setError('שגיאה: ' + (e?.message ?? 'נסה שוב'));
     } finally {
       setSubmitting(false);
     }
   }
 
-  // ── Eliminated (מצב בנק בלבד) ──
-  if (!loading && settings?.use_bank && profile && (profile.bank ?? 0) <= 0) return (
-    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
-      <div className="page-wrap text-center">
-        <div className="text-6xl mb-4">💸</div>
-        <div className="bebas text-3xl mb-2" style={{ color: '#f87171' }}>נגמרו הנקודות</div>
-        <div className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-          הבנק שלך מגיע לאפס — אתה מחוץ למשחק עד סוף שלב הבתים
-        </div>
-        <div className="card p-5" style={{ textAlign: 'right' }}>
-          <div className="text-sm font-bold mb-2" style={{ color: 'var(--gold)' }}>🏆 עדיין אפשר לעקוב:</div>
-          <div className="text-sm" style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>
-            • טבלת דירוג — ראה איפה אתה עומד<br />
-            • לשונית הליגה — תוצאות ולוח משחקים<br />
-            • בסוף שלב הבתים — כל השחקנים מתחילים מחדש
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const resultPts = settings?.result_points ?? 3;
+  const exactPts = settings?.exact_score_points ?? 5;
 
+  const gameGroups = useMemo(() => {
+    const groups: { day: string; games: Game[] }[] = [];
+    for (const g of games) {
+      const k = dayKey(g.kickoff_at);
+      let grp = groups.find(x => x.day === k);
+      if (!grp) { grp = { day: k, games: [] }; groups.push(grp); }
+      grp.games.push(g);
+    }
+    return groups;
+  }, [games]);
 
-  // ── Loading ──
   if (loading) return (
     <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
       <div className="text-center">
         <div className="text-5xl mb-4 animate-pulse">⚽</div>
         <div className="bebas text-3xl" style={{ color: 'var(--green)' }}>טוען משחקים...</div>
-        <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>מביאים יחסים עדכניים</div>
       </div>
     </div>
   );
@@ -611,54 +379,40 @@ export default function PlayerPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap">
-        {/* ── Bank (מצב בנק בלבד) ── */}
-        {settings?.use_bank && (
-          <div className="bank-card">
-            <div className="bank-left">
-              <Coins size={14} style={{ color: 'var(--green)' }} />
-              <span className="bank-label">הבנק שלך</span>
-            </div>
-            <div className="bank-right">
-              <span className="bank-val">{(profile?.bank ?? 0).toLocaleString()}</span>
-              <span className="bank-unit">נקודות</span>
-            </div>
+        {/* ── Round banner ── */}
+        {currentRound !== null && (
+          <div className="day-row" style={{ marginBottom: 4 }}>
+            <span className="day-dot" />
+            <span className="day-title">מחזור {currentRound}</span>
           </div>
         )}
 
-        {/* ── תוצאות לייב ── */}
-        <LiveScoresCard />
-
-
-        {/* ── Games — מקובצים לפי יום, כל המשחקים בטווח 48 שעות ── */}
+        {/* ── Games ── */}
         {gameGroups.length === 0 ? (
           <div className="card p-10 text-center mt-2">
             <div className="text-5xl mb-4">⚽</div>
-            <>
-              <div className="font-bold text-lg mb-1">אין משחקים פתוחים להימור</div>
-              <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                יחסים יופיעו כאשר יהיו משחקים בטווח 48 שעות
-              </div>
-            </>
+            <div className="font-bold text-lg mb-1">אין משחקים פתוחים</div>
+            <div className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              לא נמצאו משחקים בלוח. צור קשר עם האדמין.
+            </div>
           </div>
         ) : (
           gameGroups.map(grp => (
             <div key={grp.day}>
               <div className="day-row">
                 <span className="day-dot" />
-                <span className="day-title">
-                  {grp.day === today ? 'משחקי היום' : 'משחקים קרובים'}
-                </span>
-                <span className="day-date">{fmtDateHe(grp.games[0].commence_time)}</span>
+                <span className="day-date">{fmtDateHe(grp.games[0].kickoff_at)}</span>
               </div>
               <div className="games-list">
                 {grp.games.map(game => (
                   <GameCard
                     key={game.id}
                     game={game}
-                    settings={settings!}
+                    resultPts={resultPts}
+                    exactPts={exactPts}
                     bet={getBet(game.id)}
                     existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
-                    isStarted={new Date(game.commence_time).getTime() <= Date.now() + CUTOFF_MS}
+                    isStarted={new Date(game.kickoff_at).getTime() <= Date.now() + CUTOFF_MS}
                     onChange={upd => updateBet(game.id, upd)}
                   />
                 ))}
@@ -667,10 +421,7 @@ export default function PlayerPage() {
           ))
         )}
 
-        {/* ── Error ── */}
-        {error && (
-          <div className="err-banner">{error}</div>
-        )}
+        {error && <div className="err-banner">{error}</div>}
       </div>
 
       {/* ── Submit bar ── */}
@@ -683,14 +434,10 @@ export default function PlayerPage() {
                 <span>ההימורים נשלחו בהצלחה!</span>
               </div>
             ) : (
-              <button className="submit-btn" onClick={submitBets} disabled={submitting || readyBets.length === 0}>
+              <button className="submit-btn" onClick={submitBets} disabled={submitting}>
                 {submitting
                   ? 'שולח...'
-                  : readyBets.length === 0
-                    ? 'הזן תוצאה לפחות להימור אחד'
-                    : settings?.use_bank
-                    ? `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''} — ${totalCost.toLocaleString()} נק׳`
-                    : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''}`}
+                  : `שלח ${readyBets.length} הימור${readyBets.length !== 1 ? 'ים' : ''}`}
               </button>
             )}
           </div>

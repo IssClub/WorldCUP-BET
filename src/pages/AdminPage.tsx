@@ -172,25 +172,27 @@ export default function AdminPage() {
 
     setSettling(game.external_game_id);
     const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw';
+    const resultPts = settings?.result_points ?? 3;
+    const exactPts = settings?.exact_score_points ?? 5;
     const playerPayouts: Record<string, number> = {};
 
     for (const bet of game.bets) {
       const won = bet.pick === winner;
-      let payout = 0;
-      if (won) {
-        payout = Math.floor(bet.amount * bet.odds_value);
-        if (bet.exact_home !== null && bet.exact_home === homeScore && bet.exact_away === awayScore) {
-          payout = Math.floor(payout * 1.5);
-        }
-        playerPayouts[bet.player_id] = (playerPayouts[bet.player_id] || 0) + payout;
-      }
-      await supabase.from('bets').update({ status: won ? 'won' : 'lost', payout: won ? payout : 0, actual_home: homeScore, actual_away: awayScore }).eq('id', bet.id);
+      const isExact = won && bet.exact_home !== null && bet.exact_home === homeScore && bet.exact_away === awayScore;
+      const payout = isExact ? exactPts : (won ? resultPts : 0);
+      if (payout > 0) playerPayouts[bet.player_id] = (playerPayouts[bet.player_id] || 0) + payout;
+      await supabase.from('bets').update({ status: won ? 'won' : 'lost', payout, actual_home: homeScore, actual_away: awayScore }).eq('id', bet.id);
     }
 
     for (const [playerId, totalPayout] of Object.entries(playerPayouts)) {
       const { data: prof } = await supabase.from('profiles').select('bank').eq('id', playerId).single();
       if (prof) await supabase.from('profiles').update({ bank: prof.bank + totalPayout }).eq('id', playerId);
     }
+
+    // עדכן league_schedule כסגור
+    await supabase.from('league_schedule')
+      .update({ completed: true, home_score: homeScore, away_score: awayScore })
+      .eq('id', game.external_game_id);
 
     // הכנס פושים לתור
     const pushTitle = `⚽ ${teamHe(game.home_team)} ${homeScore}:${awayScore} ${teamHe(game.away_team)}`;
@@ -199,7 +201,7 @@ export default function AdminPage() {
       const payout = playerPayouts[bet.player_id] ?? 0;
       const body = won
         ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳`
-        : `${randomPhrase(LOSS_PHRASES)} הפסדת ${bet.amount.toLocaleString()} נק׳`;
+        : `${randomPhrase(LOSS_PHRASES)} הפסד — 0 נק׳`;
       return { player_id: bet.player_id, title: pushTitle, body };
     });
     if (pushRows.length > 0) {
@@ -327,6 +329,8 @@ export default function AdminPage() {
       auto_bet_amount: settings.auto_bet_amount,
       group_stage_bonus: settings.group_stage_bonus,
       sport_keys: settings.sport_keys ?? ['soccer_fifa_world_cup'],
+      result_points: settings.result_points ?? 3,
+      exact_score_points: settings.exact_score_points ?? 5,
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -785,7 +789,7 @@ export default function AdminPage() {
                     <div className="card p-5" style={{border:'1px solid rgba(255,214,0,0.2)'}}>
                       <div className="font-bold mb-4" style={{color:'var(--gold)'}}>סגירת ניחושים (סוף יולי 2026)</div>
                       <div className="text-xs mb-4" style={{color:'var(--text-muted)'}}>
-                        כל שחקן שניחש נכון יקבל {settings?.special_bet_stake ?? 100} נק׳ × יחס ההימור שלו כנקודות בונוס.
+                        כל שחקן שניחש נכון יקבל {settings?.special_bet_stake ?? 100} נק׳ בונוס.
                         (ניתן לשנות ב"הגדרות")
                       </div>
 
@@ -798,8 +802,8 @@ export default function AdminPage() {
                             onChange={e => setActualWinner(e.target.value)}
                           >
                             <option value="">— לא מסגר —</option>
-                            {WINNER_ODDS.map(o => (
-                              <option key={o.name} value={o.name}>{teamHe(o.name)} (×{o.price})</option>
+                            {LEAGUE_TEAMS.map(t => (
+                              <option key={t} value={t}>{teamHe(t)}</option>
                             ))}
                           </select>
                         </div>
@@ -909,6 +913,35 @@ export default function AdminPage() {
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div style={{height: 1, background: 'var(--border)'}} />
+
+                {/* ── ניקוד משחק ── */}
+                <div>
+                  <div className="text-sm font-semibold mb-3" style={{color: 'var(--text)'}}>ניקוד משחק</div>
+                  <div className="flex gap-4">
+                    <div style={{flex: 1}}>
+                      <label className="block text-xs mb-1" style={{color: 'var(--text-muted)'}}>כיוון נכון</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" className="input" style={{width: 72}}
+                          value={settings.result_points ?? 3}
+                          onChange={e => setSettings(prev => prev ? {...prev, result_points: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
+                      </div>
+                    </div>
+                    <div style={{flex: 1}}>
+                      <label className="block text-xs mb-1" style={{color: 'var(--text-muted)'}}>תוצאה מדויקת</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" className="input" style={{width: 72}}
+                          value={settings.exact_score_points ?? 5}
+                          onChange={e => setSettings(prev => prev ? {...prev, exact_score_points: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
