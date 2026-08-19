@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
@@ -27,12 +27,12 @@ interface BetState {
 }
 
 // ── Flag component ────────────────────────────────────────
-function Flag({ team, size = 56 }: { team: string; size?: number }) {
+function Flag({ team, size = 44 }: { team: string; size?: number }) {
   const badge = LEAGUE_BADGES[team];
   if (badge) {
     return (
       <img src={badge} alt={team} width={size} height={size}
-        style={{ borderRadius: 4, objectFit: 'contain', display: 'block' }} />
+        style={{ borderRadius: 6, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
     );
   }
   const url = flagUrl(team, 'w80');
@@ -52,8 +52,18 @@ const fmtTime = (iso: string) =>
 const fmtDateHe = (iso: string) =>
   new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
 
+// ── Score input (compact) ─────────────────────────────────
+const scoreInputStyle: React.CSSProperties = {
+  width: 52, height: 52, fontSize: '1.65rem', fontWeight: 800,
+  borderRadius: 12, border: '2px solid var(--border)',
+  background: 'rgba(255,255,255,0.06)', color: 'var(--text)',
+  textAlign: 'center', outline: 'none', display: 'block',
+  MozAppearance: 'textfield',
+};
+
 // ── GameCard ──────────────────────────────────────────────
-function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange }: {
+function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange,
+  homeRef, awayRef, onHomeComplete, onAwayComplete }: {
   game: Game;
   resultPts: number;
   exactPts: number;
@@ -61,41 +71,41 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   existingBet: Bet | null;
   isStarted: boolean;
   onChange: (b: Partial<BetState>) => void;
+  homeRef?: (el: HTMLInputElement | null) => void;
+  awayRef?: (el: HTMLInputElement | null) => void;
+  onHomeComplete: () => void;
+  onAwayComplete: () => void;
 }) {
   const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
   const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
 
-  // ── Settled bet (won or lost) ──
+  // shared outer wrapper
+  const teamSide = (side: 'home' | 'away') => (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, minWidth: 0 }}>
+      <Flag team={side === 'home' ? game.home_team : game.away_team} size={44} />
+      <span className="gc-tname">{teamHe(side === 'home' ? game.home_team : game.away_team)}</span>
+    </div>
+  );
+
+  // ── Settled bet ──
   if (existingBet && (existingBet.status === 'won' || existingBet.status === 'lost')) {
     const won = existingBet.status === 'won';
     return (
-      <div className={`gc ${won ? 'gc-done' : 'gc-locked'}`}>
-        <div className="gc-teams">
-          <div className="gc-team">
-            <Flag team={game.home_team} />
-            <span className="gc-tname">{teamHe(game.home_team)}</span>
-          </div>
-          <div className="gc-mid">
+      <div className={`gc ${won ? 'gc-done' : ''}`} style={{ padding: '12px 14px', opacity: won ? 1 : 0.75 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {teamSide('home')}
+          <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
             {isCompleted
-              ? <span className="gc-time" style={{ color: 'var(--text)', fontSize: 20, fontWeight: 700 }}>{game.home_score}:{game.away_score}</span>
-              : <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
+              ? <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, letterSpacing: 2, color: 'var(--text)' }}>
+                  {game.home_score} : {game.away_score}
+                </div>
+              : <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
             }
-            <span className="gc-vs">{isCompleted ? 'סופי' : 'VS'}</span>
+            <div style={{ fontSize: 13, color: won ? 'var(--green)' : '#f87171', fontWeight: 700, marginTop: 2 }}>
+              {won ? '✓' : '✗'} {existingBet.exact_home}:{existingBet.exact_away} → {won ? `+${existingBet.payout ?? 0}` : '0'} נק׳
+            </div>
           </div>
-          <div className="gc-team">
-            <Flag team={game.away_team} />
-            <span className="gc-tname">{teamHe(game.away_team)}</span>
-          </div>
-        </div>
-        <div className="gc-submitted">
-          {won
-            ? <span style={{ color: 'var(--green)' }}>✓ ניחשת {existingBet.exact_home}:{existingBet.exact_away}</span>
-            : <span style={{ color: '#f87171' }}>✗ ניחשת {existingBet.exact_home}:{existingBet.exact_away}</span>
-          }
-          <span className="gc-submitted-sep">→</span>
-          <span style={{ color: won ? 'var(--green)' : '#f87171', fontWeight: 700 }}>
-            {won ? `+${existingBet.payout ?? 0} נק׳` : '0 נק׳'}
-          </span>
+          {teamSide('away')}
         </div>
       </div>
     );
@@ -104,54 +114,38 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   // ── Pending bet ──
   if (existingBet) {
     return (
-      <div className="gc gc-done">
-        <div className="gc-teams">
-          <div className="gc-team">
-            <Flag team={game.home_team} />
-            <span className="gc-tname">{teamHe(game.home_team)}</span>
+      <div className="gc gc-done" style={{ padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {teamSide('home')}
+          <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
+            <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)', marginTop: 2 }}>
+              ⚡ {existingBet.exact_home}:{existingBet.exact_away}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+              {resultPts} | 🎯{exactPts} נק׳
+            </div>
           </div>
-          <div className="gc-mid">
-            <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
-            <span className="gc-vs">VS</span>
-          </div>
-          <div className="gc-team">
-            <Flag team={game.away_team} />
-            <span className="gc-tname">{teamHe(game.away_team)}</span>
-          </div>
-        </div>
-        <div className="gc-submitted">
-          <CheckCircle2 size={14} />
-          <span className="gc-exact-badge">⚡ {existingBet.exact_home}:{existingBet.exact_away}</span>
-          <span className="gc-submitted-sep">→</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>כיוון </span>
-          <span style={{ color: 'var(--green)', fontWeight: 700 }}>{resultPts}</span>
-          <span style={{ color: 'var(--border)', margin: '0 3px' }}>|</span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>🎯 מדויק </span>
-          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{exactPts} נק׳</span>
+          {teamSide('away')}
         </div>
       </div>
     );
   }
 
-  // ── Completed game (no bet) ──
+  // ── Completed, no bet ──
   if (isCompleted) {
     return (
-      <div className="gc gc-locked">
-        <div className="gc-teams">
-          <div className="gc-team">
-            <Flag team={game.home_team} />
-            <span className="gc-tname">{teamHe(game.home_team)}</span>
+      <div className="gc" style={{ padding: '12px 14px', opacity: 0.65 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {teamSide('home')}
+          <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
+            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, letterSpacing: 2 }}>
+              {game.home_score} : {game.away_score}
+            </div>
+            <div className="gc-time">סופי</div>
           </div>
-          <div className="gc-mid">
-            <span className="gc-time" style={{ color: 'var(--text)', fontSize: 20, fontWeight: 700 }}>{game.home_score}:{game.away_score}</span>
-            <span className="gc-vs">סופי</span>
-          </div>
-          <div className="gc-team">
-            <Flag team={game.away_team} />
-            <span className="gc-tname">{teamHe(game.away_team)}</span>
-          </div>
+          {teamSide('away')}
         </div>
-        <div className="gc-lock-msg" style={{ color: 'var(--text-muted)' }}>לא הימרת על משחק זה</div>
       </div>
     );
   }
@@ -159,24 +153,15 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   // ── Game started, no bet ──
   if (isStarted) {
     return (
-      <div className="gc gc-locked">
-        <div className="gc-teams">
-          <div className="gc-team">
-            <Flag team={game.home_team} />
-            <span className="gc-tname">{teamHe(game.home_team)}</span>
+      <div className="gc gc-locked" style={{ padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {teamSide('home')}
+          <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 80 }}>
+            <Lock size={16} style={{ color: 'var(--text-muted)', margin: '0 auto 2px' }} />
+            <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>נסגרו</div>
           </div>
-          <div className="gc-mid">
-            <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
-            <span className="gc-vs">VS</span>
-          </div>
-          <div className="gc-team">
-            <Flag team={game.away_team} />
-            <span className="gc-tname">{teamHe(game.away_team)}</span>
-          </div>
-        </div>
-        <div className="gc-lock-msg">
-          <Lock size={13} />
-          <span>ההימורים נסגרו</span>
+          {teamSide('away')}
         </div>
       </div>
     );
@@ -184,55 +169,49 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 
   // ── Open for betting ──
   return (
-    <div className={`gc ${hasScore ? 'gc-picked' : ''}`}>
-      <div className="gc-teams">
-        <div className="gc-team">
-          <Flag team={game.home_team} />
-          <span className="gc-tname">{teamHe(game.home_team)}</span>
-        </div>
-        <div className="gc-mid">
+    <div className={`gc ${hasScore ? 'gc-picked' : ''}`} style={{ padding: '12px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {teamSide('home')}
+
+        {/* Score inputs */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '0 4px' }}>
           <span className="gc-time">{fmtTime(game.kickoff_at)}</span>
-          <span className="gc-vs">VS</span>
-        </div>
-        <div className="gc-team">
-          <Flag team={game.away_team} />
-          <span className="gc-tname">{teamHe(game.away_team)}</span>
-        </div>
-      </div>
-
-      <div className="gc-exact-inputs gc-score-primary">
-        <div className="gc-exact-team"><Flag team={game.home_team} size={32} /></div>
-        <input
-          type="number" min="0" max="20" inputMode="numeric"
-          className="gc-score-input gc-score-lg"
-          value={bet.exactHome}
-          onChange={e => onChange({ exactHome: e.target.value })}
-          placeholder="?"
-        />
-        <span className="gc-score-colon">:</span>
-        <input
-          type="number" min="0" max="20" inputMode="numeric"
-          className="gc-score-input gc-score-lg"
-          value={bet.exactAway}
-          onChange={e => onChange({ exactAway: e.target.value })}
-          placeholder="?"
-        />
-        <div className="gc-exact-team"><Flag team={game.away_team} size={32} /></div>
-      </div>
-
-      {hasScore && (
-        <div className="gc-amount fade-in">
-          <div className="gc-potential">
-            <span className="gc-pot-label">כיוון נכון</span>
-            <span className="gc-pot-val">{resultPts}</span>
-            <span className="gc-pot-u">נק׳</span>
-            <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
-            <span className="gc-pot-label">🎯 מדויק</span>
-            <span className="gc-pot-val" style={{ color: 'var(--gold)' }}>{exactPts}</span>
-            <span className="gc-pot-u">נק׳</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              ref={homeRef}
+              type="number" min="0" max="20" inputMode="numeric"
+              style={{ ...scoreInputStyle, borderColor: bet.exactHome !== '' ? 'var(--green)' : 'var(--border)' }}
+              value={bet.exactHome}
+              placeholder="?"
+              onChange={e => {
+                const val = e.target.value;
+                onChange({ exactHome: val });
+                if (val.length === 1) onHomeComplete();
+              }}
+            />
+            <span style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-muted)', lineHeight: 1 }}>:</span>
+            <input
+              ref={awayRef}
+              type="number" min="0" max="20" inputMode="numeric"
+              style={{ ...scoreInputStyle, borderColor: bet.exactAway !== '' ? 'var(--green)' : 'var(--border)' }}
+              value={bet.exactAway}
+              placeholder="?"
+              onChange={e => {
+                const val = e.target.value;
+                onChange({ exactAway: val });
+                if (val.length === 1) onAwayComplete();
+              }}
+            />
           </div>
+          {hasScore && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {resultPts} נק׳ | 🎯 {exactPts} נק׳
+            </span>
+          )}
         </div>
-      )}
+
+        {teamSide('away')}
+      </div>
     </div>
   );
 }
@@ -249,6 +228,10 @@ export default function PlayerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [justSubmitted, setJustSubmitted] = useState(false);
+
+  // ── Input refs for auto-focus ──────────────────────────
+  const homeRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  const awayRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
 
   useEffect(() => { loadData(); }, []);
 
@@ -290,6 +273,27 @@ export default function PlayerPage() {
   }
 
   const CUTOFF_MS = 5 * 60 * 1000;
+
+  // Ordered list of games still open for betting
+  const bettableGameIds = useMemo(() =>
+    games
+      .filter(g => !g.completed
+        && new Date(g.kickoff_at).getTime() > Date.now() + CUTOFF_MS
+        && !existingBets.find(e => e.external_game_id === g.id))
+      .map(g => g.id),
+    [games, existingBets]
+  );
+
+  const handleAutoFocus = useCallback((gameId: string, field: 'home' | 'away') => {
+    if (field === 'home') {
+      setTimeout(() => awayRefs.current.get(gameId)?.focus(), 50);
+    } else {
+      const idx = bettableGameIds.indexOf(gameId);
+      if (idx >= 0 && idx < bettableGameIds.length - 1) {
+        setTimeout(() => homeRefs.current.get(bettableGameIds[idx + 1])?.focus(), 50);
+      }
+    }
+  }, [bettableGameIds]);
 
   const readyBets = useMemo(() => games.filter(g => {
     if (g.completed) return false;
@@ -414,6 +418,10 @@ export default function PlayerPage() {
                     existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
                     isStarted={new Date(game.kickoff_at).getTime() <= Date.now() + CUTOFF_MS}
                     onChange={upd => updateBet(game.id, upd)}
+                    homeRef={el => homeRefs.current.set(game.id, el)}
+                    awayRef={el => awayRefs.current.set(game.id, el)}
+                    onHomeComplete={() => handleAutoFocus(game.id, 'home')}
+                    onAwayComplete={() => handleAutoFocus(game.id, 'away')}
                   />
                 ))}
               </div>
