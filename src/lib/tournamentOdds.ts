@@ -16,9 +16,7 @@ export const LEAGUE_TEAMS: string[] = [
   'Hapoel Petah Tikva',
   'Maccabi Netanya',
   'Maccabi Petah Tikva',
-  'Bnei Yehuda',
   'Hapoel Ramat Gan',
-  'Hapoel Hadera',
   'Ironi Tiberias',
 ];
 
