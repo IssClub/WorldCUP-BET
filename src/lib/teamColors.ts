@@ -12,8 +12,6 @@ export const TEAM_COLORS: Record<string, string> = {
   'Hapoel Petah Tikva':          '#CC0000',
   'Hapoel Ramat Gan':            '#CC0000',
   'Maccabi Netanya':             '#0073C6',
-  'Bnei Yehuda':                 '#B87800',
-  'Hapoel Hadera':               '#CC0000',
   'Ironi Tiberias':              '#1A3DB5',
 };
 

@@ -12,7 +12,5 @@ export const LEAGUE_BADGES: Record<string, string> = {
   'Hapoel Petah Tikva':          'https://r2.thesportsdb.com/images/media/team/badge/yots411781805526.png',
   'Hapoel Ramat Gan':            'https://r2.thesportsdb.com/images/media/team/badge/p7r2td1781805776.png',
   'Maccabi Netanya':             'https://r2.thesportsdb.com/images/media/team/badge/s51yht1781805956.png',
-  'Bnei Yehuda':                 'https://r2.thesportsdb.com/images/media/team/badge/axtvuc1579019984.png',
-  'Hapoel Hadera':               'https://r2.thesportsdb.com/images/media/team/badge/4xg82f1579020005.png',
   'Ironi Tiberias':              'https://r2.thesportsdb.com/images/media/team/badge/78q5ez1656067666.png',
 };
