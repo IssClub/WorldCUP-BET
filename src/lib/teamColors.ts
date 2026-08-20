@@ -1,25 +1,26 @@
 export interface TeamTheme {
-  green:      string;  // primary accent
-  greenDark:  string;
-  gold:       string;  // secondary accent
-  bg:         string;
-  surface:    string;
-  surface2:   string;
-  textMuted:  string;
-  cardBg:     string;  // full rgba string
-  hdrBg:      string;  // full rgba string
-  pitchGlow1: string;  // full rgba string
-  pitchGlow2: string;
-  pitchGlow3: string;
-  pitchStart: string;
-  pitchEnd:   string;
+  green:        string;  // primary accent
+  greenDark:    string;
+  gold:         string;  // secondary accent
+  inputAccent:  string;  // border color of filled score inputs
+  bg:           string;
+  surface:      string;
+  surface2:     string;
+  textMuted:    string;
+  cardBg:       string;  // full rgba string
+  hdrBg:        string;  // full rgba string
+  pitchGlow1:   string;  // full rgba string
+  pitchGlow2:   string;
+  pitchGlow3:   string;
+  pitchStart:   string;
+  pitchEnd:     string;
 }
 
 export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Yellow + Blue ───────────────────────────────────────────────────
   'Maccabi Tel Aviv': {
-    green: '#FFD700', greenDark: '#C8A500', gold: '#4A88D8',
+    green: '#FFD700', greenDark: '#C8A500', gold: '#4A88D8', inputAccent: '#4A88D8',
     bg: '#07101e', surface: '#0d1c36', surface2: '#14294e',
     textMuted: '#5878a8',
     cardBg:   'rgba(10,22,50,0.88)',
@@ -32,7 +33,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Yellow + Black ──────────────────────────────────────────────────
   'Beitar Jerusalem': {
-    green: '#FFD700', greenDark: '#C8A500', gold: '#aa8800',
+    green: '#FFD700', greenDark: '#C8A500', gold: '#aa8800', inputAccent: '#FFD700',
     bg: '#0d0d0a', surface: '#1a1a14', surface2: '#26261e',
     textMuted: '#888860',
     cardBg:   'rgba(20,20,12,0.90)',
@@ -44,7 +45,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   'Maccabi Netanya': {
-    green: '#FFD700', greenDark: '#C8A500', gold: '#004899',
+    green: '#FFD700', greenDark: '#C8A500', gold: '#004899', inputAccent: '#004899',
     bg: '#0d0d0a', surface: '#1a1a14', surface2: '#26261e',
     textMuted: '#888860',
     cardBg:   'rgba(20,20,12,0.90)',
@@ -57,7 +58,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Red + White ─────────────────────────────────────────────────────
   'Hapoel Tel-Aviv': {
-    green: '#E30613', greenDark: '#A80000', gold: '#ff6666',
+    green: '#E30613', greenDark: '#A80000', gold: '#ff6666', inputAccent: '#E30613',
     bg: '#180305', surface: '#280508', surface2: '#36080b',
     textMuted: '#a06060',
     cardBg:   'rgba(38,5,8,0.88)',
@@ -69,7 +70,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   "Hapoel Be'er Sheva": {
-    green: '#DA291C', greenDark: '#9a1a10', gold: '#ff7766',
+    green: '#DA291C', greenDark: '#9a1a10', gold: '#ff7766', inputAccent: '#DA291C',
     bg: '#180305', surface: '#280508', surface2: '#36080b',
     textMuted: '#a06060',
     cardBg:   'rgba(36,5,8,0.88)',
@@ -82,7 +83,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Red + Black ─────────────────────────────────────────────────────
   'Hapoel Haifa': {
-    green: '#CC0000', greenDark: '#880000', gold: '#884444',
+    green: '#CC0000', greenDark: '#880000', gold: '#884444', inputAccent: '#CC0000',
     bg: '#130404', surface: '#200606', surface2: '#2e0a0a',
     textMuted: '#885858',
     cardBg:   'rgba(30,6,6,0.88)',
@@ -94,7 +95,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   'Hapoel Jerusalem': {
-    green: '#CC0000', greenDark: '#880000', gold: '#884444',
+    green: '#CC0000', greenDark: '#880000', gold: '#884444', inputAccent: '#CC0000',
     bg: '#130404', surface: '#200606', surface2: '#2e0a0a',
     textMuted: '#885858',
     cardBg:   'rgba(30,6,6,0.88)',
@@ -106,7 +107,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   'Hapoel Ramat Gan': {
-    green: '#CC0000', greenDark: '#880000', gold: '#884444',
+    green: '#CC0000', greenDark: '#880000', gold: '#884444', inputAccent: '#CC0000',
     bg: '#130404', surface: '#200606', surface2: '#2e0a0a',
     textMuted: '#885858',
     cardBg:   'rgba(30,6,6,0.88)',
@@ -119,7 +120,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Green + White ────────────────────────────────────────────────────
   'Maccabi Haifa': {
-    green: '#19a045', greenDark: '#107830', gold: '#50cc70',
+    green: '#19a045', greenDark: '#107830', gold: '#50cc70', inputAccent: '#19a045',
     bg: '#061210', surface: '#0c1e18', surface2: '#142c22',
     textMuted: '#5a9868',
     cardBg:   'rgba(8,26,18,0.88)',
@@ -131,7 +132,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   'Bnei Sakhnin': {
-    green: '#007A00', greenDark: '#005000', gold: '#44aa44',
+    green: '#007A00', greenDark: '#005000', gold: '#44aa44', inputAccent: '#007A00',
     bg: '#061210', surface: '#0c1e18', surface2: '#142c22',
     textMuted: '#5a9868',
     cardBg:   'rgba(6,24,14,0.88)',
@@ -144,7 +145,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Blue + White ─────────────────────────────────────────────────────
   'Hapoel Ironi Kiryat Shmona': {
-    green: '#1040AA', greenDark: '#0a2c78', gold: '#4070c0',
+    green: '#1040AA', greenDark: '#0a2c78', gold: '#4070c0', inputAccent: '#1040AA',
     bg: '#050810', surface: '#0a1020', surface2: '#12182e',
     textMuted: '#486090',
     cardBg:   'rgba(6,12,32,0.88)',
@@ -156,7 +157,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
   },
 
   'Hapoel Petah Tikva': {
-    green: '#1565C0', greenDark: '#0d4a8a', gold: '#5090e0',
+    green: '#1565C0', greenDark: '#0d4a8a', gold: '#5090e0', inputAccent: '#1565C0',
     bg: '#060c1a', surface: '#0c1830', surface2: '#142442',
     textMuted: '#5878b0',
     cardBg:   'rgba(8,18,45,0.88)',
@@ -169,7 +170,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── Blue + Black ─────────────────────────────────────────────────────
   'Ironi Tiberias': {
-    green: '#1A3DB5', greenDark: '#122a80', gold: '#4060c0',
+    green: '#1A3DB5', greenDark: '#122a80', gold: '#4060c0', inputAccent: '#1A3DB5',
     bg: '#060a14', surface: '#0c1228', surface2: '#14203a',
     textMuted: '#5070a8',
     cardBg:   'rgba(8,14,38,0.88)',
@@ -182,7 +183,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 
   // ── White + Blue ─────────────────────────────────────────────────────
   'Maccabi Petah Tikva': {
-    green: '#dde8ff', greenDark: '#a0b8e0', gold: '#0052A3',
+    green: '#dde8ff', greenDark: '#a0b8e0', gold: '#0052A3', inputAccent: '#0052A3',
     bg: '#080e1a', surface: '#0f1a2e', surface2: '#182640',
     textMuted: '#6888b0',
     cardBg:   'rgba(10,20,45,0.88)',
@@ -195,7 +196,7 @@ export const TEAM_THEMES: Record<string, TeamTheme> = {
 };
 
 const DEFAULT_THEME: TeamTheme = {
-  green: '#00C853', greenDark: '#007B33', gold: '#FFD600',
+  green: '#00C853', greenDark: '#007B33', gold: '#FFD600', inputAccent: '#00C853',
   bg: '#0b1e2d', surface: '#132840', surface2: '#1b3352',
   textMuted: '#7da0c0',
   cardBg:   'rgba(19,40,64,0.85)',
@@ -208,9 +209,10 @@ const DEFAULT_THEME: TeamTheme = {
 
 function setVars(t: TeamTheme) {
   const r = document.documentElement.style;
-  r.setProperty('--green',       t.green);
-  r.setProperty('--green-dark',  t.greenDark);
-  r.setProperty('--gold',        t.gold);
+  r.setProperty('--green',        t.green);
+  r.setProperty('--green-dark',   t.greenDark);
+  r.setProperty('--gold',         t.gold);
+  r.setProperty('--input-accent', t.inputAccent);
   r.setProperty('--bg',          t.bg);
   r.setProperty('--surface',     t.surface);
   r.setProperty('--surface2',    t.surface2);

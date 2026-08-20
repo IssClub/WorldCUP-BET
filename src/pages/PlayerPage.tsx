@@ -180,7 +180,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             <input
               ref={homeRef}
               type="number" min="0" max="20" inputMode="numeric"
-              style={{ ...scoreInputStyle, borderColor: bet.exactHome !== '' ? 'var(--green)' : 'var(--border)' }}
+              style={{ ...scoreInputStyle, borderColor: bet.exactHome !== '' ? 'var(--input-accent)' : 'var(--border)' }}
               value={bet.exactHome}
               placeholder="?"
               onChange={e => {
@@ -193,7 +193,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             <input
               ref={awayRef}
               type="number" min="0" max="20" inputMode="numeric"
-              style={{ ...scoreInputStyle, borderColor: bet.exactAway !== '' ? 'var(--green)' : 'var(--border)' }}
+              style={{ ...scoreInputStyle, borderColor: bet.exactAway !== '' ? 'var(--input-accent)' : 'var(--border)' }}
               value={bet.exactAway}
               placeholder="?"
               onChange={e => {

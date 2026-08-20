@@ -16,6 +16,7 @@
   --border:     rgba(255,255,255,0.1);
   --text:       #ffffff;
   --text-muted: #7da0c0;
+  --input-accent: #00C853; /* border color of filled score inputs */
   /* pitch background — overridden per team theme */
   --card-bg:      rgba(19,40,64,0.85);
   --hdr-bg:       rgba(10,14,26,0.96);
