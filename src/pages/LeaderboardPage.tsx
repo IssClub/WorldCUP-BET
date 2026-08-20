@@ -133,22 +133,22 @@ export default function LeaderboardPage() {
 
           {/* Table header */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: '30px 1fr 30px 30px 30px 58px',
-            padding: '8px 12px',
+            display: 'flex', alignItems: 'center',
+            padding: '8px 14px',
             borderBottom: '1px solid var(--border)',
-            fontSize: '0.65rem',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            letterSpacing: '0.5px',
-            textTransform: 'uppercase',
+            fontSize: '0.65rem', fontWeight: 700,
+            color: 'var(--text-muted)', letterSpacing: '0.5px',
           }}>
-            <span>#</span>
-            <span>שם</span>
-            <span style={{ textAlign: 'center' }}>✓</span>
-            <span style={{ textAlign: 'center' }}>✗</span>
-            <span style={{ textAlign: 'center' }}>🎯</span>
-            <span style={{ textAlign: 'right' }}>נק׳</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 22 }}>#</span>
+              <span>שם</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ width: 40, textAlign: 'center' }}>✓</span>
+              <span style={{ width: 40, textAlign: 'center' }}>✗</span>
+              <span style={{ width: 40, textAlign: 'center' }}>🎯</span>
+              <span style={{ width: 58, textAlign: 'right' }}>נק׳</span>
+            </div>
           </div>
 
           {/* Rows */}
@@ -166,80 +166,72 @@ export default function LeaderboardPage() {
                 <div
                   onClick={() => hasHistory && setExpanded(isOpen ? null : p.id)}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '30px 1fr 30px 30px 30px 58px',
-                    padding: '11px 12px',
-                    alignItems: 'center',
+                    display: 'flex', alignItems: 'center',
+                    padding: '11px 14px',
                     cursor: hasHistory ? 'pointer' : 'default',
                     background: isMe ? 'rgba(0,200,83,0.07)' : 'transparent',
                   }}
                 >
-                  {/* Position */}
-                  <span style={{
-                    fontSize: i < 3 ? '1.05rem' : '0.82rem',
-                    fontWeight: 700,
-                    color: i === 0 ? 'var(--gold)' : 'var(--text-muted)',
-                    lineHeight: 1,
-                  }}>
-                    {i < 3 ? MEDALS[i] : i + 1}
-                  </span>
-
-                  {/* Name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                    {p.favorite_team && LEAGUE_BADGES[p.favorite_team] && (
-                      <img
-                        src={LEAGUE_BADGES[p.favorite_team]}
-                        alt={teamHe(p.favorite_team)}
-                        title={teamHe(p.favorite_team)}
-                        style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }}
-                      />
-                    )}
+                  {/* Left: position + name */}
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                     <span style={{
-                      fontWeight: isMe ? 700 : 500,
-                      fontSize: '0.88rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      width: 22, flexShrink: 0,
+                      fontSize: i < 3 ? '1.05rem' : '0.82rem',
+                      fontWeight: 700,
+                      color: i === 0 ? 'var(--gold)' : 'var(--text-muted)',
+                      lineHeight: 1,
                     }}>
-                      {p.display_name}
+                      {i < 3 ? MEDALS[i] : i + 1}
                     </span>
-                    {isMe && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      {p.favorite_team && LEAGUE_BADGES[p.favorite_team] && (
+                        <img
+                          src={LEAGUE_BADGES[p.favorite_team]}
+                          alt={teamHe(p.favorite_team)}
+                          title={teamHe(p.favorite_team)}
+                          style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }}
+                        />
+                      )}
                       <span style={{
-                        fontSize: '0.58rem', background: 'var(--green)', color: '#000',
-                        borderRadius: 4, padding: '1px 4px', fontWeight: 700, flexShrink: 0,
-                      }}>אתה</span>
-                    )}
-                    {hasHistory && (
-                      isOpen
-                        ? <ChevronUp size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        : <ChevronDown size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    )}
+                        fontWeight: isMe ? 700 : 500,
+                        fontSize: '0.88rem',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {p.display_name}
+                      </span>
+                      {isMe && (
+                        <span style={{
+                          fontSize: '0.58rem', background: 'var(--green)', color: '#000',
+                          borderRadius: 4, padding: '1px 4px', fontWeight: 700, flexShrink: 0,
+                        }}>אתה</span>
+                      )}
+                      {hasHistory && (
+                        isOpen
+                          ? <ChevronUp size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                          : <ChevronDown size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                      )}
+                    </div>
                   </div>
 
-                  {/* Wins */}
-                  <span style={{ textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
-                    {p.wins}
-                  </span>
-
-                  {/* Losses */}
-                  <span style={{ textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
-                    {p.losses}
-                  </span>
-
-                  {/* Exact hits */}
-                  <span style={{ textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem' }}>
-                    {p.exactHits}
-                  </span>
-
-                  {/* Bank */}
-                  <span style={{
-                    textAlign: 'right',
-                    fontWeight: 800,
-                    fontSize: '0.92rem',
-                    color: i === 0 ? 'var(--gold)' : 'rgba(255,255,255,0.88)',
-                  }}>
-                    {p.bank.toLocaleString()}
-                  </span>
+                  {/* Right: stats — fixed-width, equal columns */}
+                  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ width: 40, textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
+                      {p.wins}
+                    </span>
+                    <span style={{ width: 40, textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
+                      {p.losses}
+                    </span>
+                    <span style={{ width: 40, textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem' }}>
+                      {p.exactHits}
+                    </span>
+                    <span style={{
+                      width: 58, textAlign: 'right',
+                      fontWeight: 800, fontSize: '0.92rem',
+                      color: i === 0 ? 'var(--gold)' : 'rgba(255,255,255,0.88)',
+                    }}>
+                      {p.bank.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Expanded bet history */}
