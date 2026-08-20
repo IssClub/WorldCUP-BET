@@ -7,15 +7,23 @@
 }
 
 :root {
-  --green: #00C853;
+  --green:      #00C853;
   --green-dark: #007B33;
-  --gold: #FFD600;
-  --bg: #0b1e2d;
-  --surface: #132840;
-  --surface2: #1b3352;
-  --border: rgba(255,255,255,0.1);
-  --text: #ffffff;
+  --gold:       #FFD600;
+  --bg:         #0b1e2d;
+  --surface:    #132840;
+  --surface2:   #1b3352;
+  --border:     rgba(255,255,255,0.1);
+  --text:       #ffffff;
   --text-muted: #7da0c0;
+  /* pitch background — overridden per team theme */
+  --card-bg:      rgba(19,40,64,0.85);
+  --hdr-bg:       rgba(10,14,26,0.96);
+  --pitch-glow-1: rgba(0,210,90,0.28);
+  --pitch-glow-2: rgba(0,120,255,0.08);
+  --pitch-glow-3: rgba(0,200,83,0.06);
+  --pitch-start:  #0b1e2d;
+  --pitch-end:    #071524;
 }
 
 html {
@@ -33,10 +41,10 @@ body {
 
 .pitch-bg {
   background:
-    radial-gradient(ellipse 100% 50% at 50% -5%, rgba(0,210,90,0.28) 0%, transparent 60%),
-    radial-gradient(ellipse 70% 40% at 20% 60%, rgba(0,120,255,0.08) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 40% at 80% 60%, rgba(0,200,83,0.06) 0%, transparent 55%),
-    linear-gradient(180deg, #0b1e2d 0%, #071524 100%);
+    radial-gradient(ellipse 100% 50% at 50% -5%, var(--pitch-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 20% 60%, var(--pitch-glow-2) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 40% at 80% 60%, var(--pitch-glow-3) 0%, transparent 55%),
+    linear-gradient(180deg, var(--pitch-start) 0%, var(--pitch-end) 100%);
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -55,7 +63,7 @@ body {
 .pitch-bg > * { position: relative; z-index: 1; }
 
 .card {
-  background: rgba(19, 40, 64, 0.85);
+  background: var(--card-bg);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 14px;
   backdrop-filter: blur(10px);
@@ -175,7 +183,7 @@ body {
 .hdr {
   position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   padding-top: env(safe-area-inset-top);
-  background: rgba(10,14,26,0.96);
+  background: var(--hdr-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
