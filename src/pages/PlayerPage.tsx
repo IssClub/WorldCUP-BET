@@ -6,6 +6,7 @@ import { flagUrl } from '../lib/flagMap';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
 import { CheckCircle2, RefreshCw, Lock } from 'lucide-react';
+import RoundStories from '../components/RoundStories';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -383,6 +384,13 @@ export default function PlayerPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap">
+        {/* ── Round stories ── */}
+        {games.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <RoundStories games={games} />
+          </div>
+        )}
+
         {/* ── Round banner ── */}
         {currentRound !== null && (
           <div className="day-row" style={{ marginBottom: 4 }}>
