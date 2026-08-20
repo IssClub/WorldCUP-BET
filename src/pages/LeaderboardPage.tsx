@@ -242,7 +242,7 @@ export default function LeaderboardPage() {
                     textAlign: 'right',
                     fontWeight: 800,
                     fontSize: '0.92rem',
-                    color: i === 0 ? 'var(--gold)' : p.bank < 500 ? '#f87171' : 'var(--green)',
+                    color: i === 0 ? 'var(--gold)' : 'rgba(255,255,255,0.88)',
                   }}>
                     {p.bank.toLocaleString()}
                   </span>
