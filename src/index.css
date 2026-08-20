@@ -17,6 +17,7 @@
   --text:       #ffffff;
   --text-muted: #7da0c0;
   --input-accent: #00C853; /* border color of filled score inputs */
+  --gc-border:    #00C853; /* border of game card when bet is filled */
   /* pitch background — overridden per team theme */
   --card-bg:      rgba(19,40,64,0.85);
   --hdr-bg:       rgba(10,14,26,0.96);
@@ -242,9 +243,9 @@ body {
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
 }
 .gc-picked {
-  border-color: rgba(0,200,83,0.5);
-  box-shadow: 0 4px 30px rgba(0,200,83,0.15);
-  background: rgba(0,80,40,0.3);
+  border-color: color-mix(in srgb, var(--gc-border) 60%, transparent);
+  box-shadow: 0 4px 30px color-mix(in srgb, var(--gc-border) 20%, transparent);
+  background: color-mix(in srgb, var(--gc-border) 14%, #000);
 }
 .gc-done {
   background: rgba(0,30,15,0.5);
