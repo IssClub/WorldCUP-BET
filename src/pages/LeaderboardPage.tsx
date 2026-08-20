@@ -134,7 +134,7 @@ export default function LeaderboardPage() {
           {/* Table header */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '30px 1fr 30px 30px 30px 30px 58px',
+            gridTemplateColumns: '30px 1fr 30px 30px 30px 58px',
             padding: '8px 12px',
             borderBottom: '1px solid var(--border)',
             fontSize: '0.65rem',
@@ -145,7 +145,6 @@ export default function LeaderboardPage() {
           }}>
             <span>#</span>
             <span>שם</span>
-            <span style={{ textAlign: 'center' }}>נ</span>
             <span style={{ textAlign: 'center' }}>✓</span>
             <span style={{ textAlign: 'center' }}>✗</span>
             <span style={{ textAlign: 'center' }}>🎯</span>
@@ -168,7 +167,7 @@ export default function LeaderboardPage() {
                   onClick={() => hasHistory && setExpanded(isOpen ? null : p.id)}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '30px 1fr 30px 30px 30px 30px 58px',
+                    gridTemplateColumns: '30px 1fr 30px 30px 30px 58px',
                     padding: '11px 12px',
                     alignItems: 'center',
                     cursor: hasHistory ? 'pointer' : 'default',
@@ -216,11 +215,6 @@ export default function LeaderboardPage() {
                         : <ChevronDown size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     )}
                   </div>
-
-                  {/* Total bets */}
-                  <span style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>
-                    {p.totalBets}
-                  </span>
 
                   {/* Wins */}
                   <span style={{ textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
