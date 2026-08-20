@@ -123,7 +123,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
               ⚡ {existingBet.exact_home}:{existingBet.exact_away}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-              {resultPts} | 🎯{exactPts} נק׳
+              ✅ {resultPts} | 🎯 {exactPts} נק׳
             </div>
           </div>
           {teamSide('away')}
@@ -205,7 +205,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           </div>
           {hasScore && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {resultPts} נק׳ | 🎯 {exactPts} נק׳
+              ✅ {resultPts} | 🎯 {exactPts} נק׳
             </span>
           )}
         </div>

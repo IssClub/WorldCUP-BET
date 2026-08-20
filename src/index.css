@@ -248,8 +248,8 @@ body {
   background: color-mix(in srgb, var(--gc-border) 14%, #000);
 }
 .gc-done {
-  background: rgba(0,30,15,0.5);
-  border-color: rgba(0,200,83,0.25);
+  background: color-mix(in srgb, var(--gc-border) 8%, #000);
+  border-color: color-mix(in srgb, var(--gc-border) 30%, transparent);
 }
 .gc-locked { opacity: 0.5; pointer-events: none; }
 .gc-lock-msg {
