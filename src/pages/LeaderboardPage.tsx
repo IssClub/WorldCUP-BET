@@ -5,6 +5,7 @@ import type { Profile, Bet } from '../lib/supabase';
 import { RefreshCw, Crown, ChevronDown, ChevronUp } from 'lucide-react';
 import { teamHe } from '../lib/teamNames';
 import { flagUrl } from '../lib/flagMap';
+import { LEAGUE_BADGES } from '../lib/leagueBadges';
 
 type PlayerStats = Profile & {
   wins: number;
@@ -186,6 +187,14 @@ export default function LeaderboardPage() {
 
                   {/* Name */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                    {p.favorite_team && LEAGUE_BADGES[p.favorite_team] && (
+                      <img
+                        src={LEAGUE_BADGES[p.favorite_team]}
+                        alt={teamHe(p.favorite_team)}
+                        title={teamHe(p.favorite_team)}
+                        style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }}
+                      />
+                    )}
                     <span style={{
                       fontWeight: isMe ? 700 : 500,
                       fontSize: '0.88rem',

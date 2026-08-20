@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabase';
+import type { Profile } from './lib/supabase';
 import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
 import AdminPage from './pages/AdminPage';
@@ -8,7 +9,10 @@ import MyBetsPage from './pages/MyBetsPage';
 import TournamentPage from './pages/TournamentPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import { registerPush, pushSupported } from './lib/push';
-import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, Lock } from 'lucide-react';
+import { LEAGUE_BADGES } from './lib/leagueBadges';
+import { teamHe } from './lib/teamNames';
+import { applyTeamTheme, resetTeamTheme } from './lib/teamColors';
+import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, Lock, X, Check } from 'lucide-react';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
@@ -65,6 +69,267 @@ function PushModal({ userId }: { userId: string }) {
     </div>
   );
 }
+
+// ── FavoriteTeamModal ────────────────────────────────────────────────────────
+
+const TEAM_LIST = Object.keys(LEAGUE_BADGES);
+
+function FavoriteTeamModal({
+  profile,
+  onClose,
+  onSaved,
+}: {
+  profile: Profile;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<string>(profile.favorite_team ?? '');
+  const [useColors, setUseColors] = useState(
+    localStorage.getItem('useTeamTheme') === 'true'
+  );
+  const [saving, setSaving] = useState(false);
+
+  const currentTeam = profile.favorite_team;
+
+  async function save() {
+    if (!selected) return;
+    setSaving(true);
+    await supabase.from('profiles').update({ favorite_team: selected }).eq('id', profile.id);
+    localStorage.setItem('useTeamTheme', useColors ? 'true' : 'false');
+    if (useColors) applyTeamTheme(selected);
+    else resetTeamTheme();
+    await onSaved();
+    setSaving(false);
+    onClose();
+  }
+
+  const handleSelect = (team: string) => {
+    setSelected(team);
+    if (useColors) applyTeamTheme(team);
+  };
+
+  const handleToggleColors = (on: boolean) => {
+    setUseColors(on);
+    if (on && selected) applyTeamTheme(selected);
+    else resetTeamTheme();
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 500,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '12px',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--card)',
+          borderRadius: 16,
+          padding: '20px 16px 16px',
+          width: '100%',
+          maxWidth: 420,
+          maxHeight: '88dvh',
+          overflowY: 'auto',
+          position: 'relative',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 12, left: 12,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', padding: 4,
+          }}
+        >
+          <X size={18} />
+        </button>
+
+        <h3 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 800, textAlign: 'right' }}>
+          {currentTeam ? 'שנה קבוצה' : 'בחר את הקבוצה שלך'}
+        </h3>
+        <p style={{ margin: '0 0 14px', fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+          {currentTeam ? 'הסמל יופיע בטבלת הדירוג ובשמך' : 'יופיע בטבלת הדירוג לצד שמך, ועל-ידי שמך'}
+        </p>
+
+        {/* Team grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+          marginBottom: 16,
+        }}>
+          {TEAM_LIST.map(team => {
+            const isSelected = selected === team;
+            return (
+              <button
+                key={team}
+                onClick={() => handleSelect(team)}
+                style={{
+                  background: isSelected ? 'rgba(255,255,255,0.07)' : 'transparent',
+                  border: isSelected ? '2px solid var(--green)' : '2px solid var(--border)',
+                  borderRadius: 10,
+                  padding: '8px 4px 6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 5,
+                  transition: 'border-color 0.15s, background 0.15s',
+                  position: 'relative',
+                }}
+              >
+                {isSelected && (
+                  <div style={{
+                    position: 'absolute', top: 4, right: 4,
+                    background: 'var(--green)', borderRadius: '50%',
+                    width: 14, height: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Check size={9} strokeWidth={3} color="#000" />
+                  </div>
+                )}
+                <img
+                  src={LEAGUE_BADGES[team]}
+                  alt={teamHe(team)}
+                  style={{ width: 38, height: 38, objectFit: 'contain' }}
+                  onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                />
+                <span style={{
+                  fontSize: '0.6rem',
+                  fontWeight: 600,
+                  color: isSelected ? 'var(--green)' : 'var(--text-muted)',
+                  textAlign: 'center',
+                  lineHeight: 1.25,
+                  direction: 'rtl',
+                }}>
+                  {teamHe(team)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Theme toggle */}
+        {selected && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--border)',
+            marginBottom: 12,
+            gap: 8,
+          }}>
+            <button
+              onClick={() => handleToggleColors(!useColors)}
+              style={{
+                width: 40, height: 22, borderRadius: 11,
+                background: useColors ? 'var(--green)' : 'var(--border)',
+                border: 'none', cursor: 'pointer',
+                position: 'relative', flexShrink: 0,
+                transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute',
+                top: 3, left: useColors ? 20 : 3,
+                width: 16, height: 16, borderRadius: '50%',
+                background: '#fff',
+                transition: 'left 0.2s',
+                display: 'block',
+              }} />
+            </button>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text)', textAlign: 'right', flex: 1 }}>
+              עיצוב בצבעי <strong>{teamHe(selected)}</strong>
+            </span>
+          </div>
+        )}
+
+        <button
+          onClick={save}
+          disabled={!selected || saving}
+          style={{
+            width: '100%',
+            padding: '11px',
+            borderRadius: 10,
+            background: selected ? 'var(--green)' : 'var(--border)',
+            color: selected ? '#000' : 'var(--text-muted)',
+            border: 'none',
+            fontWeight: 800,
+            fontSize: '0.92rem',
+            cursor: selected ? 'pointer' : 'default',
+            transition: 'background 0.2s',
+          }}
+        >
+          {saving ? 'שומר...' : selected ? `שמור — ${teamHe(selected)}` : 'בחר קבוצה תחילה'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── UserChip (top-left persistent badge) ────────────────────────────────────
+
+function UserChip({ profile, onOpenModal }: { profile: Profile; onOpenModal: () => void }) {
+  const badge = profile.favorite_team ? LEAGUE_BADGES[profile.favorite_team] : null;
+
+  return (
+    <button
+      onClick={onOpenModal}
+      title={profile.favorite_team ? `קבוצה: ${teamHe(profile.favorite_team)}` : 'בחר קבוצה אהודה'}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 300,
+        height: 48,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '0 10px',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+      }}
+    >
+      {badge ? (
+        <img
+          src={badge}
+          alt={teamHe(profile.favorite_team!)}
+          style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }}
+        />
+      ) : (
+        <div style={{
+          width: 24, height: 24, borderRadius: '50%',
+          border: '1.5px dashed var(--text-muted)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.65rem', color: 'var(--text-muted)',
+        }}>?</div>
+      )}
+      <span style={{
+        fontSize: '0.78rem',
+        fontWeight: 700,
+        color: 'var(--text)',
+        maxWidth: 90,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+      }}>
+        {profile.display_name}
+      </span>
+    </button>
+  );
+}
+
+// ── ResetPasswordPage ────────────────────────────────────────────────────────
 
 function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -134,9 +399,10 @@ function ResetPasswordPage() {
 }
 
 function AppShell() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, refresh } = useAuth();
   const [tab, setTab] = useState<Tab>('bets');
   const [isRecovery, setIsRecovery] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -144,6 +410,29 @@ function AppShell() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Show team picker if user hasn't chosen yet (once per session)
+  useEffect(() => {
+    if (!profile) return;
+    if (!profile.favorite_team && !sessionStorage.getItem('skipTeamModal')) {
+      const t = setTimeout(() => setShowTeamModal(true), 1400);
+      return () => clearTimeout(t);
+    }
+  }, [profile?.id, profile?.favorite_team]);
+
+  // Apply team theme on load
+  useEffect(() => {
+    if (!profile?.favorite_team) return;
+    if (localStorage.getItem('useTeamTheme') === 'true') {
+      applyTeamTheme(profile.favorite_team);
+    }
+  }, [profile?.favorite_team]);
+
+  const handleTeamModalClose = useCallback(() => {
+    sessionStorage.setItem('skipTeamModal', '1');
+    setShowTeamModal(false);
+  }, []);
+
   const isAdmin = profile?.role === 'admin';
 
   if (isRecovery) return <ResetPasswordPage />;
@@ -170,6 +459,14 @@ function AppShell() {
   return (
     <div className="pitch-bg" style={{ minHeight: '100dvh' }}>
       {profile && <PushModal userId={profile.id} />}
+      {profile && <UserChip profile={profile} onOpenModal={() => setShowTeamModal(true)} />}
+      {profile && showTeamModal && (
+        <FavoriteTeamModal
+          profile={profile}
+          onClose={handleTeamModalClose}
+          onSaved={refresh}
+        />
+      )}
       {/* Page content */}
       <div className="pb-20">
         {tab === 'bets' && <PlayerPage />}

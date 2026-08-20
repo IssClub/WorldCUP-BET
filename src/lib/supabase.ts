@@ -11,6 +11,7 @@ export type Profile = {
   role: 'admin' | 'player';
   bank: number;
   created_at: string;
+  favorite_team: string | null;
 };
 
 export type Invite = {
