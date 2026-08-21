@@ -95,4 +95,7 @@ export type Settings = {
   sport_keys: string[] | null;
   result_points: number;
   exact_score_points: number;
+  bonus_champion: number;
+  bonus_relegated: number;
+  bonus_top_scorer: number;
 };

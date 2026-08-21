@@ -114,7 +114,10 @@ export default function AdminPage() {
         .eq('id', sb.id);
 
       if (won) {
-        const bonus = settings?.special_bet_stake ?? 100;
+        const bonus =
+          sb.type === 'winner'     ? (settings?.bonus_champion   ?? 200) :
+          sb.type === 'top_scorer' ? (settings?.bonus_top_scorer ?? 150) :
+                                     (settings?.bonus_relegated  ?? 150);
         playerPayouts[sb.player_id] = (playerPayouts[sb.player_id] || 0) + bonus;
       }
     }
@@ -371,6 +374,9 @@ export default function AdminPage() {
       sport_keys: settings.sport_keys ?? ['soccer_fifa_world_cup'],
       result_points: settings.result_points ?? 3,
       exact_score_points: settings.exact_score_points ?? 5,
+      bonus_champion: settings.bonus_champion ?? 200,
+      bonus_relegated: settings.bonus_relegated ?? 150,
+      bonus_top_scorer: settings.bonus_top_scorer ?? 150,
     }).eq('id', 1);
     setSavingSettings(false);
     setSettingsMsg(error ? 'שגיאה בשמירה' : 'נשמר בהצלחה ✓');
@@ -995,6 +1001,45 @@ export default function AdminPage() {
                         <input type="number" className="input" style={{width: 72}}
                           value={settings.exact_score_points ?? 5}
                           onChange={e => setSettings(prev => prev ? {...prev, exact_score_points: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{height: 1, background: 'var(--border)'}} />
+
+                {/* ── בונוסי ניחושי ליגה ── */}
+                <div>
+                  <div className="text-sm font-semibold mb-3" style={{color: 'var(--text)'}}>🏆 בונוסי ניחושי ליגה</div>
+                  <div className="flex gap-3">
+                    <div style={{flex: 1}}>
+                      <label className="block text-xs mb-1" style={{color: 'var(--text-muted)'}}>אלופה</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" className="input" style={{width: 72}}
+                          value={settings.bonus_champion ?? 200}
+                          onChange={e => setSettings(prev => prev ? {...prev, bonus_champion: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
+                      </div>
+                    </div>
+                    <div style={{flex: 1}}>
+                      <label className="block text-xs mb-1" style={{color: 'var(--text-muted)'}}>יורדת (לכל ניחוש נכון)</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" className="input" style={{width: 72}}
+                          value={settings.bonus_relegated ?? 150}
+                          onChange={e => setSettings(prev => prev ? {...prev, bonus_relegated: parseInt(e.target.value) || 0} : prev)}
+                        />
+                        <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
+                      </div>
+                    </div>
+                    <div style={{flex: 1}}>
+                      <label className="block text-xs mb-1" style={{color: 'var(--text-muted)'}}>מלך שערים</label>
+                      <div className="flex items-center gap-2">
+                        <input type="number" className="input" style={{width: 72}}
+                          value={settings.bonus_top_scorer ?? 150}
+                          onChange={e => setSettings(prev => prev ? {...prev, bonus_top_scorer: parseInt(e.target.value) || 0} : prev)}
                         />
                         <span className="text-xs" style={{color: 'var(--text-muted)', whiteSpace: 'nowrap'}}>נק'</span>
                       </div>
