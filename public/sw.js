@@ -4,7 +4,7 @@ self.addEventListener('activate', () => self.clients.claim());
 
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {};
-  const title = data.title || 'מונדיאל הימורים';
+  const title = data.title || 'הבדואים מנחשים';
   const options = {
     body: data.body || '',
     icon: '/WorldCUP-BET/icon.svg',

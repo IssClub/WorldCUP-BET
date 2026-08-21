@@ -29,8 +29,8 @@ async function main() {
   console.log(`Sending test push to ${subs.length} subscription(s)...`);
 
   const payload = JSON.stringify({
-    title: '⚽ בדיקת התראות',
-    body: 'ההתראות עובדות בהצלחה! תהנו מהמונדיאל 🏆',
+    title: '⚽ בדיקת התראות — הבדואים מנחשים',
+    body: 'ההתראות עובדות בהצלחה! 🐒',
     url: '/WorldCUP-BET/',
   });
 
