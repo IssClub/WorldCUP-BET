@@ -27,6 +27,13 @@ interface BetState {
   exactAway: string;
 }
 
+interface PublicBet {
+  display_name: string;
+  exact_home: number | null;
+  exact_away: number | null;
+  pick: 'home' | 'draw' | 'away';
+}
+
 // ── Flag component ────────────────────────────────────────
 function Flag({ team, size = 44 }: { team: string; size?: number }) {
   const badge = LEAGUE_BADGES[team];
@@ -64,7 +71,7 @@ const scoreInputStyle: React.CSSProperties = {
 
 // ── GameCard ──────────────────────────────────────────────
 function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange,
-  homeRef, awayRef, onHomeComplete, onAwayComplete }: {
+  homeRef, awayRef, onHomeComplete, onAwayComplete, expanded, onExpand, publicBets }: {
   game: Game;
   resultPts: number;
   exactPts: number;
@@ -76,9 +83,13 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   awayRef?: (el: HTMLInputElement | null) => void;
   onHomeComplete: () => void;
   onAwayComplete: () => void;
+  expanded?: boolean;
+  onExpand?: () => void;
+  publicBets?: PublicBet[] | null;
 }) {
   const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
   const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
+  const canExpand = isStarted && existingBet != null && onExpand != null;
 
   // shared outer wrapper
   const teamSide = (side: 'home' | 'away') => (
@@ -88,11 +99,34 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
     </div>
   );
 
+  const expandPanel = expanded && (
+    <div style={{ background: 'var(--surface2)', borderRadius: '0 0 14px 14px', padding: '8px 14px 10px', borderTop: '1px solid var(--border)' }}>
+      {publicBets == null ? (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '4px 0' }}>טוען...</div>
+      ) : publicBets.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '4px 0' }}>אין הימורים</div>
+      ) : (
+        publicBets.map((pb, i) => (
+          <div key={i} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '5px 0',
+            borderBottom: i < publicBets.length - 1 ? '1px solid var(--border)' : 'none',
+          }}>
+            <span style={{ fontSize: 13, color: 'var(--text)' }}>{pb.display_name}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue', cursive", letterSpacing: 1 }}>
+              {pb.exact_home ?? '?'}:{pb.exact_away ?? '?'}
+            </span>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
   // ── Settled bet ──
   if (existingBet && (existingBet.status === 'won' || existingBet.status === 'lost')) {
     const won = existingBet.status === 'won';
-    return (
-      <div className={`gc ${won ? 'gc-done' : ''}`} style={{ padding: '12px 14px', opacity: won ? 1 : 0.75 }}>
+    const card = (
+      <div className={`gc ${won ? 'gc-done' : ''}`} style={{ padding: '12px 14px', opacity: won ? 1 : 0.75, borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
@@ -105,17 +139,20 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             <div style={{ fontSize: 13, color: won ? 'var(--green)' : '#f87171', fontWeight: 700, marginTop: 2 }}>
               {won ? '✓' : '✗'} {existingBet.exact_home}:{existingBet.exact_away} → {won ? `+${existingBet.payout ?? 0}` : '0'} נק׳
             </div>
+            {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
           </div>
           {teamSide('away')}
         </div>
       </div>
     );
+    if (canExpand) return <div onClick={onExpand} style={{ cursor: 'pointer' }}>{card}{expandPanel}</div>;
+    return card;
   }
 
   // ── Pending bet ──
   if (existingBet) {
-    return (
-      <div className="gc gc-done" style={{ padding: '12px 14px' }}>
+    const card = (
+      <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
@@ -126,11 +163,14 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
               <span style={{ color: 'var(--green)' }}>✓</span> {resultPts} | 🎯 {exactPts} נק׳
             </div>
+            {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
           </div>
           {teamSide('away')}
         </div>
       </div>
     );
+    if (canExpand) return <div onClick={onExpand} style={{ cursor: 'pointer' }}>{card}{expandPanel}</div>;
+    return card;
   }
 
   // ── Completed, no bet ──
@@ -227,6 +267,8 @@ export default function PlayerPage() {
   const [currentRound, setCurrentRound] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedGame, setExpandedGame] = useState<string | null>(null);
+  const [gameBets, setGameBets] = useState<Record<string, PublicBet[]>>({});
   const [error, setError] = useState('');
   const [justSubmitted, setJustSubmitted] = useState(false);
 
@@ -343,6 +385,25 @@ export default function PlayerPage() {
     }
   }
 
+  async function toggleGameBets(gameId: string) {
+    if (expandedGame === gameId) { setExpandedGame(null); return; }
+    setExpandedGame(gameId);
+    if (gameBets[gameId]) return;
+    const { data } = await supabase
+      .from('bets')
+      .select('exact_home, exact_away, pick, profiles:player_id(display_name)')
+      .eq('external_game_id', gameId);
+    if (data) {
+      const mapped: PublicBet[] = data.map((b: any) => ({
+        display_name: b.profiles?.display_name ?? '?',
+        exact_home: b.exact_home,
+        exact_away: b.exact_away,
+        pick: b.pick,
+      }));
+      setGameBets(prev => ({ ...prev, [gameId]: mapped }));
+    }
+  }
+
   const resultPts = settings?.result_points ?? 3;
   const exactPts = settings?.exact_score_points ?? 5;
 
@@ -430,6 +491,9 @@ export default function PlayerPage() {
                     awayRef={el => awayRefs.current.set(game.id, el)}
                     onHomeComplete={() => handleAutoFocus(game.id, 'home')}
                     onAwayComplete={() => handleAutoFocus(game.id, 'away')}
+                    expanded={expandedGame === game.id}
+                    onExpand={() => toggleGameBets(game.id)}
+                    publicBets={gameBets[game.id] ?? null}
                   />
                 ))}
               </div>

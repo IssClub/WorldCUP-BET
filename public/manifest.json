@@ -1,7 +1,7 @@
 {
-  "name": "מונדיאל הימורים 2026",
-  "short_name": "WC BET",
-  "description": "טורניר הימורים חברים — FIFA World Cup 2026",
+  "name": "הבדואים מנחשים",
+  "short_name": "בדואים",
+  "description": "הימורי ליגת העל — רק לחברים",
   "start_url": "/WorldCUP-BET/",
   "scope": "/WorldCUP-BET/",
   "display": "standalone",
@@ -12,16 +12,16 @@
   "dir": "rtl",
   "icons": [
     {
-      "src": "/WorldCUP-BET/icon-trophy.png",
+      "src": "/WorldCUP-BET/icon-new.avif",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/avif",
+      "purpose": "any maskable"
     },
     {
-      "src": "/WorldCUP-BET/icon-trophy.png",
+      "src": "/WorldCUP-BET/icon-new.avif",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/avif",
+      "purpose": "any maskable"
     }
   ]
 }
