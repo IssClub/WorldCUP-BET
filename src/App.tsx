@@ -287,7 +287,7 @@ function UserChip({ profile, onOpenModal }: { profile: Profile; onOpenModal: () 
       title={profile.favorite_team ? `קבוצה: ${teamHe(profile.favorite_team)}` : 'בחר קבוצה אהודה'}
       style={{
         position: 'fixed',
-        top: 0,
+        top: 'env(safe-area-inset-top, 0px)',
         left: 0,
         zIndex: 300,
         height: 48,
