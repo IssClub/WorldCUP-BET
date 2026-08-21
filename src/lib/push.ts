@@ -23,8 +23,10 @@ export async function registerPush(userId: string): Promise<boolean> {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return false;
 
+    // Always force fresh subscription to ensure VAPID key alignment
     const existing = await reg.pushManager.getSubscription();
-    const subscription = existing ?? await reg.pushManager.subscribe({
+    if (existing) await existing.unsubscribe();
+    const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });

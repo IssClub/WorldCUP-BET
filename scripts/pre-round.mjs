@@ -37,7 +37,7 @@ async function sendPush(playerId, payload) {
     try {
       await webpush.sendNotification(subscription, JSON.stringify(payload));
     } catch (err) {
-      if (err.statusCode === 410 || err.statusCode === 404) {
+      if ([401, 404, 410].includes(err.statusCode)) {
         await supabase.from('push_subscriptions')
           .delete().eq('player_id', playerId).filter('subscription', 'eq', subscription);
       }

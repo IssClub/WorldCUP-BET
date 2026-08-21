@@ -42,7 +42,7 @@ async function main() {
     } catch (err) {
       failed++;
       console.warn(`Failed for player ${player_id}: ${err.statusCode} ${err.message}`);
-      if (err.statusCode === 410 || err.statusCode === 404) {
+      if ([401, 404, 410].includes(err.statusCode)) {
         await supabase.from('push_subscriptions')
           .delete().eq('player_id', player_id).filter('subscription', 'eq', subscription);
         console.log(`  → Removed expired subscription`);
