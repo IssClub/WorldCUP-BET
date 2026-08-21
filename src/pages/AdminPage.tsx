@@ -26,6 +26,8 @@ export default function AdminPage() {
   const [editingBank, setEditingBank] = useState<string | null>(null);
   const [editBankValue, setEditBankValue] = useState('');
   const [resettingBanks, setResettingBanks] = useState(false);
+  const [resetLinkMsg, setResetLinkMsg] = useState<Record<string, string>>({});
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
   const [cleaningSimulation, setCleaningSimulation] = useState(false);
   const [resettingGroupStage, setResettingGroupStage] = useState(false);
 
@@ -257,6 +259,44 @@ export default function AdminPage() {
     }
     await loadPlayers();
     setResettingBanks(false);
+  }
+
+  const EDGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-link`;
+
+  async function callEdge(body: object) {
+    const { data: { session } } = await supabase.auth.getSession();
+    return fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify(body),
+    }).then(r => r.json());
+  }
+
+  async function sendResetLink(playerId: string, name: string) {
+    const email = prompt(`מה האימייל של ${name}?`);
+    if (!email) return;
+    setResetLinkMsg(m => ({ ...m, [playerId]: '...' }));
+    const res = await callEdge({ action: 'reset', email });
+    if (res.error) {
+      setResetLinkMsg(m => ({ ...m, [playerId]: `שגיאה: ${res.error}` }));
+      return;
+    }
+    if (navigator.share) {
+      await navigator.share({ title: `איפוס סיסמה — ${name}`, url: res.link });
+    } else {
+      await navigator.clipboard.writeText(res.link);
+      setResetLinkMsg(m => ({ ...m, [playerId]: '✓ הועתק!' }));
+      setTimeout(() => setResetLinkMsg(m => ({ ...m, [playerId]: '' })), 3000);
+    }
+  }
+
+  async function deleteUser(playerId: string, name: string) {
+    if (!confirm(`למחוק את ${name} לחלוטין?\nכל ההימורים והפרופיל יימחקו ולא ניתן לשחזר.`)) return;
+    setDeletingUser(playerId);
+    const res = await callEdge({ action: 'delete', userId: playerId });
+    setDeletingUser(null);
+    if (res.error) { alert(`שגיאה: ${res.error}`); return; }
+    await loadPlayers();
   }
 
   async function deletePlayerBets(playerId: string, name: string) {
@@ -500,6 +540,23 @@ export default function AdminPage() {
                             className="px-2 py-1 rounded text-xs"
                             style={{background:'var(--surface)',color:'var(--text-muted)',border:'1px solid var(--border)',cursor:'pointer'}}
                           >ערוך</button>
+                          {p.id !== profile?.id && (
+                            <>
+                              <button
+                                onClick={() => sendResetLink(p.id, p.display_name)}
+                                className="px-2 py-1 rounded text-xs"
+                                style={{background:'rgba(99,179,237,0.1)',border:'1px solid rgba(99,179,237,0.3)',color:'#63b3ed',cursor:'pointer'}}
+                                title="שלח קישור איפוס סיסמה"
+                              >{resetLinkMsg[p.id] || '🔑'}</button>
+                              <button
+                                onClick={() => deleteUser(p.id, p.display_name)}
+                                disabled={deletingUser === p.id}
+                                className="px-2 py-1 rounded text-xs"
+                                style={{background:'rgba(248,113,113,0.1)',border:'1px solid rgba(248,113,113,0.3)',color:'#f87171',cursor:'pointer'}}
+                                title="מחק שחקן"
+                              >{deletingUser === p.id ? '...' : '🗑'}</button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
