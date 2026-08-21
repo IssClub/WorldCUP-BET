@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star, Activity } from 'lucide-react';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_TEAMS } from '../lib/tournamentOdds';
@@ -15,7 +15,7 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special' | 'activity'>('invites');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
   const [scorers, setScorers] = useState<TopScorer[]>([]);
@@ -391,6 +391,7 @@ export default function AdminPage() {
     { key: 'scorers', label: 'שערים', icon: Shirt },
     { key: 'results', label: 'תוצאות', icon: CheckSquare },
     { key: 'special', label: 'ניחושי טורניר', icon: Star },
+    { key: 'activity', label: 'פעילות', icon: Activity },
   ] as const;
 
   return (
@@ -406,7 +407,7 @@ export default function AdminPage() {
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Trophy size={22} style={{color: 'var(--green)'}} />
-            <span className="font-bold text-lg">ליגת העל הימורים</span>
+            <span className="font-bold text-lg">הבדואים מנחשים</span>
             <span className="badge-admin">Admin</span>
           </div>
           <button onClick={signOut} className="flex items-center gap-2 text-sm" style={{color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer'}}>
@@ -932,6 +933,57 @@ export default function AdminPage() {
                 </>
               );
             })()}
+          </div>
+        )}
+
+        {tab === 'activity' && (
+          <div className="fade-in">
+            <h2 className="font-bold text-lg mb-4">פעילות משתמשים</h2>
+            <div className="card" style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['שם', 'הצטרף', 'כניסה אחרונה', 'כניסות'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...players]
+                    .sort((a, b) => (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? ''))
+                    .map((p, i) => {
+                      const joinedDate = new Date(p.created_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit', timeZone: 'Asia/Jerusalem' });
+                      const lastSeen = p.last_seen_at
+                        ? new Date(p.last_seen_at).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })
+                        : '—';
+                      const daysSince = p.last_seen_at
+                        ? Math.floor((Date.now() - new Date(p.last_seen_at).getTime()) / 86400000)
+                        : null;
+                      const stale = daysSince !== null && daysSince > 7;
+                      return (
+                        <tr key={p.id} style={{ borderBottom: i < players.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.display_name}</td>
+                          <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{joinedDate}</td>
+                          <td style={{ padding: '10px 14px', color: stale ? '#f87171' : 'var(--text)' }}>
+                            {lastSeen}
+                            {daysSince !== null && (
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 6 }}>
+                                ({daysSince === 0 ? 'היום' : `לפני ${daysSince} ימים`})
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: 'var(--green)' }}>
+                            {p.login_count ?? 0}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {players.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>אין שחקנים</div>
+              )}
+            </div>
           </div>
         )}
 

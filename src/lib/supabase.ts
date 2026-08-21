@@ -12,6 +12,8 @@ export type Profile = {
   bank: number;
   created_at: string;
   favorite_team: string | null;
+  last_seen_at: string | null;
+  login_count: number | null;
 };
 
 export type Invite = {

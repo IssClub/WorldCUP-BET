@@ -39,9 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loadProfile(data.session?.user ?? null).finally(() => setLoading(false));
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       loadProfile(session?.user ?? null);
+      if (event === 'SIGNED_IN' && session?.user) {
+        supabase.rpc('increment_login').catch(() => {});
+      }
     });
 
     return () => listener.subscription.unsubscribe();
