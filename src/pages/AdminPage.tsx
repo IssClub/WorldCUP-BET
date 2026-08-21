@@ -384,14 +384,14 @@ export default function AdminPage() {
   }
 
   const tabs = [
-    { key: 'invites', label: 'הזמנות', icon: Plus },
     { key: 'players', label: 'שחקנים', icon: Users },
-    { key: 'settings', label: 'הגדרות', icon: SettingsIcon },
-    { key: 'data', label: 'נתונים', icon: Database },
-    { key: 'scorers', label: 'שערים', icon: Shirt },
-    { key: 'results', label: 'תוצאות', icon: CheckSquare },
-    { key: 'special', label: 'ניחושי טורניר', icon: Star },
     { key: 'activity', label: 'פעילות', icon: Activity },
+    { key: 'results', label: 'תוצאות', icon: CheckSquare },
+    { key: 'scorers', label: 'שערים', icon: Shirt },
+    { key: 'special', label: 'ניחושי טורניר', icon: Star },
+    { key: 'data', label: 'נתונים', icon: Database },
+    { key: 'settings', label: 'הגדרות', icon: SettingsIcon },
+    { key: 'invites', label: 'הזמנות', icon: Plus },
   ] as const;
 
   return (
