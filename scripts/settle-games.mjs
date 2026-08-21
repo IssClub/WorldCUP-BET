@@ -53,22 +53,64 @@ const HE = {
 };
 const he = name => HE[name] ?? name;
 
-// ביטויים רנדומליים לזכייה
+// ביטויים רנדומליים לזכייה בודדת
 const WIN_PHRASES = [
-  '🏆 אלוף!', '👑 מלך!', '🎯 תותח!', '🔥 מי יכול עליך?',
-  '⚡ ה-WINNER של המונדיאל!', '💪 מכה כמו ברזיל!', '🌟 כוכב!',
-  '🎉 אגדה חיה!', '🦁 אריה!', '🚀 על הגג!',
+  '🔥 כן! ניחשת נכון', '✅ עוד אחת לקופה', '💪 הכדורגל הכיר אותך היום',
+  '👊 בול כיוון!', '📈 נקודות בבנק', '🎯 ידעת מה אתה עושה',
 ];
 
-// ביטויים רנדומליים להפסד
+// ביטויים רנדומליים להפסד בודד
 const LOSS_PHRASES = [
-  '😅 יהיה בסדר...', '🤦 אאוץ׳', '🙈 לא רואה כלום',
-  '💀 רי פי', '🫠 נמס', '🃏 הפעם לא, חבר',
-  '⚰️ קבורת ה-100 נקודות', '😬 כואב אבל בונה אופי',
-  '🤡 הנביא של... לא', '🌧️ גשם על הפרדה',
+  '😬 הפעם לא', '🙈 נסית, לא הצליח', '💨 אוויר', '🃏 כדורגל הוא אכזרי',
+  '😮‍💨 גם המומחים טועים', '🌧️ יהיה בסדר', '🤷 ככה זה',
+];
+
+// ביטויים לתוצאה מדויקת (בול!)
+const EXACT_PHRASES = [
+  '🎯 BULLSEYE! ניחשת בדיוק!', '🔮 אתה לא בן אדם — אתה נביא',
+  '💥 בול מדויק! איך עשית את זה?', '🤯 תוצאה מדויקת! הממשלה צריכה לדעת על זה',
+  '🏹 פגעת בול!', '👁️ ראית את זה מראש?',
+];
+
+// ביטויים לסיכום מחזור אישי — מחזור מעולה (כל/כמעט כל הניחושים נכונים)
+const ROUND_GREAT = [
+  'אתה פשוט על גל אחר 🔥', 'כולם יסתכלו עליך בטבלה וישאלו מי זה 👑',
+  'אתה לא מנחש — אתה יודע 🔮', 'עוד מחזור כזה ואנחנו בודקים אם יש לך קשרים 🕵️',
+  'הטבלה הכירה אותך היום 📈', 'מחזור מושלם. גם השכן מקנא 😎',
+];
+
+// ביטויים לסיכום מחזור — מחזור סביר
+const ROUND_GOOD = [
+  'לא רע בכלל — ממשיך להיות מאיים 📊', 'חצי נביא, חצי אדם רגיל 🤷',
+  'מחזור סביר. שומרים על הראש 👍', 'מכבד, ממשיך, לא מוותר 💪',
+  'ציון מעבר — עם פוטנציאל 📝',
+];
+
+// ביטויים לסיכום מחזור — מחזור גרוע
+const ROUND_BAD = [
+  'המחזור הבא? בטח. כנראה. אולי 😅', 'הכדורגל לא אשם, הניחושים כן 🙈',
+  'גם ליאונל טעה פעם... ב-2003... אולי 🫠', 'נמסת. אבל אנחנו אוהבים אותך בכל זאת ❤️',
+  'הניסיון עם, ההצלחה — פחות 🃏', 'היה מחזור. זה בטוח ⚰️',
+];
+
+// ביטויים לסיכום מחזור — קטסטרופה (0 נכון)
+const ROUND_TERRIBLE = [
+  '0 מתוך הכל. הישג נדיר. ממש נדיר 🤡', 'סטטיסטית, מה שקרה לך לא אמור לקרות 📉',
+  'גם מטבע היה מנחש יותר טוב 🎲', 'הכדורגל לא אשם. אף אחד לא אשם. חוץ מהניחושים 💀',
+  '0/הכל — אתה בהחלט ייחודי 🥲',
+];
+
+// ביטויים למלך המחזור (נשלח לכולם)
+const KING_PHRASES = [
+  (n, p) => `${n} שלט עם ${p} נק׳. שאר האנשים: סתם היו שם 😏`,
+  (n, p) => `${n} — ${p} נק׳. יש לו מידע פנים? הרשויות בודקות 🕵️`,
+  (n, p) => `${n} (${p} נק׳) שוב? בשלב מסוים זה כבר מביך לאחרים 👑`,
+  (n, p) => `${n} עם ${p} נק׳. הוא בודק תוצאות מהעתיד 🔮`,
+  (n, p) => `${n} ניצח את כולם במחזור — ${p} נק׳. שאלות? אין שאלות 🏆`,
 ];
 
 const randomPhrase = arr => arr[Math.floor(Math.random() * arr.length)];
+const randomKingPhrase = (name, pts) => KING_PHRASES[Math.floor(Math.random() * KING_PHRASES.length)](name, pts);
 
 // Send push to a player (handles expired subscriptions)
 async function sendPush(playerId, payload) {
@@ -166,6 +208,7 @@ async function main() {
   // Track today's net change per player (for daily summary)
   const todayChange = {};
   let settledAnyGame = false;
+  const settledExternalIds = []; // for round summary
 
   for (const game of games) {
     if (!game.completed) continue;
@@ -184,6 +227,7 @@ async function main() {
     if (!bets?.length) continue;
 
     settledAnyGame = true;
+    settledExternalIds.push(game.id);
     console.log(`Settling: ${game.home_team} ${homeScore}:${awayScore} ${game.away_team} (${bets.length} bets)`);
 
     // עדכן טבלת הלוח המתאימה למצב
@@ -249,9 +293,14 @@ async function main() {
       const payout = playerPayouts[bet.player_id] ?? 0;
       const rank = rankMap[bet.player_id];
       const rankText = rank ? ` · מקום ${rank}` : '';
-      const body = payout > 0
-        ? `${randomPhrase(WIN_PHRASES)} זכית! ${payout.toLocaleString()} נק׳${rankText}`
-        : `${randomPhrase(LOSS_PHRASES)} הפסד — 0 נק׳${rankText}`;
+      const isExact = bet.pick === winner
+        && bet.exact_home !== null && bet.exact_home === homeScore
+        && bet.exact_away !== null && bet.exact_away === awayScore;
+      const body = isExact
+        ? `${randomPhrase(EXACT_PHRASES)} +${payout} נק׳${rankText}`
+        : payout > 0
+          ? `${randomPhrase(WIN_PHRASES)} +${payout.toLocaleString()} נק׳${rankText}`
+          : `${randomPhrase(LOSS_PHRASES)} 0 נק׳${rankText}`;
       await sendPush(bet.player_id, {
         title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
         body,
@@ -262,8 +311,118 @@ async function main() {
 
   // No missing-bet penalties in accumulation mode (not betting = missed opportunity, not a penalty)
   await maybeSendDailySummary(settledAnyGame, bankMap, activePlayers, todayChange);
+  await maybeSendRoundSummary(settledExternalIds);
   await processPushQueue();
   console.log('Done.');
+}
+
+// ── Round summary — נשלח כשמחזור שלם מסתיים ────────────────
+async function maybeSendRoundSummary(settledExternalIds) {
+  if (!settledExternalIds.length) return;
+
+  // מצא את מספרי המחזורים של המשחקים שנסגרו
+  const { data: settledRows } = await supabase
+    .from('league_schedule')
+    .select('round_num')
+    .in('external_id', settledExternalIds);
+
+  const roundNums = [...new Set((settledRows ?? []).map(r => r.round_num).filter(Boolean))];
+  if (!roundNums.length) return;
+
+  const { data: allProfiles } = await supabase.from('profiles').select('id, display_name, bank');
+  const profileMap = Object.fromEntries((allProfiles ?? []).map(p => [p.id, p]));
+
+  for (const roundNum of roundNums) {
+    // בדוק אם כל משחקי המחזור הסתיימו
+    const { count: total } = await supabase
+      .from('league_schedule')
+      .select('id', { count: 'exact', head: true })
+      .eq('round_num', roundNum);
+    const { count: done } = await supabase
+      .from('league_schedule')
+      .select('id', { count: 'exact', head: true })
+      .eq('round_num', roundNum)
+      .eq('completed', true);
+    if (total !== done) {
+      console.log(`Round ${roundNum}: ${done}/${total} complete — skipping summary.`);
+      continue;
+    }
+
+    console.log(`Round ${roundNum} fully complete — sending round summary.`);
+
+    // מצא את ה-external_ids של כל משחקי המחזור
+    const { data: roundGames } = await supabase
+      .from('league_schedule')
+      .select('external_id')
+      .eq('round_num', roundNum);
+    const externalIds = (roundGames ?? []).map(g => g.external_id).filter(Boolean);
+
+    // מצא את כל ההימורים של המחזור
+    const { data: roundBets } = await supabase
+      .from('bets')
+      .select('player_id, status, payout, exact_home, exact_away, actual_home, actual_away')
+      .in('external_game_id', externalIds)
+      .in('status', ['won', 'lost']);
+
+    // חישוב סטטיסטיקה לכל שחקן
+    const playerStats = {};
+    for (const bet of (roundBets ?? [])) {
+      if (!playerStats[bet.player_id]) playerStats[bet.player_id] = { won: 0, lost: 0, pts: 0, exact: 0 };
+      const s = playerStats[bet.player_id];
+      if (bet.status === 'won') {
+        s.won++;
+        s.pts += bet.payout ?? 0;
+        if (bet.exact_home !== null && bet.exact_home === bet.actual_home &&
+            bet.exact_away !== null && bet.exact_away === bet.actual_away) s.exact++;
+      } else {
+        s.lost++;
+      }
+    }
+
+    // מלך המחזור
+    const sorted = Object.entries(playerStats).sort(([,a],[,b]) => b.pts - a.pts);
+    const [kingId, kingStats] = sorted[0] ?? [];
+    const kingName = profileMap[kingId]?.display_name ?? '???';
+
+    // שלח סיכום אישי לכל שחקן
+    for (const [playerId, s] of Object.entries(playerStats)) {
+      const total = s.won + s.lost;
+      const ratio = total > 0 ? s.won / total : 0;
+      let phrase;
+      if (s.won === 0) phrase = randomPhrase(ROUND_TERRIBLE);
+      else if (ratio >= 0.8 && total >= 4) phrase = randomPhrase(ROUND_GREAT);
+      else if (ratio >= 0.5) phrase = randomPhrase(ROUND_GOOD);
+      else phrase = randomPhrase(ROUND_BAD);
+
+      const exactStr = s.exact > 0 ? ` 🎯×${s.exact}` : '';
+      await sendPush(playerId, {
+        title: `📊 מחזור ${roundNum} — ${s.won}/${total} נכון · +${s.pts} נק׳`,
+        body: `${phrase}${exactStr}`,
+        url: '/WorldCUP-BET/',
+      });
+    }
+
+    // שלח "מלך המחזור" לכולם
+    if (kingId && (kingStats?.pts ?? 0) > 0) {
+      const kingBody = randomKingPhrase(kingName, kingStats.pts);
+      for (const profile of (allProfiles ?? [])) {
+        if (profile.id === kingId) continue; // המלך כבר קיבל את ה-glory בסיכום האישי
+        await sendPush(profile.id, {
+          title: `👑 מלך מחזור ${roundNum}`,
+          body: kingBody,
+          url: '/WorldCUP-BET/',
+        });
+      }
+      // למלך עצמו — הודעה מיוחדת
+      await sendPush(kingId, {
+        title: `👑 אתה מלך מחזור ${roundNum}!`,
+        body: `${kingStats.pts} נק׳ — יותר מכולם. ${randomPhrase(ROUND_GREAT)}`,
+        url: '/WorldCUP-BET/',
+      });
+    }
+
+    console.log(`Round ${roundNum} summary sent. King: ${kingName} (${kingStats?.pts} pts)`);
+  }
 }
 
 // ── קנס גיבוי — שחקנים שלא המרו ולא קיבלו הימור אוטומטי ──

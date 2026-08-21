@@ -1,0 +1,29 @@
+name: Pre-round reminder
+
+on:
+  schedule:
+    # כל שעה בטווח 14:00-22:00 UTC (17:00-01:00 ישראל)
+    - cron: '0 14-22 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Send pre-round reminders
+        run: node scripts/pre-round.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}
