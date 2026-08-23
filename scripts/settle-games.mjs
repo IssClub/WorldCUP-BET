@@ -152,12 +152,20 @@ async function main() {
       .lte('kickoff_at', windowEnd);
 
     if (!inWindow || inWindow === 0) {
-      console.log('Not in active match window — skipping Odds API call.');
-      await processPushQueue();
-      await maybeSendDailySummaryFromDB();
-      return;
+      // fallback: אם יש הימורים ממתינים על משחקים שהתחילו — עדיין צריך לסגור
+      const { count: pendingOld } = await supabase
+        .from('bets').select('id', { count: 'exact', head: true })
+        .eq('status', 'pending').lte('kickoff_at', now.toISOString());
+      if (!pendingOld || pendingOld === 0) {
+        console.log('Not in active match window and no pending bets — skipping.');
+        await processPushQueue();
+        await maybeSendDailySummaryFromDB();
+        return;
+      }
+      console.log(`Not in window but ${pendingOld} pending bet(s) on started games — continuing to settle.`);
+    } else {
+      console.log(`In match window: ${inWindow} active game(s) found.`);
     }
-    console.log(`In match window: ${inWindow} active game(s) found.`);
   }
 
   // ── Step 1: early exit if no pending bets on started games ──
