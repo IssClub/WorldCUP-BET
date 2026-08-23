@@ -104,12 +104,17 @@ for (const row of incoming) {
   const current = existingMap.get(key);
 
   if (current) {
-    // אל תדרוס תוצאה שכבר סגרנו (settled) — רק עדכן kickoff + external_id אם השורה מ-CSV
     if (!current.completed) {
-      // עדכן kickoff_at בלבד — שמור את external_id המקורי (csv_r* נשאר csv_r*)
-      toUpdate.push({ dbId: current.id, kickoff_at: row.kickoff_at, updated_at: row.updated_at });
+      // עדכן kickoff_at תמיד; עדכן תוצאות אם TheSportsDB מחזיר אותן
+      const update = { kickoff_at: row.kickoff_at, updated_at: row.updated_at };
+      if (row.completed && row.home_score !== null && row.away_score !== null) {
+        update.home_score = row.home_score;
+        update.away_score = row.away_score;
+        update.completed  = true;
+      }
+      toUpdate.push({ dbId: current.id, ...update });
     }
-    // אם הסתיים — אל תיגע בתוצאה (settle-games.mjs מטפל בזה)
+    // אם כבר completed — אל תיגע בתוצאה
   } else {
     toUpsert.push(row);
   }
