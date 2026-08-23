@@ -82,9 +82,11 @@ async function main() {
   const autoTo   = new Date(now + 25 * 60 * 1000).toISOString();
 
   // הגדרות
-  const { data: settings } = await supabase.from('settings').select('use_bank, auto_bet_amount').single();
+  const { data: settings } = await supabase.from('settings').select('use_bank, auto_bet_amount, sport_keys').single();
   const useBank = settings?.use_bank ?? false;
   const AUTO_BET_AMOUNT = settings?.auto_bet_amount ?? 10;
+  const sportKeys = settings?.sport_keys?.length ? settings.sport_keys : ['soccer_fifa_world_cup'];
+  const isLeague = !sportKeys.includes('soccer_fifa_world_cup');
 
   // כל השחקנים (במצב בנק — רק עם בנק > 0)
   const { data: allProfiles } = await supabase
@@ -93,22 +95,37 @@ async function main() {
     ? (allProfiles ?? []).filter(p => (p.bank ?? 0) >= AUTO_BET_AMOUNT)
     : (allProfiles ?? []);
 
+  // ── בנה רשימת משחקים לפי מצב (ליגה / מונדיאל) ─────────────
+  async function getGamesInWindow(from, to) {
+    if (isLeague) {
+      const { data: rows } = await supabase
+        .from('league_schedule').select('id, home_team, away_team, kickoff_at')
+        .eq('completed', false).eq('postponed', false)
+        .gt('kickoff_at', from).lt('kickoff_at', to);
+      return (rows ?? []).map(g => ({
+        external_game_id: g.id, // UUID — תואם ל-bets.external_game_id בליגה
+        home_team: g.home_team, away_team: g.away_team,
+        kickoff_at: g.kickoff_at,
+        home_win: 1, draw_win: 1, away_win: 1, // בליגה: ניקוד קבוע, לא יחס
+      }));
+    }
+    const { data: locked } = await supabase
+      .from('locked_odds').select('*')
+      .gt('kickoff_at', from).lt('kickoff_at', to);
+    const { data: custom } = await supabase
+      .from('custom_games').select('*').eq('is_active', true)
+      .gt('kickoff_at', from).lt('kickoff_at', to);
+    return [
+      ...(locked ?? []),
+      ...(custom ?? []).map(g => ({
+        external_game_id: g.id, home_team: g.home_team, away_team: g.away_team,
+        kickoff_at: g.kickoff_at, home_win: g.home_win, draw_win: g.draw_win, away_win: g.away_win,
+      })),
+    ];
+  }
+
   // ── חלון תזכורת ────────────────────────────────────────────
-  const { data: reminderLocked } = await supabase
-    .from('locked_odds').select('*')
-    .gt('kickoff_at', reminderFrom).lt('kickoff_at', reminderTo);
-
-  const { data: reminderCustom } = await supabase
-    .from('custom_games').select('*').eq('is_active', true)
-    .gt('kickoff_at', reminderFrom).lt('kickoff_at', reminderTo);
-
-  const reminderGames = [
-    ...(reminderLocked ?? []),
-    ...(reminderCustom ?? []).map(g => ({
-      external_game_id: g.id, home_team: g.home_team, away_team: g.away_team,
-      kickoff_at: g.kickoff_at, home_win: g.home_win, draw_win: g.draw_win, away_win: g.away_win,
-    })),
-  ];
+  const reminderGames = await getGamesInWindow(reminderFrom, reminderTo);
 
   for (const game of reminderGames) {
     // בדוק אם כבר נשלחה תזכורת למשחק הזה
@@ -149,21 +166,7 @@ async function main() {
   }
 
   // ── חלון הימור-אוטומטי ──────────────────────────────────────
-  const { data: autoLocked } = await supabase
-    .from('locked_odds').select('*')
-    .gt('kickoff_at', autoFrom).lt('kickoff_at', autoTo);
-
-  const { data: autoCustom } = await supabase
-    .from('custom_games').select('*').eq('is_active', true)
-    .gt('kickoff_at', autoFrom).lt('kickoff_at', autoTo);
-
-  const autoGames = [
-    ...(autoLocked ?? []),
-    ...(autoCustom ?? []).map(g => ({
-      external_game_id: g.id, home_team: g.home_team, away_team: g.away_team,
-      kickoff_at: g.kickoff_at, home_win: g.home_win, draw_win: g.draw_win, away_win: g.away_win,
-    })),
-  ];
+  const autoGames = await getGamesInWindow(autoFrom, autoTo);
 
   for (const game of autoGames) {
     // מי כבר המר?

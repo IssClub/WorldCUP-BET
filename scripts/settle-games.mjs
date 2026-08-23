@@ -218,10 +218,22 @@ async function main() {
     const awayScore = parseInt(game.scores?.find(s => s.name === game.away_team)?.score ?? '-1');
     if (homeScore < 0 || awayScore < 0) continue;
 
+    // בליגה: bets.external_game_id = league_schedule.id (UUID), לא Odds API game.id
+    // בWC: wc_schedule.id = game.id (Odds API ID)
+    let betGameId = game.id; // WC mode: Odds API ID = wc_schedule.id
+    if (!sportKeys.includes('soccer_fifa_world_cup')) {
+      const { data: schedRow } = await supabase.from('league_schedule')
+        .select('id')
+        .eq('external_id', game.id)
+        .single();
+      if (!schedRow) { console.log(`  No league_schedule row for ${game.id} — skipping`); continue; }
+      betGameId = schedRow.id;
+    }
+
     // Get pending bets for this game
     const { data: bets, error } = await supabase
       .from('bets').select('*')
-      .eq('external_game_id', game.id)
+      .eq('external_game_id', betGameId)
       .eq('status', 'pending');
 
     if (error) { console.error('Bets fetch error:', error.message); continue; }
@@ -250,7 +262,7 @@ async function main() {
     } else {
       // League mode — עדכן league_schedule לפי external_id
       const { error: lsErr } = await supabase.from('league_schedule')
-        .update({ home_score: homeScore, away_score: awayScore, completed: true })
+        .update({ home_score: homeScore, away_score: awayScore, completed: true, postponed: false })
         .eq('external_id', game.id);
       if (lsErr) console.log(`  league_schedule note: ${lsErr.message}`);
       else console.log(`  league_schedule updated ✓`);
@@ -310,7 +322,7 @@ async function main() {
     }
   }
 
-  // No missing-bet penalties in accumulation mode (not betting = missed opportunity, not a penalty)
+  await applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings, sportKeys);
   await maybeSendDailySummary(settledAnyGame, bankMap, activePlayers, todayChange);
   await maybeSendRoundSummary(settledExternalIds);
   await processPushQueue();
@@ -426,21 +438,30 @@ async function maybeSendRoundSummary(settledExternalIds) {
   }
 }
 
-// ── קנס גיבוי — שחקנים שלא המרו ולא קיבלו הימור אוטומטי ──
-// רלוונטי רק במצב בנק. במצב צבירה אין קנסות בכלל — הימור הוא הזדמנות לזכייה בלבד,
-// לא מורידים נקודות על אי-הימור ולא על הפסד.
-async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings) {
+// ── קנס גיבוי — שחקנים שלא המרו ────────────────────────────
+async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChange, settings, sportKeys) {
   if (!settings?.use_bank) return;
   const penalty = settings?.no_bet_penalty ?? 50;
   const completedGames = games.filter(g => g.completed);
   if (!completedGames.length) return;
 
+  const isLeague = !sportKeys?.includes('soccer_fifa_world_cup');
+
   for (const game of completedGames) {
+    // בליגה: resolve league_schedule.id (UUID) מ-external_id
+    let betGameId = game.id;
+    if (isLeague) {
+      const { data: schedRow } = await supabase.from('league_schedule')
+        .select('id').eq('external_id', game.id).single();
+      if (!schedRow) continue;
+      betGameId = schedRow.id;
+    }
+
     // מי שהמר על המשחק הזה (כל סטטוס)
     const { data: betsForGame } = await supabase
       .from('bets')
       .select('player_id')
-      .eq('external_game_id', game.id);
+      .eq('external_game_id', betGameId);
 
     const bettorIds = new Set((betsForGame ?? []).map(b => b.player_id));
 
@@ -452,7 +473,7 @@ async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChan
     const { data: existingPenalties } = await supabase
       .from('penalties')
       .select('player_id')
-      .eq('external_game_id', game.id);
+      .eq('external_game_id', betGameId);
 
     const alreadyPenalized = new Set((existingPenalties ?? []).map(r => r.player_id));
 
@@ -471,7 +492,7 @@ async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChan
       // רשום קנס
       await supabase.from('penalties').insert({
         player_id: player.id,
-        external_game_id: game.id,
+        external_game_id: betGameId,
         amount: penalty,
       });
 

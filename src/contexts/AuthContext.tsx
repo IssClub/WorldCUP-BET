@@ -35,15 +35,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      loadProfile(data.session?.user ?? null).finally(() => setLoading(false));
+      const u = data.session?.user ?? null;
+      setUser(u);
+      if (u) supabase.rpc('increment_login').then(() => {}, () => {}); // כל פתיחת אפליקציה עם session
+      loadProfile(u).finally(() => setLoading(false));
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       loadProfile(session?.user ?? null);
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        supabase.rpc('increment_login').catch(() => {});
+      if (event === 'SIGNED_IN' && session?.user) {
+        supabase.rpc('increment_login').then(() => {}, () => {}); // כניסה ראשונה עם סיסמה
       }
     });
 

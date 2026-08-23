@@ -22,6 +22,10 @@ export default function AdminPage() {
   const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
   const [savingScorer, setSavingScorer] = useState(false);
 
+  // Flip bets
+  const [fixingBets, setFixingBets] = useState(false);
+  const [fixMsg, setFixMsg] = useState('');
+
   // Edit bank
   const [editingBank, setEditingBank] = useState<string | null>(null);
   const [editBankValue, setEditBankValue] = useState('');
@@ -50,6 +54,8 @@ export default function AdminPage() {
   const [pendingGames, setPendingGames] = useState<GameGroup[]>([]);
   const [scores, setScores] = useState<Record<string, { home: string; away: string }>>({});
   const [settling, setSettling] = useState<string | null>(null);
+  const [postponing, setPostponing] = useState<string | null>(null);
+  const [newKickoff, setNewKickoff] = useState<Record<string, string>>({});
   const [invites, setInvites] = useState<Invite[]>([]);
   const [players, setPlayers] = useState<Profile[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -166,6 +172,24 @@ export default function AdminPage() {
       grouped[bet.external_game_id].bets.push(bet);
     }
     setPendingGames(Object.values(grouped).sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at)));
+  }
+
+  async function postponeGame(game: GameGroup) {
+    setPostponing(game.external_game_id);
+    const newDate = newKickoff[game.external_game_id];
+    const update: Record<string, unknown> = { postponed: true };
+    if (newDate) update.kickoff_at = new Date(newDate).toISOString();
+    await supabase.from('league_schedule')
+      .update(update)
+      .eq('external_id', game.external_game_id);
+    if (newDate) {
+      await supabase.from('bets')
+        .update({ kickoff_at: new Date(newDate).toISOString() })
+        .eq('external_game_id', game.external_game_id)
+        .eq('status', 'pending');
+    }
+    setPostponing(null);
+    await loadPendingGames();
   }
 
   async function settleGame(game: GameGroup) {
@@ -357,6 +381,53 @@ export default function AdminPage() {
     await supabase.from('bets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await loadBetCounts();
     setDeleting(null);
+  }
+
+  async function flipAllBets() {
+    const total = Object.values(betCounts).reduce((a, b) => a + b, 0);
+    if (!confirm(`להפוך את כל ה-${total} הימורים?\n\nביתית ↔ אורחת (ניחושי תיקו לא ישתנו)\nניקוד של הימורים שנסגרו יחושב מחדש.\n\nפעולה בלתי הפיכה!`)) return;
+    setFixingBets(true);
+    setFixMsg('');
+
+    const { data: allBets } = await supabase.from('bets').select('*');
+    if (!allBets?.length) { setFixingBets(false); setFixMsg('אין הימורים'); return; }
+
+    const resultPts = settings?.result_points ?? 3;
+    const exactPts = settings?.exact_score_points ?? 5;
+    const bankDelta: Record<string, number> = {};
+
+    for (const bet of allBets) {
+      const newPick = bet.pick === 'home' ? 'away' : bet.pick === 'away' ? 'home' : 'draw';
+      const newExactHome = bet.exact_away;
+      const newExactAway = bet.exact_home;
+      const update: Record<string, unknown> = { pick: newPick, exact_home: newExactHome, exact_away: newExactAway };
+
+      if (bet.status === 'won' || bet.status === 'lost') {
+        const h = bet.actual_home, a = bet.actual_away;
+        if (h !== null && a !== null) {
+          const winner = h > a ? 'home' : a > h ? 'away' : 'draw';
+          const newWon = newPick === winner;
+          const isExact = newWon && newExactHome === h && newExactAway === a;
+          const newPayout = isExact ? exactPts : newWon ? resultPts : 0;
+          const oldPayout = bet.payout ?? 0;
+          const delta = newPayout - oldPayout;
+          update.status = newWon ? 'won' : 'lost';
+          update.payout = newPayout;
+          if (delta !== 0) bankDelta[bet.player_id] = (bankDelta[bet.player_id] ?? 0) + delta;
+        }
+      }
+      await supabase.from('bets').update(update).eq('id', bet.id);
+    }
+
+    for (const [pid, delta] of Object.entries(bankDelta)) {
+      if (delta === 0) continue;
+      const { data: p } = await supabase.from('profiles').select('bank').eq('id', pid).single();
+      if (p) await supabase.from('profiles').update({ bank: p.bank + delta }).eq('id', pid);
+    }
+
+    await Promise.all([loadPlayers(), loadBetCounts()]);
+    setFixingBets(false);
+    setFixMsg(`✓ ${allBets.length} הימורים הופכו. ${Object.keys(bankDelta).length} בנקים עודכנו.`);
   }
 
   async function saveSettings() {
@@ -617,6 +688,30 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Flip bets */}
+            <div className="card p-4 mb-4" style={{border: '1px solid rgba(99,179,237,0.3)', background: 'rgba(99,179,237,0.03)'}}>
+              <div className="font-semibold mb-1" style={{color: '#63b3ed'}}>🔄 הפיכת כל ההימורים (בית ↔ אורח)</div>
+              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                אם כל ההימורים נשמרו הפוכים — כלי זה מחליף ביתית↔אורחת על כל הימור, מחשב ניקוד מחדש ומעדכן בנקים.
+              </div>
+              {fixMsg && (
+                <div className="text-xs mb-3 px-3 py-2 rounded-lg"
+                  style={{background: fixMsg.startsWith('✓') ? 'rgba(0,200,83,0.1)' : 'rgba(248,113,113,0.1)',
+                    color: fixMsg.startsWith('✓') ? 'var(--green)' : '#f87171',
+                    border: `1px solid ${fixMsg.startsWith('✓') ? 'rgba(0,200,83,0.2)' : 'rgba(248,113,113,0.2)'}`}}>
+                  {fixMsg}
+                </div>
+              )}
+              <button
+                onClick={flipAllBets}
+                disabled={fixingBets || Object.values(betCounts).reduce((a, b) => a + b, 0) === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                style={{background: 'rgba(99,179,237,0.15)', border: '1px solid rgba(99,179,237,0.5)', color: '#63b3ed', cursor: 'pointer'}}
+              >
+                🔄 {fixingBets ? 'מעדכן...' : 'הפוך כל הניחושים'}
+              </button>
+            </div>
+
             {/* Delete all */}
             <div className="card p-4 mb-4" style={{border: '1px solid rgba(248,113,113,0.25)'}}>
               <div className="font-semibold mb-1" style={{color: '#f87171'}}>מחיקת כל ההימורים</div>
@@ -778,6 +873,23 @@ export default function AdminPage() {
                     >
                       {isSettling ? 'מעדכן...' : '✓ סגור הימורים'}
                     </button>
+                    <div style={{marginTop:8, display:'flex', gap:6, alignItems:'center'}}>
+                      <input
+                        type="datetime-local"
+                        value={newKickoff[game.external_game_id] ?? ''}
+                        onChange={e => setNewKickoff(p => ({...p, [game.external_game_id]: e.target.value}))}
+                        className="input"
+                        style={{flex:1, fontSize:'0.78rem', padding:'5px 8px'}}
+                        placeholder="מועד חדש (אופציונלי)"
+                      />
+                      <button
+                        onClick={() => postponeGame(game)}
+                        disabled={postponing === game.external_game_id}
+                        style={{background:'#f59e0b',color:'#000',border:'none',borderRadius:8,padding:'6px 12px',fontSize:'0.78rem',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}
+                      >
+                        {postponing === game.external_game_id ? '...' : '🔄 נדחה'}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

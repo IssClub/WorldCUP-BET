@@ -37,8 +37,8 @@ const isExactHit = (bet: Bet) => {
   return (bet.payout ?? 0) > Math.floor(bet.amount * bet.odds_value);
 };
 
-// Show bets for games that have already kicked off (settled or in-progress)
-const isStartedGame = (bet: Bet) => new Date(bet.kickoff_at) <= new Date();
+// Show only settled bets — don't expose picks for in-progress or future games
+const isStartedGame = (bet: Bet) => bet.status === 'won' || bet.status === 'lost';
 
 export default function LeaderboardPage() {
   const { profile: me } = useAuth();
@@ -291,13 +291,13 @@ export default function LeaderboardPage() {
                                 }}>{pickLabel}</span>
                                 {bet.exact_home !== null && (
                                   <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
-                                    {' '}{bet.exact_home}:{bet.exact_away}
+                                    {' '}{bet.exact_away}:{bet.exact_home}
                                   </span>
                                 )}
                               </span>
                               {bet.actual_home !== null && !isPending && (
                                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_home}:{bet.actual_away}</span>
+                                  תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_away}:{bet.actual_home}</span>
                                 </span>
                               )}
                               {isPending && (

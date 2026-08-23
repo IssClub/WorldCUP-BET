@@ -20,6 +20,7 @@ interface Game {
   completed: boolean;
   home_score: number | null;
   away_score: number | null;
+  postponed?: boolean;
 }
 
 interface BetState {
@@ -114,7 +115,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           }}>
             <span style={{ fontSize: 13, color: 'var(--text)' }}>{pb.display_name}</span>
             <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue', cursive", letterSpacing: 1 }}>
-              {pb.exact_home ?? '?'}:{pb.exact_away ?? '?'}
+              {pb.exact_away ?? '?'}:{pb.exact_home ?? '?'}
             </span>
           </div>
         ))
@@ -132,12 +133,12 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
             {isCompleted
               ? <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, letterSpacing: 2, color: 'var(--text)' }}>
-                  {game.home_score} : {game.away_score}
+                  {game.away_score} : {game.home_score}
                 </div>
               : <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
             }
             <div style={{ fontSize: 13, color: won ? 'var(--green)' : '#f87171', fontWeight: 700, marginTop: 2 }}>
-              {won ? '✓' : '✗'} {existingBet.exact_home}:{existingBet.exact_away} → {won ? `+${existingBet.payout ?? 0}` : '0'} נק׳
+              {won ? '✓' : '✗'} {existingBet.exact_away}:{existingBet.exact_home} → {won ? `+${existingBet.payout ?? 0}` : '0'} נק׳
             </div>
             {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
           </div>
@@ -158,7 +159,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
             <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)', marginTop: 2 }}>
-              ⚡ {existingBet.exact_home}:{existingBet.exact_away}
+              ⚡ {existingBet.exact_away}:{existingBet.exact_home}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
               <span style={{ color: 'var(--green)' }}>✓</span> {resultPts} | 🎯 {exactPts} נק׳
@@ -181,7 +182,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
             <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, letterSpacing: 2 }}>
-              {game.home_score} : {game.away_score}
+              {game.away_score} : {game.home_score}
             </div>
             <div className="gc-time">סופי</div>
           </div>
@@ -261,6 +262,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 export default function PlayerPage() {
   const { profile, refresh } = useAuth();
   const [games, setGames] = useState<Game[]>([]);
+  const [postponedPrev, setPostponedPrev] = useState<Game[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [existingBets, setExistingBets] = useState<Bet[]>([]);
   const [bets, setBets] = useState<Record<string, BetState>>({});
@@ -293,13 +295,16 @@ export default function PlayerPage() {
 
       const allGames = (schedRes.data ?? []) as Game[];
       const incomplete = allGames.filter(g => !g.completed);
-      const nextRound = incomplete.length > 0
-        ? Math.min(...incomplete.map(g => g.round_num ?? 99))
-        : null;
+      const incompleteActive = incomplete.filter(g => !g.postponed);
+      const nextRound = incompleteActive.length > 0
+        ? Math.min(...incompleteActive.map(g => g.round_num ?? 99))
+        : (incomplete.length > 0 ? Math.min(...incomplete.map(g => g.round_num ?? 99)) : null);
       const roundGames = nextRound !== null
         ? allGames.filter(g => g.round_num === nextRound)
         : [];
+      const postponed = allGames.filter(g => g.postponed && !g.completed && g.round_num !== nextRound);
       setGames(roundGames);
+      setPostponedPrev(postponed);
       setCurrentRound(nextRound);
     } catch {
       setError('שגיאה בטעינת המשחקים');
@@ -317,14 +322,14 @@ export default function PlayerPage() {
 
   const CUTOFF_MS = 5 * 60 * 1000;
 
-  // Ordered list of games still open for betting
+  // Ordered list of games still open for betting (includes postponed from prev rounds)
   const bettableGameIds = useMemo(() =>
-    games
+    [...games, ...postponedPrev]
       .filter(g => !g.completed
-        && new Date(g.kickoff_at).getTime() > Date.now() + CUTOFF_MS
+        && (g.postponed || new Date(g.kickoff_at).getTime() > Date.now() + CUTOFF_MS)
         && !existingBets.find(e => e.external_game_id === g.id))
       .map(g => g.id),
-    [games, existingBets]
+    [games, postponedPrev, existingBets]
   );
 
   const handleAutoFocus = useCallback((gameId: string, field: 'home' | 'away') => {
@@ -338,13 +343,13 @@ export default function PlayerPage() {
     }
   }, [bettableGameIds]);
 
-  const readyBets = useMemo(() => games.filter(g => {
+  const readyBets = useMemo(() => [...games, ...postponedPrev].filter(g => {
     if (g.completed) return false;
-    if (new Date(g.kickoff_at).getTime() <= Date.now() + CUTOFF_MS) return false;
+    if (!g.postponed && new Date(g.kickoff_at).getTime() <= Date.now() + CUTOFF_MS) return false;
     const b = bets[g.id];
     return b != null && b.exactHome !== '' && b.exactAway !== ''
       && !existingBets.find(e => e.external_game_id === g.id);
-  }), [games, bets, existingBets]);
+  }), [games, postponedPrev, bets, existingBets]);
 
   async function submitBets() {
     if (!profile || readyBets.length === 0) return;
@@ -485,7 +490,7 @@ export default function PlayerPage() {
                     exactPts={exactPts}
                     bet={getBet(game.id)}
                     existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
-                    isStarted={new Date(game.kickoff_at).getTime() <= Date.now() + CUTOFF_MS}
+                    isStarted={!game.postponed && new Date(game.kickoff_at).getTime() <= Date.now() + CUTOFF_MS}
                     onChange={upd => updateBet(game.id, upd)}
                     homeRef={el => homeRefs.current.set(game.id, el)}
                     awayRef={el => awayRefs.current.set(game.id, el)}
@@ -502,6 +507,58 @@ export default function PlayerPage() {
         )}
 
         {error && <div className="err-banner">{error}</div>}
+
+        {/* ── נדחים ממחזורים קודמים ── */}
+        {postponedPrev.length > 0 && (() => {
+          const byRound: Record<number, Game[]> = {};
+          for (const g of postponedPrev) {
+            const r = g.round_num ?? 0;
+            if (!byRound[r]) byRound[r] = [];
+            byRound[r].push(g);
+          }
+          return (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 8, letterSpacing: 1 }}>
+                🔄 משחקים נדחים
+              </div>
+              {Object.entries(byRound).sort(([a],[b]) => Number(a)-Number(b)).map(([round, rGames]) => (
+                <div key={round}>
+                  <div className="day-row" style={{ opacity: 0.7 }}>
+                    <span className="day-dot" />
+                    <span className="day-title">מחזור {round} (נדחה)</span>
+                  </div>
+                  <div className="games-list">
+                    {rGames.map(game => (
+                      <div key={game.id} style={{ position: 'relative' }}>
+                        <div style={{
+                          position: 'absolute', top: 8, right: 8, zIndex: 2,
+                          background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 700,
+                          padding: '2px 7px', borderRadius: 20, letterSpacing: 0.5,
+                        }}>נדחה</div>
+                        <GameCard
+                          game={game}
+                          resultPts={resultPts}
+                          exactPts={exactPts}
+                          bet={getBet(game.id)}
+                          existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
+                          isStarted={false}
+                          onChange={upd => updateBet(game.id, upd)}
+                          homeRef={el => homeRefs.current.set(game.id, el)}
+                          awayRef={el => awayRefs.current.set(game.id, el)}
+                          onHomeComplete={() => handleAutoFocus(game.id, 'home')}
+                          onAwayComplete={() => handleAutoFocus(game.id, 'away')}
+                          expanded={false}
+                          onExpand={undefined}
+                          publicBets={null}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Submit bar ── */}

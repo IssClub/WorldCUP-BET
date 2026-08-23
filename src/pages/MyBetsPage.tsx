@@ -330,7 +330,7 @@ export default function MyBetsPage() {
                   <div className="mb-details">
                     <div className="mb-pick">
                       {bet.exact_home !== null
-                        ? `⚡ ניחוש: ${bet.exact_home}:${bet.exact_away}`
+                        ? `⚡ ניחוש: ${bet.exact_away}:${bet.exact_home}`
                         : pickLabel(bet.pick, bet.home_team, bet.away_team)
                       }
                     </div>
@@ -355,7 +355,7 @@ export default function MyBetsPage() {
                           : bet.actual_away > bet.actual_home ? 'away' : 'draw';
                         const winnerName = aw === 'home' ? teamHe(bet.home_team)
                           : aw === 'away' ? teamHe(bet.away_team) : 'תיקו';
-                        return <>🏁 תוצאה: <strong>{winnerName}</strong> {bet.actual_home}:{bet.actual_away}</>;
+                        return <>🏁 תוצאה: <strong>{winnerName}</strong> {bet.actual_away}:{bet.actual_home}</>;
                       })()}
                     </div>
                   )}
