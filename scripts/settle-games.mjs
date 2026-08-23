@@ -1,4 +1,4 @@
-/**
+﻿﻿/**
  * Auto-settlement script — runs via GitHub Actions cron every 10 min.
  * 1. Fetches completed game scores from The Odds API
  * 2. Settles pending bets, updates player banks
@@ -213,15 +213,15 @@ async function main() {
     }
 
     // Normalize team names for fuzzy matching (TheSportsDB vs API-Football naming)
-    const norm = s => (s ?? ‘’).toLowerCase()
-      .replace(/[‘’ʼ]/g, "’")  // normalize curly/special apostrophes to straight
-      .replace(/be’er\s+sheva/i, ‘beer sheva’)
-      .replace(/\btel-aviv\b/i, ‘tel aviv’)
-      .replace(/\bpetah-tikva\b/i, ‘petah tikva’)
-      .replace(/\bramat-gan\b/i, ‘ramat gan’)
-      .replace(/\bbnei\s+yehuda\b.*/i, ‘bnei yehuda’)
-      .replace(/’/g, ‘’)                       // strip remaining apostrophes
-      .replace(/\s+/g, ‘ ‘)
+    const norm = s => (s ?? '').toLowerCase()
+      .replace(/[''ʼ]/g, "'")  // normalize curly apostrophes to straight
+      .replace(/be'er\s+sheva/i, 'beer sheva')
+      .replace(/\btel-aviv\b/i, 'tel aviv')
+      .replace(/\bpetah-tikva\b/i, 'petah tikva')
+      .replace(/\bramat-gan\b/i, 'ramat gan')
+      .replace(/\bbnei\s+yehuda\b.*/i, 'bnei yehuda')
+      .replace(/'/g, '')                       // strip remaining apostrophes
+      .replace(/\s+/g, ' ')
       .trim();
 
     // Fetch all league_schedule rows for matching
