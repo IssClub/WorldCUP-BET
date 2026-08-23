@@ -229,26 +229,31 @@ async function main() {
       .from('league_schedule').select('id, home_team, away_team, kickoff_at, completed');
     const scheduleRows = allSchedule ?? [];
 
-    const res = await fetch(
-      'https://v3.football.api-sports.io/fixtures?league=271&season=2026&status=FT&last=10',
-      { headers: { 'x-apisports-key': APISPORTS_KEY } }
-    );
-    if (!res.ok) {
-      console.error('API-Football error:', res.status, await res.text());
-      await processPushQueue();
-      return;
-    }
-    const data = await res.json();
-    if (!Array.isArray(data.response)) {
-      console.error('API-Football unexpected response:', JSON.stringify(data).slice(0, 200));
-      await processPushQueue();
-      return;
+    // Fetch fixtures from the last 7 days — filter FT in code (free plan doesn't support status param)
+    const dateTo   = new Date().toISOString().slice(0, 10);
+    const dateFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    // Try season=2026 first (current season), then season=2025 as fallback
+    let apiFixtures = [];
+    for (const season of [2026, 2025]) {
+      const url = `https://v3.football.api-sports.io/fixtures?league=271&season=${season}&from=${dateFrom}&to=${dateTo}`;
+      console.log(`  Fetching: ${url}`);
+      const res = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
+      if (!res.ok) {
+        console.error(`  API-Football error (season=${season}):`, res.status, await res.text());
+        continue;
+      }
+      const data = await res.json();
+      const remaining = res.headers.get('x-ratelimit-requests-remaining');
+      console.log(`  season=${season}: ${data.response?.length ?? 0} fixtures | errors: ${JSON.stringify(data.errors)} | quota: ${remaining ?? '?'}`);
+      if (!Array.isArray(data.response)) continue;
+      if (data.response.length > 0) { apiFixtures = data.response; break; }
     }
 
-    const remaining = res.headers.get('x-ratelimit-requests-remaining');
-    console.log(`API-Football: ${data.response.length} finished fixtures | quota remaining: ${remaining ?? '?'}`);
+    const ftFixtures = apiFixtures.filter(f => f.fixture?.status?.short === 'FT');
+    console.log(`API-Football: ${ftFixtures.length} finished (FT) fixtures out of ${apiFixtures.length} total`);
 
-    for (const fix of data.response) {
+    for (const fix of ftFixtures) {
       if (fix.goals.home === null || fix.goals.away === null) continue;
 
       const fixDate   = fix.fixture.date.slice(0, 10);
