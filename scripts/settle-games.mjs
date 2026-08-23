@@ -203,93 +203,29 @@ async function main() {
   const isLeagueSport = !sportKeys.includes('soccer_fifa_world_cup');
 
   if (isLeagueSport) {
-    // ── League mode: use API-Football (api-sports.io) ──
-    // The Odds API doesn't support soccer_israel_premier_league
-    if (!APISPORTS_KEY) {
-      console.error('APISPORTS_KEY not set — cannot auto-settle league games');
-      await processPushQueue();
-      await maybeSendDailySummaryFromDB();
-      return;
-    }
+    // ── League mode: read scores from league_schedule ──
+    // seed-league-schedule.mjs (TheSportsDB) already populates home_score/away_score/completed.
+    // No external API needed here — just look for completed rows with pending bets.
+    const { data: completedRows } = await supabase
+      .from('league_schedule')
+      .select('id, home_team, away_team, kickoff_at, home_score, away_score')
+      .eq('completed', true)
+      .not('home_score', 'is', null)
+      .not('away_score', 'is', null);
 
-    // Normalize team names for fuzzy matching (TheSportsDB vs API-Football naming)
-    const norm = s => (s ?? '').toLowerCase()
-      .replace(/[''ʼ]/g, "'")  // normalize curly apostrophes to straight
-      .replace(/be'er\s+sheva/i, 'beer sheva')
-      .replace(/\btel-aviv\b/i, 'tel aviv')
-      .replace(/\bpetah-tikva\b/i, 'petah tikva')
-      .replace(/\bramat-gan\b/i, 'ramat gan')
-      .replace(/\bbnei\s+yehuda\b.*/i, 'bnei yehuda')
-      .replace(/'/g, '')                       // strip remaining apostrophes
-      .replace(/\s+/g, ' ')
-      .trim();
+    console.log(`League schedule: ${completedRows?.length ?? 0} completed games with scores`);
 
-    // Fetch all league_schedule rows for matching
-    const { data: allSchedule } = await supabase
-      .from('league_schedule').select('id, home_team, away_team, kickoff_at, completed');
-    const scheduleRows = allSchedule ?? [];
-
-    // Fetch fixtures from the last 7 days — filter FT in code (free plan doesn't support status param)
-    const dateTo   = new Date().toISOString().slice(0, 10);
-    const dateFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-    // Try season=2026 first (current season), then season=2025 as fallback
-    let apiFixtures = [];
-    for (const season of [2026, 2025]) {
-      const url = `https://v3.football.api-sports.io/fixtures?league=271&season=${season}&from=${dateFrom}&to=${dateTo}`;
-      console.log(`  Fetching: ${url}`);
-      const res = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
-      if (!res.ok) {
-        console.error(`  API-Football error (season=${season}):`, res.status, await res.text());
-        continue;
-      }
-      const data = await res.json();
-      const remaining = res.headers.get('x-ratelimit-requests-remaining');
-      console.log(`  season=${season}: ${data.response?.length ?? 0} fixtures | errors: ${JSON.stringify(data.errors)} | quota: ${remaining ?? '?'}`);
-      if (!Array.isArray(data.response)) continue;
-      if (data.response.length > 0) { apiFixtures = data.response; break; }
-    }
-
-    const ftFixtures = apiFixtures.filter(f => f.fixture?.status?.short === 'FT');
-    console.log(`API-Football: ${ftFixtures.length} finished (FT) fixtures out of ${apiFixtures.length} total`);
-
-    for (const fix of ftFixtures) {
-      if (fix.goals.home === null || fix.goals.away === null) continue;
-
-      const fixDate   = fix.fixture.date.slice(0, 10);
-      const fixDateMs = new Date(fixDate).getTime();
-      const apiHome   = norm(fix.teams.home.name);
-      const apiAway   = norm(fix.teams.away.name);
-
-      // Match to league_schedule by team names + kickoff date (±1 day for timezone tolerance)
-      const schedRow = scheduleRows.find(r => {
-        const rowDate   = r.kickoff_at.slice(0, 10);
-        const dayDiff   = Math.abs(fixDateMs - new Date(rowDate).getTime()) / 86400000;
-        return dayDiff <= 1
-          && norm(r.home_team) === apiHome
-          && norm(r.away_team) === apiAway;
-      });
-
-      if (!schedRow) {
-        console.log(`  No DB match for: ${fix.teams.home.name} vs ${fix.teams.away.name} on ${fixDate}`);
-        continue;
-      }
-      if (schedRow.completed) {
-        console.log(`  Already settled: ${schedRow.home_team} vs ${schedRow.away_team}`);
-        continue;
-      }
-
-      console.log(`  Matched: ${schedRow.home_team} ${fix.goals.home}:${fix.goals.away} ${schedRow.away_team}`);
+    for (const row of (completedRows ?? [])) {
       allGames.push({
-        id:            schedRow.id,   // league_schedule UUID — used as betGameId
-        _scheduleId:   schedRow.id,   // explicit league mode marker
-        home_team:     schedRow.home_team,
-        away_team:     schedRow.away_team,
-        commence_time: fix.fixture.date,
+        id:            row.id,
+        _scheduleId:   row.id,
+        home_team:     row.home_team,
+        away_team:     row.away_team,
+        commence_time: row.kickoff_at,
         completed:     true,
         scores: [
-          { name: schedRow.home_team, score: String(fix.goals.home) },
-          { name: schedRow.away_team, score: String(fix.goals.away) },
+          { name: row.home_team, score: String(row.home_score) },
+          { name: row.away_team, score: String(row.away_score) },
         ],
       });
     }
