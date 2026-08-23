@@ -14,9 +14,10 @@ const SUPABASE_KEY      = process.env.SUPABASE_SERVICE_KEY;
 const ODDS_API_KEY      = process.env.ODDS_API_KEY;
 const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const APISPORTS_KEY     = process.env.APISPORTS_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !ODDS_API_KEY) {
-  console.error('Missing required environment variables');
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Missing required environment variables: SUPABASE_URL, SUPABASE_SERVICE_KEY');
   process.exit(1);
 }
 
@@ -197,19 +198,115 @@ async function main() {
   const resultPts = settings?.result_points ?? 3;
   const exactPts = settings?.exact_score_points ?? 5;
 
-  // Step 4: fetch scores from Odds API — לכל sport key פעיל
+  // Step 4: fetch completed game scores
   const allGames = [];
-  for (const sportKey of sportKeys) {
-    const res = await fetch(
-      `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${ODDS_API_KEY}&daysFrom=3`
-    );
-    const games = await res.json();
-    if (!Array.isArray(games)) {
-      console.error(`Unexpected API response for ${sportKey}:`, JSON.stringify(games).slice(0, 200));
-      continue;
+  const isLeagueSport = !sportKeys.includes('soccer_fifa_world_cup');
+
+  if (isLeagueSport) {
+    // ── League mode: use API-Football (api-sports.io) ──
+    // The Odds API doesn't support soccer_israel_premier_league
+    if (!APISPORTS_KEY) {
+      console.error('APISPORTS_KEY not set — cannot auto-settle league games');
+      await processPushQueue();
+      await maybeSendDailySummaryFromDB();
+      return;
     }
-    console.log(`[${sportKey}] Got ${games.length} games, ${games.filter(g => g.completed).length} completed`);
-    allGames.push(...games);
+
+    // Normalize team names for fuzzy matching (TheSportsDB vs API-Football naming)
+    const norm = s => (s ?? ‘’).toLowerCase()
+      .replace(/[‘’ʼ]/g, "’")  // normalize curly/special apostrophes to straight
+      .replace(/be’er\s+sheva/i, ‘beer sheva’)
+      .replace(/\btel-aviv\b/i, ‘tel aviv’)
+      .replace(/\bpetah-tikva\b/i, ‘petah tikva’)
+      .replace(/\bramat-gan\b/i, ‘ramat gan’)
+      .replace(/\bbnei\s+yehuda\b.*/i, ‘bnei yehuda’)
+      .replace(/’/g, ‘’)                       // strip remaining apostrophes
+      .replace(/\s+/g, ‘ ‘)
+      .trim();
+
+    // Fetch all league_schedule rows for matching
+    const { data: allSchedule } = await supabase
+      .from('league_schedule').select('id, home_team, away_team, kickoff_at, completed');
+    const scheduleRows = allSchedule ?? [];
+
+    const res = await fetch(
+      'https://v3.football.api-sports.io/fixtures?league=271&season=2026&status=FT&last=10',
+      { headers: { 'x-apisports-key': APISPORTS_KEY } }
+    );
+    if (!res.ok) {
+      console.error('API-Football error:', res.status, await res.text());
+      await processPushQueue();
+      return;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data.response)) {
+      console.error('API-Football unexpected response:', JSON.stringify(data).slice(0, 200));
+      await processPushQueue();
+      return;
+    }
+
+    const remaining = res.headers.get('x-ratelimit-requests-remaining');
+    console.log(`API-Football: ${data.response.length} finished fixtures | quota remaining: ${remaining ?? '?'}`);
+
+    for (const fix of data.response) {
+      if (fix.goals.home === null || fix.goals.away === null) continue;
+
+      const fixDate   = fix.fixture.date.slice(0, 10);
+      const fixDateMs = new Date(fixDate).getTime();
+      const apiHome   = norm(fix.teams.home.name);
+      const apiAway   = norm(fix.teams.away.name);
+
+      // Match to league_schedule by team names + kickoff date (±1 day for timezone tolerance)
+      const schedRow = scheduleRows.find(r => {
+        const rowDate   = r.kickoff_at.slice(0, 10);
+        const dayDiff   = Math.abs(fixDateMs - new Date(rowDate).getTime()) / 86400000;
+        return dayDiff <= 1
+          && norm(r.home_team) === apiHome
+          && norm(r.away_team) === apiAway;
+      });
+
+      if (!schedRow) {
+        console.log(`  No DB match for: ${fix.teams.home.name} vs ${fix.teams.away.name} on ${fixDate}`);
+        continue;
+      }
+      if (schedRow.completed) {
+        console.log(`  Already settled: ${schedRow.home_team} vs ${schedRow.away_team}`);
+        continue;
+      }
+
+      console.log(`  Matched: ${schedRow.home_team} ${fix.goals.home}:${fix.goals.away} ${schedRow.away_team}`);
+      allGames.push({
+        id:            schedRow.id,   // league_schedule UUID — used as betGameId
+        _scheduleId:   schedRow.id,   // explicit league mode marker
+        home_team:     schedRow.home_team,
+        away_team:     schedRow.away_team,
+        commence_time: fix.fixture.date,
+        completed:     true,
+        scores: [
+          { name: schedRow.home_team, score: String(fix.goals.home) },
+          { name: schedRow.away_team, score: String(fix.goals.away) },
+        ],
+      });
+    }
+
+  } else {
+    // ── WC mode: use Odds API ──
+    if (!ODDS_API_KEY) {
+      console.error('ODDS_API_KEY not set');
+      return;
+    }
+    for (const sportKey of sportKeys) {
+      const res = await fetch(
+        `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${ODDS_API_KEY}&daysFrom=3`
+      );
+      const games = await res.json();
+      if (!Array.isArray(games)) {
+        console.error(`Unexpected API response for ${sportKey}:`, JSON.stringify(games).slice(0, 200));
+        continue;
+      }
+      console.log(`[${sportKey}] Got ${games.length} games, ${games.filter(g => g.completed).length} completed`);
+      allGames.push(...games);
+    }
   }
 
   const games = allGames;
@@ -226,17 +323,9 @@ async function main() {
     const awayScore = parseInt(game.scores?.find(s => s.name === game.away_team)?.score ?? '-1');
     if (homeScore < 0 || awayScore < 0) continue;
 
-    // בליגה: bets.external_game_id = league_schedule.id (UUID), לא Odds API game.id
-    // בWC: wc_schedule.id = game.id (Odds API ID)
-    let betGameId = game.id; // WC mode: Odds API ID = wc_schedule.id
-    if (!sportKeys.includes('soccer_fifa_world_cup')) {
-      const { data: schedRow } = await supabase.from('league_schedule')
-        .select('id')
-        .eq('external_id', game.id)
-        .single();
-      if (!schedRow) { console.log(`  No league_schedule row for ${game.id} — skipping`); continue; }
-      betGameId = schedRow.id;
-    }
+    // בליגה: game._scheduleId = league_schedule.id (UUID) — כבר נפתר בשלב 4
+    // בWC: game.id = Odds API ID = wc_schedule.id
+    let betGameId = game._scheduleId ?? game.id;
 
     // Get pending bets for this game
     const { data: bets, error } = await supabase
@@ -268,10 +357,10 @@ async function main() {
       if (wcErr) console.log(`  wc_schedule note: ${wcErr.message}`);
       else console.log(`  wc_schedule updated ✓`);
     } else {
-      // League mode — עדכן league_schedule לפי external_id
+      // League mode — עדכן league_schedule לפי id (UUID)
       const { error: lsErr } = await supabase.from('league_schedule')
         .update({ home_score: homeScore, away_score: awayScore, completed: true, postponed: false })
-        .eq('external_id', game.id);
+        .eq('id', game._scheduleId);
       if (lsErr) console.log(`  league_schedule note: ${lsErr.message}`);
       else console.log(`  league_schedule updated ✓`);
     }
@@ -341,11 +430,11 @@ async function main() {
 async function maybeSendRoundSummary(settledExternalIds) {
   if (!settledExternalIds.length) return;
 
-  // מצא את מספרי המחזורים של המשחקים שנסגרו
+  // מצא את מספרי המחזורים של המשחקים שנסגרו (settledExternalIds = league_schedule.id UUIDs)
   const { data: settledRows } = await supabase
     .from('league_schedule')
     .select('round_num')
-    .in('external_id', settledExternalIds);
+    .in('id', settledExternalIds);
 
   const roundNums = [...new Set((settledRows ?? []).map(r => r.round_num).filter(Boolean))];
   if (!roundNums.length) return;
@@ -371,18 +460,18 @@ async function maybeSendRoundSummary(settledExternalIds) {
 
     console.log(`Round ${roundNum} fully complete — sending round summary.`);
 
-    // מצא את ה-external_ids של כל משחקי המחזור
+    // מצא את ה-IDs של כל משחקי המחזור (league_schedule.id = UUIDs = bets.external_game_id בליגה)
     const { data: roundGames } = await supabase
       .from('league_schedule')
-      .select('external_id')
+      .select('id')
       .eq('round_num', roundNum);
-    const externalIds = (roundGames ?? []).map(g => g.external_id).filter(Boolean);
+    const roundGameIds = (roundGames ?? []).map(g => g.id).filter(Boolean);
 
     // מצא את כל ההימורים של המחזור
     const { data: roundBets } = await supabase
       .from('bets')
       .select('player_id, status, payout, exact_home, exact_away, actual_home, actual_away')
-      .in('external_game_id', externalIds)
+      .in('external_game_id', roundGameIds)
       .in('status', ['won', 'lost']);
 
     // חישוב סטטיסטיקה לכל שחקן
@@ -453,17 +542,9 @@ async function applyMissingBetPenalties(games, activePlayers, bankMap, todayChan
   const completedGames = games.filter(g => g.completed);
   if (!completedGames.length) return;
 
-  const isLeague = !sportKeys?.includes('soccer_fifa_world_cup');
-
   for (const game of completedGames) {
-    // בליגה: resolve league_schedule.id (UUID) מ-external_id
-    let betGameId = game.id;
-    if (isLeague) {
-      const { data: schedRow } = await supabase.from('league_schedule')
-        .select('id').eq('external_id', game.id).single();
-      if (!schedRow) continue;
-      betGameId = schedRow.id;
-    }
+    // בליגה: game._scheduleId = league_schedule.id (UUID) — כבר נפתר בשלב 4
+    const betGameId = game._scheduleId ?? game.id;
 
     // מי שהמר על המשחק הזה (כל סטטוס)
     const { data: betsForGame } = await supabase

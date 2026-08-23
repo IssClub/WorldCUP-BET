@@ -40,5 +40,6 @@ jobs:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           ODDS_API_KEY:         ${{ secrets.ODDS_API_KEY }}
+          APISPORTS_KEY:        ${{ secrets.APISPORTS_KEY }}
           VAPID_PUBLIC_KEY:     ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY:    ${{ secrets.VAPID_PRIVATE_KEY }}
