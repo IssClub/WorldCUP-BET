@@ -181,7 +181,7 @@ export default function AdminPage() {
     if (newDate) update.kickoff_at = new Date(newDate).toISOString();
     await supabase.from('league_schedule')
       .update(update)
-      .eq('external_id', game.external_game_id);
+      .eq('id', game.external_game_id);
     if (newDate) {
       await supabase.from('bets')
         .update({ kickoff_at: new Date(newDate).toISOString() })
