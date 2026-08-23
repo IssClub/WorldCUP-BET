@@ -45,6 +45,22 @@ if (error) {
 }
 
 if (!games?.length) {
+  // fallback: even outside the window, settle if there are pending bets on started games
+  const { count: unsettled } = await supabase
+    .from('bets')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .lte('kickoff_at', now.toISOString());
+
+  if (unsettled && unsettled > 0) {
+    console.log(`No games in window but ${unsettled} pending bet(s) on started games — forcing settle.`);
+    setOutput('IN_SETTLE_WINDOW',  'true');
+    setOutput('IN_ODDS_WINDOW',    'false');
+    setOutput('IN_PREGAME_WINDOW', 'false');
+    setOutput('GAMES_TODAY',       String(unsettled));
+    process.exit(0);
+  }
+
   console.log(`No games between ${lookBack.toISOString()} and ${lookAhead.toISOString()} — nothing to do.`);
   setOutput('IN_SETTLE_WINDOW',  'false');
   setOutput('IN_ODDS_WINDOW',    'false');
