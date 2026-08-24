@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/auth';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invite, Profile, Settings, Bet } from '../lib/supabase';
-import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star, Activity } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Users, Settings as SettingsIcon, Trophy, RefreshCw, Trash2, Database, Shirt, CheckSquare, Star, Activity, Edit2 } from 'lucide-react';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_TEAMS } from '../lib/tournamentOdds';
@@ -15,12 +15,22 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special' | 'activity'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special' | 'activity' | 'fix'>('invites');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [newScorer, setNewScorer] = useState({ player_name: '', team: '', goals: 0, assists: 0 });
   const [savingScorer, setSavingScorer] = useState(false);
+
+  // Bet correction tab
+  const [fixPlayerId, setFixPlayerId] = useState('');
+  const [fixPlayerBets, setFixPlayerBets] = useState<Bet[]>([]);
+  const [fixBetId, setFixBetId] = useState('');
+  const [fixNewPick, setFixNewPick] = useState<'home' | 'draw' | 'away' | ''>('');
+  const [fixNewExactHome, setFixNewExactHome] = useState('');
+  const [fixNewExactAway, setFixNewExactAway] = useState('');
+  const [applyingFix, setApplyingFix] = useState(false);
+  const [fixTabMsg, setFixTabMsg] = useState('');
 
   // Flip bets
   const [fixingBets, setFixingBets] = useState(false);
@@ -190,6 +200,70 @@ export default function AdminPage() {
     }
     setPostponing(null);
     await loadPendingGames();
+  }
+
+  async function loadFixPlayerBets(playerId: string) {
+    setFixPlayerId(playerId);
+    setFixBetId('');
+    setFixNewPick('');
+    setFixNewExactHome('');
+    setFixNewExactAway('');
+    setFixTabMsg('');
+    if (!playerId) { setFixPlayerBets([]); return; }
+    const { data } = await supabase
+      .from('bets').select('*')
+      .eq('player_id', playerId)
+      .in('status', ['won', 'lost'])
+      .order('kickoff_at', { ascending: false });
+    setFixPlayerBets((data as Bet[]) || []);
+  }
+
+  async function applyBetFix() {
+    if (!fixBetId || !fixNewPick) return;
+    const bet = fixPlayerBets.find(b => b.id === fixBetId);
+    if (!bet) return;
+    const h = bet.actual_home, a = bet.actual_away;
+    if (h === null || a === null) { setFixTabMsg('❌ אין תוצאה למשחק הזה'); return; }
+
+    const resultPts = settings?.result_points ?? 3;
+    const exactPts  = settings?.exact_score_points ?? 5;
+    const winner    = h > a ? 'home' : a > h ? 'away' : 'draw';
+    const newWon    = fixNewPick === winner;
+    const newEH = fixNewExactHome !== '' ? parseInt(fixNewExactHome) : null;
+    const newEA = fixNewExactAway !== '' ? parseInt(fixNewExactAway) : null;
+    const isExact   = newWon && newEH === h && newEA === a;
+    const newPayout = isExact ? exactPts : newWon ? resultPts : 0;
+    const oldPayout = bet.payout ?? 0;
+    const delta     = newPayout - oldPayout;
+
+    const summary =
+      `שינוי: ${bet.home_team} vs ${bet.away_team}\n` +
+      `תוצאה: ${h}:${a}\n` +
+      `ניחוש ישן: ${bet.pick} → חדש: ${fixNewPick}\n` +
+      `נקודות ישנות: ${oldPayout} → חדשות: ${newPayout}\n` +
+      `שינוי בנק: ${delta >= 0 ? '+' : ''}${delta}`;
+    if (!confirm(summary + '\n\nלהמשיך?')) return;
+
+    setApplyingFix(true);
+    setFixTabMsg('');
+
+    await supabase.from('bets').update({
+      pick: fixNewPick,
+      exact_home: newEH,
+      exact_away: newEA,
+      status: newWon ? 'won' : 'lost',
+      payout: newPayout,
+    }).eq('id', bet.id);
+
+    if (delta !== 0) {
+      const { data: prof } = await supabase.from('profiles').select('bank').eq('id', bet.player_id).single();
+      if (prof) await supabase.from('profiles').update({ bank: prof.bank + delta }).eq('id', bet.player_id);
+    }
+
+    await loadFixPlayerBets(fixPlayerId);
+    await loadPlayers();
+    setApplyingFix(false);
+    setFixTabMsg(`✓ תוקן! שינוי בנק: ${delta >= 0 ? '+' : ''}${delta} נק׳`);
   }
 
   async function settleGame(game: GameGroup) {
@@ -458,6 +532,7 @@ export default function AdminPage() {
     { key: 'players', label: 'שחקנים', icon: Users },
     { key: 'activity', label: 'פעילות', icon: Activity },
     { key: 'results', label: 'תוצאות', icon: CheckSquare },
+    { key: 'fix', label: 'תיקון הימורים', icon: Edit2 },
     { key: 'scorers', label: 'שערים', icon: Shirt },
     { key: 'special', label: 'ניחושי טורניר', icon: Star },
     { key: 'data', label: 'נתונים', icon: Database },
@@ -1096,6 +1171,133 @@ export default function AdminPage() {
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>אין שחקנים</div>
               )}
             </div>
+          </div>
+        )}
+
+        {tab === 'fix' && (
+          <div className="fade-in">
+            <h2 className="font-bold text-lg mb-4">תיקון הימור — אחורה</h2>
+
+            {/* בחר שחקן */}
+            <div className="card p-4 mb-4">
+              <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>שחקן</label>
+              <select
+                className="input w-full"
+                value={fixPlayerId}
+                onChange={e => loadFixPlayerBets(e.target.value)}
+              >
+                <option value="">— בחר שחקן —</option>
+                {players.map(p => (
+                  <option key={p.id} value={p.id}>{p.display_name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* רשימת הימורים שנסגרו */}
+            {fixPlayerId && (
+              <div className="card p-4 mb-4">
+                <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>משחק לתיקון</label>
+                {fixPlayerBets.length === 0 ? (
+                  <div className="text-sm" style={{color:'var(--text-muted)'}}>אין הימורים שנסגרו לשחקן זה</div>
+                ) : (
+                  <select
+                    className="input w-full"
+                    value={fixBetId}
+                    onChange={e => {
+                      setFixBetId(e.target.value);
+                      const b = fixPlayerBets.find(x => x.id === e.target.value);
+                      if (b) {
+                        setFixNewPick(b.pick as 'home' | 'draw' | 'away');
+                        setFixNewExactHome(b.exact_home !== null ? String(b.exact_home) : '');
+                        setFixNewExactAway(b.exact_away !== null ? String(b.exact_away) : '');
+                      }
+                    }}
+                  >
+                    <option value="">— בחר משחק —</option>
+                    {fixPlayerBets.map(b => {
+                      const d = new Date(b.kickoff_at).toLocaleDateString('he-IL', {day:'numeric',month:'numeric',timeZone:'Asia/Jerusalem'});
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {d} · {b.home_team} {b.actual_home}:{b.actual_away} {b.away_team} — {b.pick} ({b.payout ?? 0} נק׳)
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {/* טופס תיקון */}
+            {fixBetId && (() => {
+              const bet = fixPlayerBets.find(b => b.id === fixBetId);
+              if (!bet) return null;
+              return (
+                <div className="card p-4 mb-4">
+                  <div className="text-sm mb-4" style={{color:'var(--text-muted)'}}>
+                    תוצאה אמיתית: <strong style={{color:'var(--text)'}}>{bet.home_team} {bet.actual_home}:{bet.actual_away} {bet.away_team}</strong>
+                  </div>
+
+                  <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>ניחוש חדש</label>
+                  <div className="flex gap-2 mb-4">
+                    {(['home','draw','away'] as const).map(pick => (
+                      <button
+                        key={pick}
+                        onClick={() => setFixNewPick(pick)}
+                        style={{
+                          flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+                          background: fixNewPick === pick ? 'var(--green)' : 'var(--surface2)',
+                          color: fixNewPick === pick ? '#000' : 'var(--text)',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        {pick === 'home' ? 'בית' : pick === 'draw' ? 'תיקו' : 'חוץ'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>תוצאה מדויקת (אופציונלי)</label>
+                  <div className="flex gap-2 items-center mb-4">
+                    <input
+                      className="input" style={{width: 60, textAlign:'center'}}
+                      placeholder="בית" value={fixNewExactHome}
+                      onChange={e => setFixNewExactHome(e.target.value)}
+                      type="number" min={0}
+                    />
+                    <span style={{color:'var(--text-muted)'}}>:</span>
+                    <input
+                      className="input" style={{width: 60, textAlign:'center'}}
+                      placeholder="חוץ" value={fixNewExactAway}
+                      onChange={e => setFixNewExactAway(e.target.value)}
+                      type="number" min={0}
+                    />
+                    <button
+                      onClick={() => { setFixNewExactHome(''); setFixNewExactAway(''); }}
+                      style={{fontSize:'0.75rem',color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer'}}
+                    >
+                      נקה
+                    </button>
+                  </div>
+
+                  {fixTabMsg && (
+                    <div className="text-sm px-3 py-2 rounded-lg mb-3" style={{
+                      background: fixTabMsg.startsWith('✓') ? 'rgba(0,200,83,0.1)' : 'rgba(248,113,113,0.1)',
+                      color: fixTabMsg.startsWith('✓') ? 'var(--green)' : '#f87171',
+                      border: `1px solid ${fixTabMsg.startsWith('✓') ? 'rgba(0,200,83,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                    }}>
+                      {fixTabMsg}
+                    </div>
+                  )}
+
+                  <button
+                    className="btn-primary w-full"
+                    disabled={!fixNewPick || applyingFix}
+                    onClick={applyBetFix}
+                  >
+                    {applyingFix ? 'מעדכן...' : 'החל תיקון ועדכן בנק'}
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         )}
 
