@@ -255,9 +255,11 @@ function ScheduleView({ games, groups, scoreMap }: {
                       const sc = scoreMap[g.id];
                       if (sc) return (
                         <div className="sch-score">
-                          <span className="sch-score-num">{sc.homeScore}</span>
-                          <span className="sch-score-sep">:</span>
-                          <span className="sch-score-num">{sc.awayScore}</span>
+                          <div className="sch-score-nums">
+                            <span className="sch-score-num">{sc.homeScore}</span>
+                            <span className="sch-score-sep">:</span>
+                            <span className="sch-score-num">{sc.awayScore}</span>
+                          </div>
                           {sc.completed && <span className="sch-score-ft">סיים</span>}
                           {!sc.completed && <span className="sch-score-live">חי</span>}
                         </div>
@@ -419,9 +421,11 @@ function LeagueScheduleView() {
                     </div>
                     {f.completed && f.home_score !== null ? (
                       <div className="sch-score">
-                        <span className="sch-score-num">{f.home_score}</span>
-                        <span className="sch-score-sep">:</span>
-                        <span className="sch-score-num">{f.away_score}</span>
+                        <div className="sch-score-nums">
+                          <span className="sch-score-num">{f.home_score}</span>
+                          <span className="sch-score-sep">:</span>
+                          <span className="sch-score-num">{f.away_score}</span>
+                        </div>
                         <span className="sch-score-ft">סיים</span>
                       </div>
                     ) : (
@@ -843,7 +847,7 @@ function KnockoutBracketView() {
 }
 
 // ── Season Predictions view ───────────────────────────────
-const PREDICTIONS_DEADLINE = new Date('2026-08-22T17:00:00Z'); // 20:00 ישראל
+const PREDICTIONS_DEADLINE = new Date('2026-08-29T20:59:00Z'); // 23:59 ישראל
 
 function PredictionCard({
   icon, title, isOpen, existing, msg, children,
@@ -889,6 +893,9 @@ function PredictionCard({
   );
 }
 
+type AllBetsRow = { player_id: string; type: string; prediction: string; status: string };
+type ProfileRow = { id: string; display_name: string };
+
 function SeasonPredictionsView() {
   const { profile } = useAuth();
   const [existingBets, setExistingBets] = useState<SpecialBet[]>([]);
@@ -899,6 +906,8 @@ function SeasonPredictionsView() {
   const [scorerPick, setScorerPick] = useState('');
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Record<string, string>>({});
+  const [allBets, setAllBets] = useState<AllBetsRow[]>([]);
+  const [allProfiles, setAllProfiles] = useState<ProfileRow[]>([]);
 
   const isOpen = new Date() < PREDICTIONS_DEADLINE;
   const deadlineStr = PREDICTIONS_DEADLINE.toLocaleString('he-IL', {
@@ -908,17 +917,26 @@ function SeasonPredictionsView() {
 
   useEffect(() => {
     if (!profile) return;
-    supabase.from('special_bets').select('*').eq('player_id', profile.id)
-      .then(({ data }) => {
-        setExistingBets((data as SpecialBet[]) || []);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from('special_bets').select('*').eq('player_id', profile.id),
+      supabase.from('special_bets').select('player_id, type, prediction, status'),
+      supabase.from('profiles').select('id, display_name'),
+    ]).then(([myRes, allRes, profRes]) => {
+      setExistingBets((myRes.data as SpecialBet[]) || []);
+      setAllBets((allRes.data as AllBetsRow[]) || []);
+      setAllProfiles((profRes.data as ProfileRow[]) || []);
+      setLoading(false);
+    });
   }, [profile?.id]);
 
   async function refreshBets() {
     if (!profile) return;
-    const { data } = await supabase.from('special_bets').select('*').eq('player_id', profile.id);
-    setExistingBets((data as SpecialBet[]) || []);
+    const [myRes, allRes] = await Promise.all([
+      supabase.from('special_bets').select('*').eq('player_id', profile.id),
+      supabase.from('special_bets').select('player_id, type, prediction, status'),
+    ]);
+    setExistingBets((myRes.data as SpecialBet[]) || []);
+    setAllBets((allRes.data as AllBetsRow[]) || []);
   }
 
   function showMsg(key: string, text: string) {
@@ -1062,6 +1080,73 @@ function SeasonPredictionsView() {
           {submitting === 'top_scorer' ? 'שומר...' : 'שמור ניחוש'}
         </button>
       </PredictionCard>
+
+      {/* טבלת ניחושים של כולם */}
+      {allProfiles.length > 0 && allBets.length > 0 && (() => {
+        const profileMap = new Map(allProfiles.map(p => [p.id, p.display_name]));
+        // gather player ids that have at least one bet
+        const playerIds = [...new Set(allBets.map(b => b.player_id))];
+        const rows = playerIds.map(pid => {
+          const name = profileMap.get(pid) ?? pid;
+          const bets = allBets.filter(b => b.player_id === pid);
+          const winner = bets.find(b => b.type === 'winner');
+          const relegated = bets.filter(b => b.type === 'relegated');
+          const scorer = bets.find(b => b.type === 'top_scorer');
+          return { name, winner, relegated, scorer };
+        }).sort((a, b) => a.name.localeCompare(b.name, 'he'));
+
+        const statusDot = (status: string) =>
+          status === 'won' ? '✓' : status === 'lost' ? '✗' : '';
+        const statusColor = (status: string) =>
+          status === 'won' ? 'var(--green)' : status === 'lost' ? '#f87171' : 'var(--text-muted)';
+
+        const thStyle: React.CSSProperties = {
+          padding: '8px 10px', fontWeight: 700, fontSize: '0.75rem',
+          color: 'var(--text-muted)', textAlign: 'right', borderBottom: '1px solid var(--border)',
+        };
+        const tdStyle: React.CSSProperties = {
+          padding: '8px 10px', fontSize: '0.8rem', textAlign: 'right',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        };
+
+        return (
+          <div className="card" style={{ border: '1px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px 8px', fontWeight: 700, fontSize: '0.9rem' }}>
+              ניחושי כל השחקנים
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>שחקן</th>
+                    <th style={thStyle}>🏆 אלוף</th>
+                    <th style={thStyle}>📉 יורדות</th>
+                    <th style={thStyle}>👟 מלך שערים</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row => (
+                    <tr key={row.name}>
+                      <td style={{ ...tdStyle, fontWeight: 600 }}>{row.name}</td>
+                      <td style={{ ...tdStyle, color: row.winner ? statusColor(row.winner.status) : 'var(--text-muted)' }}>
+                        {row.winner ? `${teamHe(row.winner.prediction)} ${statusDot(row.winner.status)}` : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: row.relegated.length ? statusColor(row.relegated[0].status) : 'var(--text-muted)' }}>
+                        {row.relegated.length
+                          ? row.relegated.map(b => teamHe(b.prediction)).join(' + ') + ' ' + statusDot(row.relegated[0].status)
+                          : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: row.scorer ? statusColor(row.scorer.status) : 'var(--text-muted)' }}>
+                        {row.scorer ? `${row.scorer.prediction} ${statusDot(row.scorer.status)}` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

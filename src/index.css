@@ -714,13 +714,16 @@ body {
 .sch-score {
   display: flex; flex-direction: column; align-items: center; gap: 0; flex-shrink: 0;
 }
+.sch-score-nums {
+  display: flex; flex-direction: row; align-items: baseline; gap: 2px;
+}
 .sch-score-num {
   font-family: 'Bebas Neue', cursive; font-size: 1.5rem; line-height: 1; color: var(--text);
 }
 .sch-score-sep {
-  font-family: 'Bebas Neue', cursive; font-size: 0.9rem; color: var(--text-muted); line-height: 0.8;
+  font-family: 'Bebas Neue', cursive; font-size: 1.3rem; color: var(--text-muted); line-height: 1;
 }
-.sch-score-ft { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; margin-top: 2px; }
+.sch-score-ft { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; margin-top: 1px; }
 .sch-score-live {
   font-size: 0.55rem; color: #ef4444; font-weight: 700; letter-spacing: 0.5px; margin-top: 2px;
   animation: pulse 1s ease-in-out infinite;

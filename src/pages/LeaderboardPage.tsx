@@ -45,6 +45,7 @@ export default function LeaderboardPage() {
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     load();
@@ -57,13 +58,16 @@ export default function LeaderboardPage() {
 
   async function load() {
     setLoading(true);
-    const [profilesRes, betsRes] = await Promise.all([
+    const [profilesRes, betsRes, schedRes] = await Promise.all([
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
       supabase.rpc('get_leaderboard_bets'),
+      supabase.from('league_schedule').select('id, round_num'),
     ]);
 
     const profiles: Profile[] = profilesRes.data || [];
     const bets: Bet[] = (betsRes.data || []) as Bet[];
+
+    setRoundMap(new Map((schedRes.data ?? []).map(r => [r.id, r.round_num ?? 0])));
 
     const betsByPlayer: Record<string, Bet[]> = {};
     for (const bet of bets) {
@@ -84,7 +88,6 @@ export default function LeaderboardPage() {
       };
     });
 
-    // מיון: בנק → ניחושים נכונים → בולים
     mapped.sort((a, b) =>
       b.bank - a.bank ||
       b.wins - a.wins ||
@@ -143,11 +146,11 @@ export default function LeaderboardPage() {
               <span style={{ width: 22 }}>#</span>
               <span>שם</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              <span style={{ width: 40, textAlign: 'center' }}>✓</span>
-              <span style={{ width: 40, textAlign: 'center' }}>✗</span>
-              <span style={{ width: 40, textAlign: 'center' }}>🎯</span>
-              <span style={{ width: 58, textAlign: 'right' }}>נק׳</span>
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 2 }}>
+              <span style={{ width: 34, textAlign: 'center' }}>✓</span>
+              <span style={{ width: 34, textAlign: 'center' }}>✗</span>
+              <span style={{ width: 34, textAlign: 'center' }}>🎯</span>
+              <span style={{ width: 64, textAlign: 'center' }}>נק׳</span>
             </div>
           </div>
 
@@ -169,7 +172,10 @@ export default function LeaderboardPage() {
                     display: 'flex', alignItems: 'center',
                     padding: '11px 14px',
                     cursor: hasHistory ? 'pointer' : 'default',
-                    background: isMe ? 'rgba(0,200,83,0.07)' : 'transparent',
+                    background: i === 0
+                      ? 'rgba(255,214,0,0.05)'
+                      : isMe ? 'rgba(0,200,83,0.07)' : 'transparent',
+                    boxShadow: i === 0 ? 'inset 3px 0 0 var(--gold)' : 'none',
                   }}
                 >
                   {/* Left: position + name */}
@@ -214,118 +220,139 @@ export default function LeaderboardPage() {
                   </div>
 
                   {/* Right: stats — fixed-width, equal columns */}
-                  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <span style={{ width: 40, textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 2 }}>
+                    <span style={{ width: 34, textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.9rem' }}>
                       {p.wins}
                     </span>
-                    <span style={{ width: 40, textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
+                    <span style={{ width: 34, textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
                       {p.losses}
                     </span>
-                    <span style={{ width: 40, textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem' }}>
+                    <span style={{ width: 34, textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.9rem' }}>
                       {p.exactHits}
                     </span>
                     <span style={{
-                      width: 58, textAlign: 'right',
+                      width: 64, textAlign: 'center',
                       fontWeight: 800, fontSize: '0.92rem',
-                      color: i === 0 ? 'var(--gold)' : 'rgba(255,255,255,0.88)',
+                      color: 'rgba(255,255,255,0.92)',
                     }}>
                       {p.bank.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
-                {/* Expanded bet history */}
-                {isOpen && hasHistory && (
-                  <div style={{
-                    borderTop: '1px solid var(--border)',
-                    background: 'rgba(0,0,0,0.25)',
-                    padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 5,
-                  }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, paddingRight: 2 }}>
-                      היסטוריית הימורים
-                    </div>
-                    {startedBets.map(bet => {
-                      const isPending = bet.status === 'pending';
-                      const won = bet.status === 'won';
-                      const exact = isExactHit(bet);
-                      const pickLabel = bet.pick === 'home' ? teamHe(bet.home_team)
-                        : bet.pick === 'away' ? teamHe(bet.away_team) : 'תיקו';
+                {/* Expanded bet history — grouped by round */}
+                {isOpen && hasHistory && (() => {
+                  // קבץ לפי מחזור
+                  const byRound = new Map<number, Bet[]>();
+                  for (const bet of startedBets) {
+                    const r = roundMap.get(bet.external_game_id) ?? 0;
+                    if (!byRound.has(r)) byRound.set(r, []);
+                    byRound.get(r)!.push(bet);
+                  }
+                  const sortedRounds = [...byRound.keys()].sort((a, b) => a - b);
 
-                      return (
-                        <div key={bet.id} style={{
-                          padding: '7px 9px',
-                          borderRadius: 8,
-                          background: isPending
-                            ? 'rgba(255,214,0,0.06)'
-                            : won ? 'rgba(0,200,83,0.08)' : 'rgba(248,113,113,0.08)',
-                          border: `1px solid ${isPending
-                            ? 'rgba(255,214,0,0.2)'
-                            : won ? 'rgba(0,200,83,0.18)' : 'rgba(248,113,113,0.18)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                        }}>
-                          {/* Result badge */}
-                          <div style={{ fontSize: '1rem', flexShrink: 0 }}>
-                            {isPending ? '⏳' : exact ? '🎯' : won ? '✅' : '❌'}
+                  return (
+                    <div style={{
+                      borderTop: '1px solid var(--border)',
+                      background: 'rgba(0,0,0,0.25)',
+                      padding: '8px 10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 5,
+                    }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, paddingRight: 2 }}>
+                        היסטוריית הימורים
+                      </div>
+                      {sortedRounds.map(round => (
+                        <div key={round}>
+                          {/* Round header */}
+                          <div style={{
+                            fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)',
+                            letterSpacing: 0.5, padding: '4px 2px 2px',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                            marginBottom: 4,
+                          }}>
+                            מחזור {round || '?'}
                           </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {(byRound.get(round) ?? []).map(bet => {
+                            const isPending = bet.status === 'pending';
+                            const won = bet.status === 'won';
+                            const exact = isExactHit(bet);
+                            const pickLabel = bet.pick === 'home' ? teamHe(bet.home_team)
+                              : bet.pick === 'away' ? teamHe(bet.away_team) : 'תיקו';
 
-                          {/* Game + pick */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                              <Flag team={bet.home_team} size={14} />
-                              <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.home_team)}</span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>-</span>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.away_team)}</span>
-                              <Flag team={bet.away_team} size={14} />
-                              <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)' }}>{fmtDate(bet.kickoff_at)}</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.7rem' }}>
-                                ניחוש: <span style={{
-                                  color: isPending ? 'var(--gold)' : won ? 'var(--green)' : '#f87171',
-                                  fontWeight: 700
-                                }}>{pickLabel}</span>
-                                {bet.exact_home !== null && (
-                                  <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
-                                    {' '}{bet.exact_away}:{bet.exact_home}
-                                  </span>
-                                )}
-                              </span>
-                              {bet.actual_home !== null && !isPending && (
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_away}:{bet.actual_home}</span>
-                                </span>
-                              )}
-                              {isPending && (
-                                <span style={{ fontSize: '0.63rem', color: 'var(--gold)', fontWeight: 600 }}>
-                                  ממתין לתוצאה
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Points change */}
-                          <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                            {isPending ? (
-                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                                {bet.amount.toLocaleString()}
+                            return (
+                              <div key={bet.id} style={{
+                                padding: '7px 9px',
+                                borderRadius: 8,
+                                background: isPending
+                                  ? 'rgba(255,214,0,0.06)'
+                                  : won ? 'rgba(0,200,83,0.08)' : 'rgba(248,113,113,0.08)',
+                                border: `1px solid ${isPending
+                                  ? 'rgba(255,214,0,0.2)'
+                                  : won ? 'rgba(0,200,83,0.18)' : 'rgba(248,113,113,0.18)'}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                              }}>
+                                <div style={{ fontSize: '1rem', flexShrink: 0 }}>
+                                  {isPending ? '⏳' : exact ? '🎯' : won ? '✅' : '❌'}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                    <Flag team={bet.home_team} size={14} />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.home_team)}</span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>-</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{teamHe(bet.away_team)}</span>
+                                    <Flag team={bet.away_team} size={14} />
+                                    <span style={{ fontSize: '0.63rem', color: 'var(--text-muted)' }}>{fmtDate(bet.kickoff_at)}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '0.7rem' }}>
+                                      ניחוש: <span style={{
+                                        color: isPending ? 'var(--gold)' : won ? 'var(--green)' : '#f87171',
+                                        fontWeight: 700
+                                      }}>{pickLabel}</span>
+                                      {bet.exact_home !== null && (
+                                        <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
+                                          {' '}{bet.exact_away}:{bet.exact_home}
+                                        </span>
+                                      )}
+                                    </span>
+                                    {bet.actual_home !== null && !isPending && (
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                        תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_away}:{bet.actual_home}</span>
+                                      </span>
+                                    )}
+                                    {isPending && (
+                                      <span style={{ fontSize: '0.63rem', color: 'var(--gold)', fontWeight: 600 }}>
+                                        ממתין לתוצאה
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ flexShrink: 0, textAlign: 'center' }}>
+                                  {isPending ? (
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                                      —
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: won ? 'var(--green)' : 'var(--text-muted)' }}>
+                                      {won ? `+${(bet.payout ?? 0).toLocaleString()}` : '0'}
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>נק׳</div>
+                                </div>
                               </div>
-                            ) : (
-                              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: won ? 'var(--green)' : '#f87171' }}>
-                                {won ? `+${(bet.payout ?? 0).toLocaleString()}` : `-${bet.amount.toLocaleString()}`}
-                              </div>
-                            )}
-                            <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)' }}>נק׳</div>
+                            );
+                          })}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
