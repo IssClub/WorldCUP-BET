@@ -15,7 +15,7 @@ function generateCode(): string {
 
 export default function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special' | 'activity' | 'fix'>('invites');
+  const [tab, setTab] = useState<'invites' | 'players' | 'settings' | 'data' | 'scorers' | 'results' | 'special' | 'activity' | 'fix'>('players');
   const [betCounts, setBetCounts] = useState<Record<string, number>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
   const [scorers, setScorers] = useState<TopScorer[]>([]);
