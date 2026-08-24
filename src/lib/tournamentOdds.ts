@@ -20,9 +20,3 @@ export const LEAGUE_TEAMS: string[] = [
   'Ironi Tiberias',
 ];
 
-// backward compat — לא בשימוש יותר, נשמר כדי לא לשבור imports ישנים
-export const WINNER_ODDS:     { name: string; price: number }[]                  = [];
-export const TOP_SCORER_ODDS: { name: string; team: string; price: number }[]    = [];
-export const RELEGATED_ODDS:  { name: string; price: number }[]                  = [];
-export const LEAGUE_WINNER_ODDS = WINNER_ODDS;
-export const LEAGUE_SCORER_ODDS = TOP_SCORER_ODDS;

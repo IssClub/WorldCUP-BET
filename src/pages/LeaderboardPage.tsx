@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import type { Profile, Bet } from '../lib/supabase';
 import { RefreshCw, Crown, ChevronDown, ChevronUp } from 'lucide-react';
 import { teamHe } from '../lib/teamNames';
-import { flagUrl } from '../lib/flagMap';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 
 type PlayerStats = Profile & {
@@ -20,12 +19,9 @@ const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: TZ });
 
 function Flag({ team, size = 18 }: { team: string; size?: number }) {
-  const url = flagUrl(team, 'w40');
-  if (!url) return <span style={{ fontSize: size * 0.75 }}>⚽</span>;
-  return (
-    <img src={url} alt={team} width={size} height={Math.round(size * 0.6)}
-      style={{ borderRadius: 2, objectFit: 'cover', flexShrink: 0 }} />
-  );
+  const badge = LEAGUE_BADGES[team];
+  if (badge) return <img src={badge} alt={team} width={size} height={size} style={{ borderRadius: 3, objectFit: 'contain', flexShrink: 0 }} />;
+  return <span style={{ fontSize: size * 0.75 }}>⚽</span>;
 }
 
 const isExactHit = (bet: Bet) => {

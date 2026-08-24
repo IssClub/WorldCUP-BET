@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef, useCallback, useReducer } from 'r
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
-import { flagUrl } from '../lib/flagMap';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
 import { CheckCircle2, RefreshCw, Lock } from 'lucide-react';
@@ -109,13 +108,7 @@ function Flag({ team, size = 44 }: { team: string; size?: number }) {
         style={{ borderRadius: 6, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
     );
   }
-  const url = flagUrl(team, 'w80');
-  if (!url) return <span style={{ fontSize: size * 0.6, lineHeight: 1 }}>🏳️</span>;
-  return (
-    <img src={url} alt={team} width={size} height={Math.round(size * 0.6)}
-      style={{ borderRadius: 4, objectFit: 'cover', display: 'block', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
-    />
-  );
+  return <span style={{ fontSize: size * 0.6, lineHeight: 1 }}>🏳️</span>;
 }
 
 // ── Time utils ────────────────────────────────────────────

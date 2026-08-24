@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
@@ -89,17 +88,7 @@ function Flag({ team, size = 28 }: { team: string; size?: number }) {
       />
     );
   }
-  // 2. National team flag
-  const url = flagUrl(team, 'w80');
-  if (url) {
-    return (
-      <img
-        src={url} alt={team} width={size} height={Math.round(size * 0.65)}
-        style={{ borderRadius: 3, objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', flexShrink: 0 }}
-      />
-    );
-  }
-  // 3. Fallback: colored initials
+  // 2. Fallback: colored initials
   const label = teamHe(team).slice(0, 2);
   return (
     <span style={{

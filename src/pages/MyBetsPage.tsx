@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Bet, SpecialBet } from '../lib/supabase';
-import { flagUrl } from '../lib/flagMap';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
@@ -11,8 +10,6 @@ import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 function Flag({ team }: { team: string }) {
   const badge = LEAGUE_BADGES[team];
   if (badge) return <img src={badge} alt={team} width={26} height={26} style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />;
-  const url = flagUrl(team, 'w40');
-  if (url) return <img src={url} alt={team} width={28} height={17} style={{ borderRadius: 2, objectFit: 'cover' }} />;
   return <span>🏳️</span>;
 }
 
