@@ -76,9 +76,9 @@ const nowMs        = now.getTime();
 
 // ── הגדרת חלונות ──────────────────────────────────────────
 
-// Settle: first_kickoff + 90min → last_kickoff + 3h (מעוגל לשעה)
+// Settle: first_kickoff + 90min → last_kickoff + 8h (מרחב לעיכוב seed + כל משחק)
 const settleStart = firstKickoff + 90  * 60 * 1000;
-const settleEnd   = ceilToHour(lastKickoff + 3 * 60 * 60 * 1000);
+const settleEnd   = ceilToHour(lastKickoff + 8 * 60 * 60 * 1000);
 
 // Odds: first_kickoff - 3h → first_kickoff + 15min
 const oddsStart = firstKickoff - 3 * 60 * 60 * 1000;
