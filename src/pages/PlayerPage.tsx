@@ -624,33 +624,51 @@ export default function PlayerPage() {
                     <span className="day-dot" />
                     <span className="day-title">מחזור {round} (נדחה)</span>
                   </div>
-                  <div className="games-list">
-                    {rGames.map(game => (
-                      <div key={game.id} style={{ position: 'relative' }}>
-                        <div style={{
-                          position: 'absolute', top: 8, right: 8, zIndex: 2,
-                          background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 700,
-                          padding: '2px 7px', borderRadius: 20, letterSpacing: 0.5,
-                        }}>נדחה</div>
-                        <GameCard
-                          game={game}
-                          resultPts={resultPts}
-                          exactPts={exactPts}
-                          bet={getBet(game.id)}
-                          existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
-                          isStarted={false}
-                          onChange={upd => updateBet(game.id, upd)}
-                          homeRef={el => homeRefs.current.set(game.id, el)}
-                          awayRef={el => awayRefs.current.set(game.id, el)}
-                          onHomeComplete={() => handleAutoFocus(game.id, 'home')}
-                          onAwayComplete={() => handleAutoFocus(game.id, 'away')}
-                          expanded={false}
-                          onExpand={undefined}
-                          publicBets={null}
-                        />
+                  {/* group by date within each postponed round */}
+                  {(() => {
+                    const byDay: { day: string; games: Game[] }[] = [];
+                    for (const g of rGames) {
+                      const k = dayKey(g.kickoff_at);
+                      let grp = byDay.find(x => x.day === k);
+                      if (!grp) { grp = { day: k, games: [] }; byDay.push(grp); }
+                      grp.games.push(g);
+                    }
+                    return byDay.map(dayGrp => (
+                      <div key={dayGrp.day}>
+                        <div className="day-row" style={{ opacity: 0.55 }}>
+                          <span className="day-dot" />
+                          <span className="day-date">{fmtDateHe(dayGrp.games[0].kickoff_at)}</span>
+                        </div>
+                        <div className="games-list">
+                          {dayGrp.games.map(game => (
+                            <div key={game.id} style={{ position: 'relative' }}>
+                              <div style={{
+                                position: 'absolute', top: 8, right: 8, zIndex: 2,
+                                background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 700,
+                                padding: '2px 7px', borderRadius: 20, letterSpacing: 0.5,
+                              }}>נדחה</div>
+                              <GameCard
+                                game={game}
+                                resultPts={resultPts}
+                                exactPts={exactPts}
+                                bet={getBet(game.id)}
+                                existingBet={existingBets.find(b => b.external_game_id === game.id) ?? null}
+                                isStarted={false}
+                                onChange={upd => updateBet(game.id, upd)}
+                                homeRef={el => homeRefs.current.set(game.id, el)}
+                                awayRef={el => awayRefs.current.set(game.id, el)}
+                                onHomeComplete={() => handleAutoFocus(game.id, 'home')}
+                                onAwayComplete={() => handleAutoFocus(game.id, 'away')}
+                                expanded={false}
+                                onExpand={undefined}
+                                publicBets={null}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    ));
+                  })()}
                 </div>
               ))}
             </div>
