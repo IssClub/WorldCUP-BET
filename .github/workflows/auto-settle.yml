@@ -32,7 +32,15 @@ jobs:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
 
-      # שלב 2: סגור הימורים — רק אם בחלון תוצאות
+      # שלב 2: עדכן לוח משחקים ותוצאות — רק אם בחלון תוצאות
+      - name: Seed league schedule (fetch latest scores)
+        if: steps.window.outputs.IN_SETTLE_WINDOW == 'true'
+        run: node scripts/seed-league-schedule.mjs
+        env:
+          SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # שלב 3: סגור הימורים
       - name: Settle completed games
         if: steps.window.outputs.IN_SETTLE_WINDOW == 'true'
         run: node scripts/settle-games.mjs
