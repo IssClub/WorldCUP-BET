@@ -1,16 +1,15 @@
 /**
  * update-scorers.mjs
- * שולף מלכי שערים של ליגת העל מ-API-Football (api-sports.io)
+ * מושך מלכי שערים של ליגת העל מ-365scores
  * רץ פעם ביום אחרי המשחקים ומעדכן טבלת top_scorers בסופאבייס
  */
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL  = process.env.SUPABASE_URL;
-const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY;
-const APISPORTS_KEY = process.env.APISPORTS_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !APISPORTS_KEY) {
-  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY, APISPORTS_KEY');
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Missing env vars: SUPABASE_URL, SUPABASE_SERVICE_KEY');
   process.exit(1);
 }
 
@@ -24,50 +23,76 @@ if (sportKeys.includes('soccer_fifa_world_cup')) {
   process.exit(0);
 }
 
-// ליגת העל = league 271, עונה 2026 (שנת פתיחה)
-const LEAGUE_ID = 271;
-const SEASON    = 2026;
+const API_URL =
+  'https://webws.365scores.com/web/stats/' +
+  '?appTypeId=5&langId=2&timezoneName=Asia%2FJerusalem' +
+  '&userCountryId=6&competitions=42&competitors=&withSeasons=true';
 
-console.log(`Fetching top scorers — league ${LEAGUE_ID}, season ${SEASON}...`);
+console.log('Fetching top scorers from 365scores...');
 
-const res = await fetch(
-  `https://v3.football.api-sports.io/players/topscorers?league=${LEAGUE_ID}&season=${SEASON}`,
-  { headers: { 'x-apisports-key': APISPORTS_KEY } }
-);
+const res = await fetch(API_URL, {
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json',
+    'Referer': 'https://www.365scores.com/he/football/league/premier-league-42/stats',
+  },
+});
 
 if (!res.ok) {
-  console.error('API-Football error:', res.status, await res.text());
+  console.error('365scores error:', res.status, await res.text());
   process.exit(1);
 }
 
 const data = await res.json();
 
-// הצג מגבלת קריאות נותרת
-const remaining = res.headers.get('x-ratelimit-requests-remaining');
-console.log(`Requests remaining today: ${remaining ?? 'unknown'}`);
+// מצא את קטגוריית השערים
+const goalsCategory = data?.stats?.athletesStats?.find(cat => cat.name === 'שערים');
 
-if (!Array.isArray(data.response)) {
-  console.error('Unexpected response:', JSON.stringify(data).slice(0, 300));
-  process.exit(1);
-}
-
-if (data.response.length === 0) {
-  console.log('No scorers returned yet — season may not have started or data not available.');
+if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.length === 0) {
+  console.log('No goals data found — season may not have started yet.');
+  console.log('Available categories:', data?.stats?.athletesStats?.map(c => c.name).join(', '));
   process.exit(0);
 }
 
-console.log(`Got ${data.response.length} scorers`);
+// מצא את ה-typeId של שערים (בד"כ 1) ועזרות
+const GOALS_TYPE_ID   = 1;
+const ASSISTS_TYPE_ID = 10; // לפי הנתונים שראינו בדיבוג
 
-const rows = data.response.slice(0, 20).map(item => ({
-  id:          String(item.player.id),
-  player_name: item.player.name,
-  team:        item.statistics[0]?.team?.name ?? '',
-  goals:       item.statistics[0]?.goals?.total  ?? 0,
-  assists:     item.statistics[0]?.goals?.assists ?? 0,
-  updated_at:  new Date().toISOString(),
-}));
+// מצא קטגוריית עזרות אם קיימת
+const assistsCategory = data?.stats?.athletesStats?.find(cat =>
+  cat.name?.includes('עזר') || cat.name?.toLowerCase().includes('assist')
+);
 
-// הצג top 5 לצורך לוג
+// בנה map של עזרות לפי entity id
+const assistsMap = new Map();
+if (assistsCategory) {
+  for (const row of assistsCategory.rows) {
+    if (row.entity?.id !== undefined) {
+      const val = row.stats?.find(s => s.typeId === ASSISTS_TYPE_ID)?.value ?? 0;
+      assistsMap.set(row.entity.id, Number(val));
+    }
+  }
+}
+
+// בנה את הרשימה הסופית
+const rows = goalsCategory.rows.slice(0, 20).map(row => {
+  const goals   = Number(row.stats?.find(s => s.typeId === GOALS_TYPE_ID)?.value ?? 0);
+  const assists = assistsMap.get(row.entity?.id) ?? 0;
+
+  // שם הקבוצה — מגיע מ-competitors
+  const competitor = data.competitors?.find(c => c.id === row.entity?.competitorId);
+  const teamName   = competitor?.name ?? '';
+
+  return {
+    id:          String(row.entity?.id),
+    player_name: row.entity?.name ?? '',
+    team:        teamName,
+    goals,
+    assists,
+    updated_at:  new Date().toISOString(),
+  };
+});
+
 rows.slice(0, 5).forEach((r, i) =>
   console.log(`  ${i + 1}. ${r.player_name} (${r.team}) — ${r.goals} שערים`)
 );
