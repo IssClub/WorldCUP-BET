@@ -1,4 +1,4 @@
-/**
+﻿/**
  * pre-game.mjs — רץ כל 5 דקות דרך GitHub Actions
  *
  * חלון תזכורת (13–18 דקות לפני): שולח push לשחקנים שלא המרו
@@ -148,7 +148,7 @@ async function main() {
 
     // שלח תזכורת לשחקנים שלא המרו (לא כולל הקוף)
     const nonBettors = activePlayers.filter(
-      p => !bettorIds.has(p.id) && p.display_name !== '🐒 קוף'
+      p => !bettorIds.has(p.id) && p.display_name !== 'הקוף 🐒'
     );
 
     console.log(`Reminder: ${game.home_team} vs ${game.away_team} — ${nonBettors.length} non-bettors to notify`);
@@ -192,7 +192,7 @@ async function main() {
       const oddsValue = randomPick === 'home' ? Number(game.home_win)
         : randomPick === 'draw' ? Number(game.draw_win)
         : Number(game.away_win);
-      const isMonkey = player.display_name === '🐒 קוף';
+      const isMonkey = player.display_name === 'הקוף 🐒';
       const score = randomScore(randomPick);
 
       // הכנס הימור
