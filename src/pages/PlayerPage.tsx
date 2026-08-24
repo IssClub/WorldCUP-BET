@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, useReducer } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
@@ -33,6 +33,71 @@ interface PublicBet {
   exact_home: number | null;
   exact_away: number | null;
   pick: 'home' | 'draw' | 'away';
+}
+
+// ── Live scores ───────────────────────────────────────────
+interface LiveScore {
+  homeScore: number;
+  awayScore: number;
+  minute: string;      // "45'", "הפסקה", "סופי"
+  statusGroup: number; // 2=live, 3=halfTime, 4=finished
+}
+
+const LIVE_POLL_MS = 45_000;
+const GAME_WINDOW_MS = 2.5 * 60 * 60 * 1000;
+
+function useLiveScores(games: Game[]): Map<string, LiveScore> {
+  const [scores, setScores] = useState<Map<string, LiveScore>>(new Map());
+  const timerRef = useRef<number | null>(null);
+
+  const fetchScores = useCallback(async () => {
+    const now = Date.now();
+    const hasActive = games.some(g => {
+      const t = new Date(g.kickoff_at).getTime();
+      return !g.completed && t <= now && now <= t + GAME_WINDOW_MS;
+    });
+    if (!hasActive) return;
+
+    const d = new Date();
+    const today = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    try {
+      const res = await fetch(
+        `https://webws.365scores.com/web/games/?appTypeId=5&langId=2&timezoneName=Asia%2FJerusalem&userCountryId=6&competitions=42&startDate=${today}&endDate=${today}`,
+        { headers: { Accept: 'application/json', Referer: 'https://www.365scores.com/' } }
+      );
+      const data = await res.json();
+      const map = new Map<string, LiveScore>();
+      for (const g365 of (data.games ?? [])) {
+        if ((g365.statusGroup ?? 1) < 2) continue; // עדיין לא התחיל
+        // התאמה לפי שעת קיקוף (±30 דקות)
+        const t365 = new Date(g365.startTime).getTime();
+        const local = games.find(g =>
+          !g.completed && Math.abs(new Date(g.kickoff_at).getTime() - t365) <= 30 * 60_000
+        );
+        if (!local) continue;
+        const sg = g365.statusGroup;
+        const minute =
+          sg === 3 ? 'הפסקה' :
+          sg === 4 ? 'סופי' :
+          g365.gameTimeDisplay ? `${g365.gameTimeDisplay}′` : 'חי';
+        map.set(local.id, {
+          homeScore: g365.homeCompetitor?.score ?? 0,
+          awayScore: g365.awayCompetitor?.score ?? 0,
+          minute,
+          statusGroup: sg,
+        });
+      }
+      setScores(map);
+    } catch { /* silent fail — show nothing */ }
+  }, [games]);
+
+  useEffect(() => {
+    fetchScores();
+    timerRef.current = window.setInterval(fetchScores, LIVE_POLL_MS);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [fetchScores]);
+
+  return scores;
 }
 
 // ── Flag component ────────────────────────────────────────
@@ -72,7 +137,7 @@ const scoreInputStyle: React.CSSProperties = {
 
 // ── GameCard ──────────────────────────────────────────────
 function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange,
-  homeRef, awayRef, onHomeComplete, onAwayComplete, expanded, onExpand, publicBets }: {
+  homeRef, awayRef, onHomeComplete, onAwayComplete, expanded, onExpand, publicBets, liveScore }: {
   game: Game;
   resultPts: number;
   exactPts: number;
@@ -87,6 +152,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   expanded?: boolean;
   onExpand?: () => void;
   publicBets?: PublicBet[] | null;
+  liveScore?: LiveScore | null;
 }) {
   const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
   const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
@@ -152,13 +218,26 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 
   // ── Pending bet ──
   if (existingBet) {
+    const isLiveNow = liveScore && liveScore.statusGroup === 2;
     const card = (
       <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
-            <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--green)', marginTop: 2 }}>
+            {liveScore ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 2 }}>
+                  {isLiveNow && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />}
+                  <span style={{ fontSize: 11, color: isLiveNow ? '#ef4444' : 'var(--text-muted)', fontWeight: 700 }}>{liveScore.minute}</span>
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
+                  {liveScore.awayScore} : {liveScore.homeScore}
+                </div>
+              </>
+            ) : (
+              <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
+            )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginTop: 3 }}>
               ⚡ {existingBet.exact_away}:{existingBet.exact_home}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
@@ -194,14 +273,29 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 
   // ── Game started, no bet ──
   if (isStarted) {
+    const isLiveNow = liveScore && liveScore.statusGroup === 2;
     return (
       <div className="gc gc-locked" style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 80 }}>
-            <Lock size={16} style={{ color: 'var(--text-muted)', margin: '0 auto 2px' }} />
-            <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>נסגרו</div>
+            {liveScore ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 2 }}>
+                  {isLiveNow && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />}
+                  <span style={{ fontSize: 11, color: isLiveNow ? '#ef4444' : 'var(--text-muted)', fontWeight: 700 }}>{liveScore.minute}</span>
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
+                  {liveScore.awayScore} : {liveScore.homeScore}
+                </div>
+              </>
+            ) : (
+              <>
+                <Lock size={16} style={{ color: 'var(--text-muted)', margin: '0 auto 2px' }} />
+                <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>נסגרו</div>
+              </>
+            )}
           </div>
           {teamSide('away')}
         </div>
@@ -273,6 +367,8 @@ export default function PlayerPage() {
   const [gameBets, setGameBets] = useState<Record<string, PublicBet[]>>({});
   const [error, setError] = useState('');
   const [justSubmitted, setJustSubmitted] = useState(false);
+
+  const liveScores = useLiveScores([...games, ...postponedPrev]);
 
   // ── Input refs for auto-focus ──────────────────────────
   const homeRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
@@ -499,6 +595,7 @@ export default function PlayerPage() {
                     expanded={expandedGame === game.id}
                     onExpand={() => toggleGameBets(game.id)}
                     publicBets={gameBets[game.id] ?? null}
+                    liveScore={liveScores.get(game.id) ?? null}
                   />
                 ))}
               </div>
