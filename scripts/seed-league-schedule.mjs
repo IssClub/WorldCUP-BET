@@ -52,14 +52,24 @@ const fmt365 = d =>
 
 console.log(`Fetching Israeli Premier League fixtures from 365scores — season ${yr}/${yr+1}`);
 
-// ── שלוף משחקים מ-365scores (עד 3 חלקים לכיסוי כל העונה) ──
-const chunks = [
-  { s: seasonStartDate,                              e: new Date(`${yr}-12-31`) },
-  { s: new Date(`${yr+1}-01-01`),                    e: new Date(`${yr+1}-05-31`) },
-];
+// ── שלוף משחקים מ-365scores בחלקים חודשיים ─────────────────
+// 365scores מגביל טווח תאריכים — יותר מ~30 יום מחזיר 0 תוצאות.
+// שולפים חודש-חודש מתחילת העונה ועד סופה.
+function monthChunks(start, end) {
+  const chunks = [];
+  let cur = new Date(start);
+  while (cur <= end) {
+    const chunkEnd = new Date(cur);
+    chunkEnd.setMonth(chunkEnd.getMonth() + 1);
+    chunkEnd.setDate(chunkEnd.getDate() - 1);
+    chunks.push({ s: new Date(cur), e: chunkEnd > end ? new Date(end) : chunkEnd });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return chunks;
+}
 
 let allGames = [];
-for (const { s, e } of chunks) {
+for (const { s, e } of monthChunks(seasonStartDate, seasonEndDate)) {
   const url =
     `https://webws.365scores.com/web/games/?appTypeId=5&langId=2` +
     `&timezoneName=Asia%2FJerusalem&userCountryId=6&competitions=42` +
@@ -79,6 +89,8 @@ for (const { s, e } of chunks) {
   const games = data.games ?? [];
   console.log(`  ${fmt365(s)} → ${fmt365(e)}: ${games.length} games`);
   allGames = allGames.concat(games);
+  // pause קצר בין בקשות
+  await new Promise(r => setTimeout(r, 300));
 }
 
 if (allGames.length === 0) {
