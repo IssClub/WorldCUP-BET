@@ -45,8 +45,9 @@ if (!res.ok) {
 
 const data = await res.json();
 
-// מצא את קטגוריית השערים
-const goalsCategory = data?.stats?.athletesStats?.find(cat => cat.name === 'שערים');
+// מצא קטגוריות שערים ובישולים
+const goalsCategory   = data?.stats?.athletesStats?.find(cat => cat.name === 'שערים');
+const assistsCategory = data?.stats?.athletesStats?.find(cat => cat.name === 'בישולים');
 
 if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.length === 0) {
   console.log('No goals data found — season may not have started yet.');
@@ -54,21 +55,12 @@ if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.l
   process.exit(0);
 }
 
-// מצא את ה-typeId של שערים (בד"כ 1) ועזרות
-const GOALS_TYPE_ID   = 1;
-const ASSISTS_TYPE_ID = 10; // לפי הנתונים שראינו בדיבוג
-
-// מצא קטגוריית עזרות אם קיימת
-const assistsCategory = data?.stats?.athletesStats?.find(cat =>
-  cat.name?.includes('עזר') || cat.name?.toLowerCase().includes('assist')
-);
-
-// בנה map של עזרות לפי entity id
+// בנה map של בישולים לפי entity id
 const assistsMap = new Map();
 if (assistsCategory) {
-  for (const row of assistsCategory.rows) {
+  for (const row of (assistsCategory.rows ?? [])) {
     if (row.entity?.id !== undefined) {
-      const val = row.stats?.find(s => s.typeId === ASSISTS_TYPE_ID)?.value ?? 0;
+      const val = row.stats?.[0]?.value ?? 0;
       assistsMap.set(row.entity.id, Number(val));
     }
   }
@@ -76,7 +68,7 @@ if (assistsCategory) {
 
 // בנה את הרשימה הסופית
 const rows = goalsCategory.rows.slice(0, 20).map(row => {
-  const goals   = Number(row.stats?.find(s => s.typeId === GOALS_TYPE_ID)?.value ?? 0);
+  const goals   = Number(row.stats?.[0]?.value ?? 0);
   const assists = assistsMap.get(row.entity?.id) ?? 0;
 
   // שם הקבוצה — מגיע מ-competitors
