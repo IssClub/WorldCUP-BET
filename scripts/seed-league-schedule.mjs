@@ -1,11 +1,8 @@
 /**
  * seed-league-schedule.mjs
  *
- * מושך לוח משחקים מ-TheSportsDB ומעדכן את league_schedule.
- *
- * כאשר TheSportsDB מפרסם שעות אמיתיות:
- *   - משחקים שנזרעו ידנית (external_id מתחיל ב-csv_) → מתעדכן kickoff_at + external_id
- *   - משחקים חדשים שעוד לא קיימים → נוספים
+ * מושך לוח משחקים מ-365scores ומעדכן את league_schedule.
+ * 365scores מפרסם שעות אמיתיות מוקדם יותר מ-TheSportsDB.
  *
  * מיפוי: home_team + away_team ייחודי לכל העונה (ליגה רגילה, לא גביע)
  */
@@ -21,72 +18,119 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── מיפוי עברית → אנגלית ──────────────────────────────────
+// שמות הקבוצות בDB הם אנגלית (מ-TheSportsDB המקורי)
+const HE_TO_EN = {
+  'מכבי תל אביב':      'Maccabi Tel Aviv',
+  'מכבי חיפה':         'Maccabi Haifa',
+  'עירוני קרית שמונה': 'Hapoel Ironi Kiryat Shmona',
+  'הפועל ירושלים':     'Hapoel Jerusalem',
+  'הפועל רמת גן':      'Hapoel Ramat Gan',
+  'מכבי פתח תקוה':     'Maccabi Petah Tikva',
+  'מכבי פתח תקווה':    'Maccabi Petah Tikva',
+  'עירוני טבריה':      'Ironi Tiberias',
+  'הפועל פתח תקוה':    'Hapoel Petah Tikva',
+  'הפועל פתח תקווה':   'Hapoel Petah Tikva',
+  'הפועל באר שבע':     "Hapoel Be'er Sheva",
+  'הפועל חיפה':        'Hapoel Haifa',
+  'הפועל תל אביב':     'Hapoel Tel-Aviv',
+  'בני סכנין':         'Bnei Sakhnin',
+  'בית"ר ירושלים':     'Beitar Jerusalem',
+  'מכבי נתניה':        'Maccabi Netanya',
+};
+
 // ── זיהוי עונה ──────────────────────────────────────────────
 const now   = new Date();
 const month = now.getMonth(); // 0-indexed
 const yr    = month >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-const season = `${yr}-${yr + 1}`;
 
-console.log(`Fetching Israeli Premier League fixtures — season ${season}`);
+const seasonStartDate = new Date(`${yr}-08-01`);
+const seasonEndDate   = new Date(`${yr + 1}-05-31`);
 
-const LEAGUE_ID = 4644;
-const url = `https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=${LEAGUE_ID}&s=${season}`;
+const fmt365 = d =>
+  `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 
-const res = await fetch(url);
-if (!res.ok) {
-  console.error('TheSportsDB error:', res.status, await res.text());
-  process.exit(1);
+console.log(`Fetching Israeli Premier League fixtures from 365scores — season ${yr}/${yr+1}`);
+
+// ── שלוף משחקים מ-365scores (עד 3 חלקים לכיסוי כל העונה) ──
+const chunks = [
+  { s: seasonStartDate,                              e: new Date(`${yr}-12-31`) },
+  { s: new Date(`${yr+1}-01-01`),                    e: new Date(`${yr+1}-05-31`) },
+];
+
+let allGames = [];
+for (const { s, e } of chunks) {
+  const url =
+    `https://webws.365scores.com/web/games/?appTypeId=5&langId=2` +
+    `&timezoneName=Asia%2FJerusalem&userCountryId=6&competitions=42` +
+    `&startDate=${fmt365(s)}&endDate=${fmt365(e)}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'application/json',
+      Referer: 'https://www.365scores.com/',
+    },
+  });
+  if (!res.ok) {
+    console.warn(`365scores HTTP ${res.status} for range ${fmt365(s)}-${fmt365(e)}`);
+    continue;
+  }
+  const data = await res.json();
+  const games = data.games ?? [];
+  console.log(`  ${fmt365(s)} → ${fmt365(e)}: ${games.length} games`);
+  allGames = allGames.concat(games);
 }
 
-const data = await res.json();
-
-if (!data.events || !Array.isArray(data.events)) {
-  console.warn('No events from TheSportsDB for this season — try again later.');
-  console.log('Raw:', JSON.stringify(data).slice(0, 400));
+if (allGames.length === 0) {
+  console.warn('No games returned from 365scores — aborting.');
   process.exit(0);
 }
 
-console.log(`Got ${data.events.length} fixtures from TheSportsDB`);
+console.log(`Total: ${allGames.length} games from 365scores`);
 
-// ── בנה רשימת שורות מ-TheSportsDB ──────────────────────────
-const incoming = data.events
-  .filter(e => e.strHomeTeam && e.strAwayTeam && e.dateEvent)
-  .map(e => {
-    const timeStr    = e.strTime && e.strTime !== '00:00:00' ? e.strTime : '17:00:00';
-    const kickoffRaw = `${e.dateEvent}T${timeStr}Z`;
-    const homeScore  = (e.intHomeScore !== null && e.intHomeScore !== '')
-      ? parseInt(e.intHomeScore) : null;
-    const awayScore  = (e.intAwayScore !== null && e.intAwayScore !== '')
-      ? parseInt(e.intAwayScore) : null;
-    const completed  = e.strStatus === 'Match Finished'
-      || (homeScore !== null && awayScore !== null);
+// ── בנה רשימת שורות מ-365scores ────────────────────────────
+const normalize = name =>
+  name.toLowerCase().replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
+
+const incoming = allGames
+  .filter(g => g.homeCompetitor?.name && g.awayCompetitor?.name && g.startTime && g.roundNum)
+  .map(g => {
+    const homeHe = g.homeCompetitor.name;
+    const awayHe = g.awayCompetitor.name;
+    const homeEn = HE_TO_EN[homeHe] ?? homeHe;
+    const awayEn = HE_TO_EN[awayHe] ?? awayHe;
+
+    const homeScore = (g.homeCompetitor.score !== undefined && g.homeCompetitor.score >= 0)
+      ? g.homeCompetitor.score : null;
+    const awayScore = (g.awayCompetitor.score !== undefined && g.awayCompetitor.score >= 0)
+      ? g.awayCompetitor.score : null;
+    const completed = homeScore !== null && awayScore !== null
+      && new Date(g.startTime) < now;
 
     return {
-      external_id: String(e.idEvent),
-      home_team:   e.strHomeTeam,
-      away_team:   e.strAwayTeam,
-      kickoff_at:  new Date(kickoffRaw).toISOString(),
+      external_id: `365_${g.id}`,
+      home_team:   homeEn,
+      away_team:   awayEn,
+      kickoff_at:  new Date(g.startTime).toISOString(),
       home_score:  homeScore,
       away_score:  awayScore,
       completed,
-      round_num:   e.intRound ? parseInt(e.intRound) : null,
+      round_num:   g.roundNum,
       updated_at:  new Date().toISOString(),
     };
   });
 
+console.log(`Parsed ${incoming.length} valid fixtures`);
+
 // ── טען את כל השורות הקיימות מהדאטהבייס ──────────────────
 const { data: existing, error: fetchErr } = await supabase
   .from('league_schedule')
-  .select('id, home_team, away_team, external_id, completed');
+  .select('id, home_team, away_team, external_id, completed, kickoff_at');
 
 if (fetchErr) {
   console.error('Failed to fetch existing rows:', fetchErr.message);
   process.exit(1);
 }
-
-// נרמול שם: הסרת מקפים/גרשיים/רווחים כפולים להשוואה עמידה
-const normalize = name =>
-  name.toLowerCase().replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
 
 // מיפוי: "home_normalized|away_normalized" → { id, external_id, completed }
 const existingMap = new Map(
@@ -95,7 +139,7 @@ const existingMap = new Map(
   ])
 );
 
-// ── חלק לעדכון (מיפוי נמצא) מול הוספה (חדש) ─────────────
+// ── חלק לעדכון מול הוספה ──────────────────────────────────
 const toUpdate = [];
 const toUpsert = [];
 
@@ -105,33 +149,39 @@ for (const row of incoming) {
 
   if (current) {
     if (!current.completed) {
-      // עדכן kickoff_at תמיד; עדכן תוצאות אם TheSportsDB מחזיר אותן
-      const update = { kickoff_at: row.kickoff_at, updated_at: row.updated_at };
+      const update = {
+        kickoff_at:  row.kickoff_at,
+        round_num:   row.round_num,
+        external_id: row.external_id,   // עדכן גם external_id ל-365scores
+        updated_at:  row.updated_at,
+      };
       if (row.completed && row.home_score !== null && row.away_score !== null) {
         update.home_score = row.home_score;
         update.away_score = row.away_score;
         update.completed  = true;
       }
-      toUpdate.push({ dbId: current.id, ...update });
+      toUpdate.push({ dbId: current.id, home: row.home_team, away: row.away_team, ...update });
     }
-    // אם כבר completed — אל תיגע בתוצאה
   } else {
     toUpsert.push(row);
   }
 }
 
-console.log(`${toUpdate.length} rows to update (kickoff times sync)`);
-console.log(`${toUpsert.length} rows to insert (new fixtures)`);
+console.log(`${toUpdate.length} rows to update, ${toUpsert.length} to insert`);
 
 // ── עדכן שורות קיימות ─────────────────────────────────────
 let updatedCount = 0;
-for (const { dbId, ...fields } of toUpdate) {
+for (const { dbId, home, away, ...fields } of toUpdate) {
   const { error } = await supabase
     .from('league_schedule')
     .update(fields)
     .eq('id', dbId);
-  if (error) console.warn(`Update failed for id=${dbId}:`, error.message);
-  else updatedCount++;
+  if (error) console.warn(`Update failed for ${home} vs ${away}:`, error.message);
+  else {
+    updatedCount++;
+    if (fields.completed) console.log(`  ✅ settled: ${home} ${fields.home_score}-${fields.away_score} ${away}`);
+    else console.log(`  ⏰ time: ${home} vs ${away} → ${fields.kickoff_at}`);
+  }
 }
 
 // ── הוסף שורות חדשות ──────────────────────────────────────
@@ -147,5 +197,5 @@ if (toUpsert.length) {
   insertedCount = toUpsert.length;
 }
 
-const completed = incoming.filter(r => r.completed).length;
-console.log(`✅ Done: updated=${updatedCount}, inserted=${insertedCount}, completed=${completed}`);
+const completedCount = incoming.filter(r => r.completed).length;
+console.log(`✅ Done: updated=${updatedCount}, inserted=${insertedCount}, completed=${completedCount}`);
