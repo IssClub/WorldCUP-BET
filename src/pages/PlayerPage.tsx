@@ -5,7 +5,6 @@ import type { Settings, Bet } from '../lib/supabase';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
 import { CheckCircle2, Lock } from 'lucide-react';
-import RoundStories from '../components/RoundStories';
 import AppHeader from '../components/AppHeader';
 
 // ── Types ─────────────────────────────────────────────────
@@ -529,13 +528,6 @@ export default function PlayerPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap">
-        {/* ── Round stories ── */}
-        {games.length > 0 && (
-          <div style={{ marginBottom: 8 }}>
-            <RoundStories games={games} />
-          </div>
-        )}
-
         {/* ── Round banner ── */}
         {currentRound !== null && (
           <div className="day-row" style={{ marginBottom: 4 }}>
