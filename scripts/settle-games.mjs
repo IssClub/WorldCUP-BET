@@ -41,16 +41,50 @@ const WC_ALIASES = {
 };
 const wcName = name => WC_ALIASES[name] ?? name;
 
-// Hebrew team names
+// Hebrew team names — ליגת העל + מדינות (למקרה מצב WC)
 const HE = {
+  // ── ליגת העל הישראלית ──
+  'Maccabi Tel Aviv':              'מכבי ת"א',
+  'Maccabi Haifa':                 'מכבי חיפה',
+  'Beitar Jerusalem':              'בית"ר י-ם',
+  'Hapoel Tel Aviv':               'הפועל ת"א',
+  'Hapoel Tel-Aviv':               'הפועל ת"א',
+  "Hapoel Be'er Sheva":            'הפועל ב"ש',
+  'Hapoel Beer Sheva':             'הפועל ב"ש',
+  'Hapoel Beer-Sheva':             'הפועל ב"ש',
+  'Hapoel Jerusalem':              'הפועל י-ם',
+  'Hapoel Haifa':                  'הפועל חיפה',
+  'Hapoel Ironi Kiryat Shmona':   'עירוני ק"ש',
+  'Ironi Kiryat Shmona':           'עירוני ק"ש',
+  'Hapoel Ramat Gan':              'הפועל ר"ג',
+  'Hapoel Ramat-Gan':              'הפועל ר"ג',
+  'Hapoel Ramat Gan Givatayim':   'הפועל ר"ג גבעתיים',
+  'Bnei Sakhnin':                  'בני סכנין',
+  'Maccabi Petah Tikva':           'מכבי פ"ת',
+  'Maccabi Petah-Tikva':           'מכבי פ"ת',
+  'Maccabi Netanya':               'מכבי נתניה',
+  'Hapoel Petah Tikva':            'הפועל פ"ת',
+  'Ironi Tiberias':                'עירוני טבריה',
+  'Bnei Yehuda':                   'בני יהודה',
+  'FC Ashdod':                     'א.ס. אשדוד',
+  'MS Ashdod':                     'א.ס. אשדוד',
+  'Maccabi Bnei Raina':            'מכבי בני ריינה',
+  'Bnei Raina':                    'בני ריינה',
+  'Hapoel Nof Hagalil':            'הפועל נוף הגליל',
+  'Ironi Nof Hagalil':             'עירוני נוף הגליל',
+  'Hapoel Hadera':                 'הפועל חדרה',
+  'Maccabi Umm al-Fahm':           'מכבי אום אל-פחם',
+  'Ironi Tel Aviv':                'עירוני ת"א',
+  // ── מדינות (WC) ──
   'Argentina':'ארגנטינה','Brazil':'ברזיל','France':'צרפת','Germany':'גרמניה',
   'Spain':'ספרד','England':'אנגליה','Portugal':'פורטוגל','Netherlands':'הולנד',
-  'United States':'ארה״ב','Mexico':'מקסיקו','Morocco':'מרוקו','Japan':'יפן',
-  'Uruguay':'אורוגוואי','Colombia':'קולומביה','Croatia':'קרואטיה','Italy':'איטליה',
-  'Belgium':'בלגיה','Denmark':'דנמרק','Switzerland':'שוויץ','Poland':'פולין',
-  'Serbia':'סרביה','Turkey':'טורקיה','Senegal':'סנגל','Ecuador':'אקוודור',
-  'Canada':'קנדה','Australia':'אוסטרליה','Korea Republic':'קוריאה','Iran':'איראן',
-  'Saudi Arabia':'סעודיה','Ghana':'גאנה','Cameroon':'קמרון','Nigeria':'ניגריה',
+  'United States':'ארה״ב','USA':'ארה״ב','Mexico':'מקסיקו','Morocco':'מרוקו',
+  'Japan':'יפן','Uruguay':'אורוגוואי','Colombia':'קולומביה','Croatia':'קרואטיה',
+  'Italy':'איטליה','Belgium':'בלגיה','Denmark':'דנמרק','Switzerland':'שוויץ',
+  'Poland':'פולין','Serbia':'סרביה','Turkey':'טורקיה','Senegal':'סנגל',
+  'Ecuador':'אקוודור','Canada':'קנדה','Australia':'אוסטרליה',
+  'Korea Republic':'ק. הדרומית','Iran':'איראן','Saudi Arabia':'סעודיה',
+  'Ghana':'גאנה','Cameroon':'קמרון','Nigeria':'ניגריה',
 };
 const he = name => HE[name] ?? name;
 
