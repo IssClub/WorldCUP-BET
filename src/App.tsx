@@ -84,6 +84,7 @@ function FavoriteTeamModal({
   onSaved: () => Promise<void>;
 }) {
   const [selected, setSelected] = useState<string>(profile.favorite_team ?? '');
+  const [displayName, setDisplayName] = useState(profile.display_name ?? '');
   const [useColors, setUseColors] = useState(
     localStorage.getItem('useTeamTheme') === 'true'
   );
@@ -92,12 +93,17 @@ function FavoriteTeamModal({
   const currentTeam = profile.favorite_team;
 
   async function save() {
-    if (!selected) return;
+    if (!selected && !displayName.trim()) return;
     setSaving(true);
-    await supabase.from('profiles').update({ favorite_team: selected }).eq('id', profile.id);
+    const updates: Record<string, string> = {};
+    if (selected) updates.favorite_team = selected;
+    if (displayName.trim() && displayName.trim() !== profile.display_name)
+      updates.display_name = displayName.trim();
+    if (Object.keys(updates).length)
+      await supabase.from('profiles').update(updates).eq('id', profile.id);
     localStorage.setItem('useTeamTheme', useColors ? 'true' : 'false');
-    if (useColors) applyTeamTheme(selected);
-    else resetTeamTheme();
+    if (useColors && selected) applyTeamTheme(selected);
+    else if (!useColors) resetTeamTheme();
     await onSaved();
     setSaving(false);
     onClose();
@@ -150,12 +156,27 @@ function FavoriteTeamModal({
           <X size={18} />
         </button>
 
-        <h3 style={{ margin: '0 0 4px', fontSize: '1.1rem', fontWeight: 800, textAlign: 'right' }}>
-          {currentTeam ? 'שנה קבוצה' : 'בחר את הקבוצה שלך'}
+        <h3 style={{ margin: '0 0 14px', fontSize: '1.1rem', fontWeight: 800, textAlign: 'right' }}>
+          הגדרות פרופיל
         </h3>
-        <p style={{ margin: '0 0 14px', fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'right' }}>
-          {currentTeam ? 'הסמל יופיע בטבלת הדירוג ובשמך' : 'יופיע בטבלת הדירוג לצד שמך, ועל-ידי שמך'}
-        </p>
+
+        {/* Rename */}
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, textAlign: 'right' }}>
+            כינוי
+          </label>
+          <input
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            maxLength={30}
+            dir="auto"
+            style={{
+              width: '100%', padding: '9px 12px', borderRadius: 8,
+              background: 'var(--surface2)', border: '1px solid var(--border)',
+              color: 'var(--text)', fontSize: '0.9rem', boxSizing: 'border-box',
+            }}
+          />
+        </div>
 
         {/* Team grid */}
         <div style={{
@@ -255,7 +276,7 @@ function FavoriteTeamModal({
 
         <button
           onClick={save}
-          disabled={!selected || saving}
+          disabled={(!selected && !displayName.trim()) || saving}
           style={{
             width: '100%',
             padding: '11px',
@@ -269,7 +290,7 @@ function FavoriteTeamModal({
             transition: 'background 0.2s',
           }}
         >
-          {saving ? 'שומר...' : selected ? `שמור — ${teamHe(selected)}` : 'בחר קבוצה תחילה'}
+          {saving ? 'שומר...' : selected ? `שמור — ${teamHe(selected)}` : displayName.trim() ? 'שמור כינוי' : 'בחר קבוצה או הזן כינוי'}
         </button>
       </div>
     </div>
