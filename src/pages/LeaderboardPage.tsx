@@ -37,12 +37,25 @@ const isExactHit = (bet: Bet) => {
 // Show only settled bets — don't expose picks for in-progress or future games
 const isStartedGame = (bet: Bet) => bet.status === 'won' || bet.status === 'lost';
 
+type RoundSummaryPlayer = {
+  id: string;
+  display_name: string;
+  favorite_team: string | null;
+  wins: number;
+  losses: number;
+  exact: number;
+  pts: number;
+};
+type RoundSummary = { roundNum: number; players: RoundSummaryPlayer[] };
+
 export default function LeaderboardPage() {
   const { profile: me } = useAuth();
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
+  const [roundSummary, setRoundSummary] = useState<RoundSummary | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -58,13 +71,53 @@ export default function LeaderboardPage() {
     const [profilesRes, betsRes, schedRes] = await Promise.all([
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
       supabase.rpc('get_leaderboard_bets'),
-      supabase.from('league_schedule').select('id, round_num'),
+      supabase.from('league_schedule').select('id, round_num, completed'),
     ]);
 
     const profiles: Profile[] = profilesRes.data || [];
     const bets: Bet[] = (betsRes.data || []) as Bet[];
+    const sched = schedRes.data ?? [];
 
-    setRoundMap(new Map((schedRes.data ?? []).map(r => [r.id, r.round_num ?? 0])));
+    const newRoundMap = new Map(sched.map(r => [r.id, r.round_num ?? 0]));
+    setRoundMap(newRoundMap);
+
+    // ── מחזור אחרון שהושלם לחלוטין ──
+    const byRoundNum = new Map<number, { total: number; done: number; ids: string[] }>();
+    for (const g of sched) {
+      const rn = g.round_num ?? 0;
+      if (!byRoundNum.has(rn)) byRoundNum.set(rn, { total: 0, done: 0, ids: [] });
+      const rs = byRoundNum.get(rn)!;
+      rs.total++;
+      rs.ids.push(g.id);
+      if (g.completed) rs.done++;
+    }
+    let lastRoundNum = 0;
+    let lastRoundIds: string[] = [];
+    for (const [rn, rs] of byRoundNum) {
+      if (rs.done === rs.total && rs.total > 0 && rn > lastRoundNum) {
+        lastRoundNum = rn;
+        lastRoundIds = rs.ids;
+      }
+    }
+
+    if (lastRoundNum > 0) {
+      const idSet = new Set(lastRoundIds);
+      const roundBets = bets.filter(b => idSet.has(b.external_game_id) && (b.status === 'won' || b.status === 'lost'));
+      const statMap: Record<string, { wins: number; losses: number; exact: number; pts: number }> = {};
+      for (const bet of roundBets) {
+        if (!statMap[bet.player_id]) statMap[bet.player_id] = { wins: 0, losses: 0, exact: 0, pts: 0 };
+        const s = statMap[bet.player_id];
+        if (bet.status === 'won') { s.wins++; s.pts += bet.payout ?? 0; if (isExactHit(bet)) s.exact++; }
+        else s.losses++;
+      }
+      const summaryPlayers: RoundSummaryPlayer[] = profiles
+        .filter(p => statMap[p.id])
+        .map(p => ({ id: p.id, display_name: p.display_name, favorite_team: p.favorite_team ?? null, ...statMap[p.id] }))
+        .sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.exact - a.exact);
+      setRoundSummary({ roundNum: lastRoundNum, players: summaryPlayers });
+    } else {
+      setRoundSummary(null);
+    }
 
     const betsByPlayer: Record<string, Bet[]> = {};
     for (const bet of bets) {
@@ -109,6 +162,93 @@ export default function LeaderboardPage() {
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-6 flex flex-col gap-3">
+
+        {/* Round summary card */}
+        {roundSummary && (() => {
+          const king = roundSummary.players[0];
+          const rest = roundSummary.players.slice(1);
+          return (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              {/* Header row — always visible */}
+              <div
+                onClick={() => setSummaryOpen(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '12px 14px', cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>📊</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                    מחזור {roundSummary.roundNum} — סיכום
+                  </div>
+                  {king && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>
+                      👑 מלך המחזור: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{king.display_name}</span>
+                      {' '}— {king.pts} נק׳ · {king.wins}/{king.wins + king.losses} נכון
+                      {king.exact > 0 && ` · 🎯×${king.exact}`}
+                    </div>
+                  )}
+                </div>
+                {summaryOpen
+                  ? <ChevronUp size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  : <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+              </div>
+
+              {/* Expanded: all players */}
+              {summaryOpen && (
+                <div style={{ borderTop: '1px solid var(--border)' }}>
+                  {/* column headers */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    padding: '5px 14px',
+                    fontSize: '0.6rem', fontWeight: 700,
+                    color: 'var(--text-muted)', letterSpacing: 0.4,
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  }}>
+                    <span style={{ flex: 1 }}>שחקן</span>
+                    <span style={{ width: 30, textAlign: 'center' }}>✓</span>
+                    <span style={{ width: 30, textAlign: 'center' }}>✗</span>
+                    <span style={{ width: 30, textAlign: 'center' }}>🎯</span>
+                    <span style={{ width: 52, textAlign: 'center' }}>נק׳</span>
+                  </div>
+                  {roundSummary.players.map((p, i) => {
+                    const isKing = i === 0;
+                    const badge = p.favorite_team ? LEAGUE_BADGES[p.favorite_team] : null;
+                    return (
+                      <div key={p.id} style={{
+                        display: 'flex', alignItems: 'center',
+                        padding: '8px 14px',
+                        background: isKing ? 'rgba(255,214,0,0.05)' : 'transparent',
+                        borderBottom: i < roundSummary.players.length - 1
+                          ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                      }}>
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          <span style={{
+                            fontSize: '0.78rem', width: 18, flexShrink: 0,
+                            color: isKing ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700,
+                          }}>{isKing ? '👑' : i + 1}</span>
+                          {badge && <img src={badge} alt="" width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} />}
+                          <span style={{
+                            fontSize: '0.83rem', fontWeight: isKing ? 800 : 500,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            color: p.id === me?.id ? 'var(--green)' : 'var(--text)',
+                          }}>{p.display_name}</span>
+                        </div>
+                        <span style={{ width: 30, textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.85rem' }}>{p.wins}</span>
+                        <span style={{ width: 30, textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.85rem' }}>{p.losses}</span>
+                        <span style={{ width: 30, textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.85rem' }}>{p.exact || '—'}</span>
+                        <span style={{ width: 52, textAlign: 'center', fontWeight: 800, fontSize: '0.88rem', color: isKing ? 'var(--gold)' : 'rgba(255,255,255,0.9)' }}>
+                          +{p.pts}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Banner */}
         <div className="ldr-banner">
