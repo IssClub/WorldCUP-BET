@@ -106,13 +106,10 @@ export default function LeaderboardPage() {
     <div className="pb-28" style={{ minHeight: '100dvh' }}>
       <header className="hdr">
         <div className="hdr-inner">
-          <div style={{ width: 80 }} /> {/* space for UserChip on left */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
-              <RefreshCw size={16} />
-            </button>
-            <span className="font-bold">טבלת דירוג</span>
-          </div>
+          <span className="font-bold">טבלת דירוג</span>
+          <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+            <RefreshCw size={16} />
+          </button>
         </div>
       </header>
       <div className="hdr-spacer" />
