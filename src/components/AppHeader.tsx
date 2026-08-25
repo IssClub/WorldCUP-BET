@@ -20,40 +20,37 @@ export default function AppHeader({
         {/* ימין — שם הכרטיסייה */}
         <span className="font-bold">{title}</span>
 
-        {/* מרכז — שם משתמש + סמל קבוצה (לחיץ לפרופיל) */}
-        {profile && (
-          <button
-            onClick={openTeamModal}
-            title="הגדרות פרופיל"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, direction: 'rtl',
-              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
-              borderRadius: 8,
-            }}
-          >
-            {badge && (
-              <img src={badge} alt="" width={20} height={20}
-                style={{ objectFit: 'contain', flexShrink: 0 }} />
-            )}
-            <span style={{
-              fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)',
-              maxWidth: 90, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-            }}>
-              {profile.display_name}
-            </span>
-          </button>
-        )}
-
-        {/* שמאל — רענון */}
-        {onRefresh ? (
-          <button onClick={onRefresh}
-            style={{ background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', padding: 4 }}>
-            <RefreshCw size={15} />
-          </button>
-        ) : (
-          <div style={{ width: 24 }} />
-        )}
+        {/* שמאל — שם משתמש | סמל קבוצה | רענון (משמאל לימין) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, direction: 'ltr' }}>
+          {profile && (
+            <button
+              onClick={openTeamModal}
+              title="הגדרות פרופיל"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              }}
+            >
+              <span style={{
+                fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)',
+                maxWidth: 90, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+              }}>
+                {profile.display_name}
+              </span>
+              {badge && (
+                <img src={badge} alt="" width={20} height={20}
+                  style={{ objectFit: 'contain', flexShrink: 0 }} />
+              )}
+            </button>
+          )}
+          {onRefresh && (
+            <button onClick={onRefresh}
+              style={{ background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}>
+              <RefreshCw size={15} />
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
