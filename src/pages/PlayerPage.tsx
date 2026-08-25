@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
-import { CheckCircle2, RefreshCw, Lock } from 'lucide-react';
+import { CheckCircle2, Lock } from 'lucide-react';
 import RoundStories from '../components/RoundStories';
+import AppHeader from '../components/AppHeader';
 
 // ── Types ─────────────────────────────────────────────────
 type Pick = 'home' | 'draw' | 'away';
@@ -524,18 +525,7 @@ export default function PlayerPage() {
   return (
     <div className="pitch-bg pb-48" style={{ minHeight: '100dvh' }}>
 
-      {/* ── Header ── */}
-      <header className="hdr">
-        <div className="hdr-inner">
-          <span className="font-bold tracking-wide">הימורים</span>
-          <div className="flex items-center gap-3">
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
-            <button onClick={() => loadData()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-              <RefreshCw size={14} />
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader title="הימורים" onRefresh={loadData} />
       <div className="hdr-spacer" />
 
       <div className="page-wrap">

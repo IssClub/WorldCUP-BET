@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
+import AppHeader from '../components/AppHeader';
 
 const TEAM_FOOTER: Record<string, { msg: string; heart: string }> = {
   'Maccabi Tel Aviv':           { msg: 'צהוב עולה זה מכבי',            heart: '💛' },
@@ -87,12 +88,7 @@ export default function InfoPage() {
 
   return (
     <div className="min-h-screen pb-24">
-      <header className="hdr">
-        <div className="hdr-inner">
-          <span className="font-bold">מידע וחוקים</span>
-          <span style={{ fontSize: '1.2rem' }}>📖</span>
-        </div>
-      </header>
+      <AppHeader title="מידע וחוקים" />
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4 flex flex-col gap-4">

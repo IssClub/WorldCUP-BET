@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { CalendarDays, LayoutList, CalendarPlus, Shirt, BookOpen, Trophy, Star } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { LEAGUE_TEAMS } from '../lib/tournamentOdds';
 
@@ -1280,16 +1281,7 @@ export default function TournamentPage() {
 
   return (
     <div className="min-h-screen pb-24">
-      <header className="hdr">
-        <div className="hdr-inner">
-          <span className="font-bold">{isLeagueMode ? 'ליגת העל' : 'מונדיאל 2026'}</span>
-          {!isLeagueMode && (
-            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {games.length} משחקים · {groups.size} בתים
-            </span>
-          )}
-        </div>
-      </header>
+      <AppHeader title={isLeagueMode ? 'ליגת העל' : 'מונדיאל 2026'} />
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">

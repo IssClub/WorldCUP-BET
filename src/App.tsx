@@ -13,6 +13,7 @@ import { LEAGUE_BADGES } from './lib/leagueBadges';
 import { teamHe } from './lib/teamNames';
 import { applyTeamTheme, resetTeamTheme } from './lib/teamColors';
 import { Trophy, Swords, BarChart2, Globe, Ticket, BellRing, Lock, X, Check } from 'lucide-react';
+import { AppModalProvider } from './contexts/AppModalContext';
 
 type Tab = 'bets' | 'mybets' | 'leaderboard' | 'tournament' | 'admin';
 
@@ -478,9 +479,9 @@ function AppShell() {
   ];
 
   return (
+    <AppModalProvider value={{ openTeamModal: () => setShowTeamModal(true) }}>
     <div className="pitch-bg" style={{ minHeight: '100dvh' }}>
       {profile && <PushModal userId={profile.id} />}
-      {profile && <UserChip profile={profile} onOpenModal={() => setShowTeamModal(true)} />}
       {profile && showTeamModal && (
         <FavoriteTeamModal
           profile={profile}
@@ -515,6 +516,7 @@ function AppShell() {
         })}
       </nav>
     </div>
+    </AppModalProvider>
   );
 }
 

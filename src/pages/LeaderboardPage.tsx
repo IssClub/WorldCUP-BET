@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Profile, Bet } from '../lib/supabase';
-import { RefreshCw, Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 
@@ -104,14 +105,7 @@ export default function LeaderboardPage() {
 
   return (
     <div className="pb-28" style={{ minHeight: '100dvh' }}>
-      <header className="hdr">
-        <div className="hdr-inner">
-          <span className="font-bold">טבלת דירוג</span>
-          <button onClick={load} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </header>
+      <AppHeader title="טבלת דירוג" onRefresh={load} />
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-6 flex flex-col gap-3">

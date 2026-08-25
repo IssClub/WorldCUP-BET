@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase';
 import type { Bet, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
-import { Trash2, Trophy, Star, BellRing, Pencil, Check, X, BellOff } from 'lucide-react';
+import { Trash2, Trophy, Star, BellRing, BellOff } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
 function Flag({ team }: { team: string }) {
@@ -29,9 +30,6 @@ export default function MyBetsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [savingName, setSavingName] = useState(false);
   const [useBank, setUseBank] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -122,18 +120,7 @@ export default function MyBetsPage() {
     });
   }
 
-  async function saveName() {
-    if (!profile) return;
-    const trimmed = newName.trim();
-    if (trimmed.length < 2) { alert('שם חייב להיות לפחות 2 תווים'); return; }
-    setSavingName(true);
-    await supabase.from('profiles').update({ display_name: trimmed }).eq('id', profile.id);
-    await refresh();
-    setSavingName(false);
-    setEditingName(false);
-  }
-
-  const totalBet = bets.reduce((s, b) => s + b.amount, 0);
+const totalBet = bets.reduce((s, b) => s + b.amount, 0);
   const totalWon = bets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
   const pending = bets.filter(b => b.status === 'pending').length;
 
@@ -145,43 +132,7 @@ export default function MyBetsPage() {
 
   return (
     <div className="min-h-screen pb-24">
-      <header className="hdr">
-        <div className="hdr-inner">
-          <span className="font-bold">ההימורים שלי</span>
-          <div className="flex items-center gap-2">
-            {editingName ? (
-              <>
-                <input
-                  className="input"
-                  style={{ fontSize: '0.85rem', padding: '4px 8px', width: 130, textAlign: 'right' }}
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditingName(false); }}
-                  autoFocus
-                  maxLength={30}
-                />
-                <button onClick={saveName} disabled={savingName} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--green)' }}>
-                  <Check size={16} />
-                </button>
-                <button onClick={() => setEditingName(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171' }}>
-                  <X size={16} />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile?.display_name}</span>
-                <button
-                  onClick={() => { setNewName(profile?.display_name ?? ''); setEditingName(true); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', opacity: 0.6 }}
-                  title="שנה שם"
-                >
-                  <Pencil size={13} />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <AppHeader title="ההימורים שלי" />
       <div className="hdr-spacer" />
 
       <div className="page-wrap pt-4">
