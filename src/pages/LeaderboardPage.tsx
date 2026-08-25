@@ -163,93 +163,6 @@ export default function LeaderboardPage() {
 
       <div className="page-wrap pt-6 flex flex-col gap-3">
 
-        {/* Round summary card */}
-        {roundSummary && (() => {
-          const king = roundSummary.players[0];
-          const rest = roundSummary.players.slice(1);
-          return (
-            <div className="card" style={{ overflow: 'hidden' }}>
-              {/* Header row — always visible */}
-              <div
-                onClick={() => setSummaryOpen(o => !o)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '12px 14px', cursor: 'pointer',
-                }}
-              >
-                <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>📊</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                    מחזור {roundSummary.roundNum} — סיכום
-                  </div>
-                  {king && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>
-                      👑 מלך המחזור: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{king.display_name}</span>
-                      {' '}— {king.pts} נק׳ · {king.wins}/{king.wins + king.losses} נכון
-                      {king.exact > 0 && ` · 🎯×${king.exact}`}
-                    </div>
-                  )}
-                </div>
-                {summaryOpen
-                  ? <ChevronUp size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                  : <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
-              </div>
-
-              {/* Expanded: all players */}
-              {summaryOpen && (
-                <div style={{ borderTop: '1px solid var(--border)' }}>
-                  {/* column headers */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center',
-                    padding: '5px 14px',
-                    fontSize: '0.6rem', fontWeight: 700,
-                    color: 'var(--text-muted)', letterSpacing: 0.4,
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  }}>
-                    <span style={{ flex: 1 }}>שחקן</span>
-                    <span style={{ width: 30, textAlign: 'center' }}>✓</span>
-                    <span style={{ width: 30, textAlign: 'center' }}>✗</span>
-                    <span style={{ width: 30, textAlign: 'center' }}>🎯</span>
-                    <span style={{ width: 52, textAlign: 'center' }}>נק׳</span>
-                  </div>
-                  {roundSummary.players.map((p, i) => {
-                    const isKing = i === 0;
-                    const badge = p.favorite_team ? LEAGUE_BADGES[p.favorite_team] : null;
-                    return (
-                      <div key={p.id} style={{
-                        display: 'flex', alignItems: 'center',
-                        padding: '8px 14px',
-                        background: isKing ? 'rgba(255,214,0,0.05)' : 'transparent',
-                        borderBottom: i < roundSummary.players.length - 1
-                          ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                      }}>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                          <span style={{
-                            fontSize: '0.78rem', width: 18, flexShrink: 0,
-                            color: isKing ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700,
-                          }}>{isKing ? '👑' : i + 1}</span>
-                          {badge && <img src={badge} alt="" width={16} height={16} style={{ objectFit: 'contain', flexShrink: 0 }} />}
-                          <span style={{
-                            fontSize: '0.83rem', fontWeight: isKing ? 800 : 500,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            color: p.id === me?.id ? 'var(--green)' : 'var(--text)',
-                          }}>{p.display_name}</span>
-                        </div>
-                        <span style={{ width: 30, textAlign: 'center', color: 'var(--green)', fontWeight: 700, fontSize: '0.85rem' }}>{p.wins}</span>
-                        <span style={{ width: 30, textAlign: 'center', color: '#f87171', fontWeight: 700, fontSize: '0.85rem' }}>{p.losses}</span>
-                        <span style={{ width: 30, textAlign: 'center', color: 'var(--gold)', fontWeight: 700, fontSize: '0.85rem' }}>{p.exact || '—'}</span>
-                        <span style={{ width: 52, textAlign: 'center', fontWeight: 800, fontSize: '0.88rem', color: isKing ? 'var(--gold)' : 'rgba(255,255,255,0.9)' }}>
-                          +{p.pts}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
         {/* Banner */}
         <div className="ldr-banner">
           <Crown size={28} style={{ color: 'var(--gold)', flexShrink: 0 }} />
@@ -487,6 +400,143 @@ export default function LeaderboardPage() {
             );
           })}
         </div>
+
+        {/* Round summary card — below table */}
+        {roundSummary && (() => {
+          const king = roundSummary.players[0];
+          const rest = roundSummary.players.slice(1);
+          // bubble sizes for ranks 2–6
+          const sizes = [66, 56, 48, 40, 33];
+          const ptsSizes = ['1.2rem', '1rem', '0.9rem', '0.8rem', '0.7rem'];
+          return (
+            <div className="card" style={{
+              overflow: 'hidden',
+              borderColor: 'rgba(255,200,0,0.22)',
+              boxShadow: '0 0 24px rgba(255,200,0,0.05)',
+            }}>
+              {/* Collapsed header */}
+              <div
+                onClick={() => setSummaryOpen(o => !o)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}
+              >
+                <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>📊</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                    מחזור {roundSummary.roundNum} — סיכום
+                  </div>
+                  {king && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      👑 מלך המחזור: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{king.display_name}</span>
+                      {' '}— {king.pts} נק׳ · {king.wins}/{king.wins + king.losses} נכון
+                      {king.exact > 0 && ` · 🎯×${king.exact}`}
+                    </div>
+                  )}
+                </div>
+                {summaryOpen
+                  ? <ChevronUp size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  : <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+              </div>
+
+              {/* Expanded body */}
+              {summaryOpen && king && (
+                <div style={{ borderTop: '1px solid rgba(255,200,0,0.15)' }}>
+
+                  {/* King spotlight */}
+                  <div style={{
+                    padding: '16px 16px 14px',
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    background: 'linear-gradient(135deg, rgba(255,200,0,0.1) 0%, rgba(255,130,0,0.05) 100%)',
+                    borderBottom: '1px solid rgba(255,200,0,0.12)',
+                    position: 'relative', overflow: 'hidden',
+                  }}>
+                    <span style={{ position: 'absolute', right: -8, top: -10, fontSize: '4rem', opacity: 0.07, transform: 'rotate(-15deg)', pointerEvents: 'none' }}>👑</span>
+                    {/* Badge + crown */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      {king.favorite_team && LEAGUE_BADGES[king.favorite_team]
+                        ? <img src={LEAGUE_BADGES[king.favorite_team]} alt="" width={42} height={42} style={{ borderRadius: '50%', objectFit: 'contain', border: '2px solid var(--gold)', boxShadow: '0 0 14px rgba(255,214,0,0.35)' }} />
+                        : <div style={{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', border: '2px solid var(--gold)', boxShadow: '0 0 14px rgba(255,214,0,0.35)' }}>⚽</div>
+                      }
+                      <span style={{ position: 'absolute', top: -6, right: -6, fontSize: '0.85rem', lineHeight: 1 }}>👑</span>
+                    </div>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--gold)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 3 }}>
+                        מלך מחזור {roundSummary.roundNum}
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.1 }}>{king.display_name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                        {king.wins} נכון מתוך {king.wins + king.losses}
+                        {king.exact > 0 && <> · <span style={{ color: 'var(--gold)' }}>🎯 תוצאה מדויקת ×{king.exact}</span></>}
+                      </div>
+                    </div>
+                    {/* Points */}
+                    <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--gold)', lineHeight: 1 }}>+{king.pts}</div>
+                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: 1 }}>נק׳</div>
+                    </div>
+                  </div>
+
+                  {/* Shrinking bubbles — ranks 2-N */}
+                  {rest.length > 0 && (
+                    <div style={{
+                      padding: '14px 10px 16px',
+                      display: 'flex', flexDirection: 'row',
+                      alignItems: 'flex-end', justifyContent: 'space-around', gap: 4,
+                    }}>
+                      {rest.map((p, idx) => {
+                        const sz = sizes[idx] ?? 30;
+                        const ptsSz = ptsSizes[idx] ?? '0.65rem';
+                        const isMe = p.id === me?.id;
+                        const teamColor = isMe ? 'var(--green)' : 'var(--text)';
+                        const borderColor = isMe ? 'rgba(0,200,83,0.7)' : 'rgba(255,255,255,0.22)';
+                        const badge = p.favorite_team ? LEAGUE_BADGES[p.favorite_team] : null;
+                        const total = p.wins + p.losses;
+                        return (
+                          <div key={p.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                            {/* Circle */}
+                            <div style={{
+                              width: sz, height: sz, borderRadius: '50%',
+                              display: 'flex', flexDirection: 'column',
+                              alignItems: 'center', justifyContent: 'center',
+                              border: `2px solid ${borderColor}`,
+                              background: 'rgba(255,255,255,0.05)',
+                              position: 'relative', flexShrink: 0,
+                              boxShadow: isMe ? '0 0 10px rgba(0,200,83,0.15)' : 'none',
+                            }}>
+                              {/* Rank badge */}
+                              <span style={{
+                                position: 'absolute', top: -5, right: -5,
+                                background: 'var(--surface2)', border: '1px solid var(--border)',
+                                borderRadius: '50%', width: 16, height: 16,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.52rem', fontWeight: 800, color: isMe ? 'var(--green)' : 'var(--text-muted)',
+                              }}>{idx + 2}</span>
+                              {/* Team badge (only for bigger circles) */}
+                              {badge && sz >= 48 && (
+                                <img src={badge} alt="" width={sz * 0.38} height={sz * 0.38} style={{ objectFit: 'contain', marginBottom: 2 }} />
+                              )}
+                              <span style={{ fontSize: ptsSz, fontWeight: 800, color: teamColor, lineHeight: 1 }}>+{p.pts}</span>
+                              {p.exact > 0 && sz >= 56 && (
+                                <span style={{ fontSize: '0.5rem', color: 'var(--gold)', lineHeight: 1, marginTop: 2 }}>🎯×{p.exact}</span>
+                              )}
+                            </div>
+                            {/* Name */}
+                            <div style={{ fontSize: sz >= 56 ? '0.72rem' : '0.62rem', fontWeight: 700, color: isMe ? 'var(--green)' : 'var(--text)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {p.display_name.length > 6 && sz < 48 ? p.display_name.slice(0, 5) + '…' : p.display_name}
+                            </div>
+                            {/* Ratio */}
+                            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textAlign: 'center' }}>{p.wins} מ-{total}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
     </div>
   );
