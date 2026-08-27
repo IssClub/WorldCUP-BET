@@ -907,13 +907,14 @@ function SeasonPredictionsView() {
 
   useEffect(() => {
     if (!profile) return;
+    const deadline = new Date() >= PREDICTIONS_DEADLINE;
     Promise.all([
       supabase.from('special_bets').select('*').eq('player_id', profile.id),
-      supabase.from('special_bets').select('player_id, type, prediction, status'),
+      deadline ? supabase.from('special_bets').select('player_id, type, prediction, status') : Promise.resolve({ data: [] }),
       supabase.from('profiles').select('id, display_name'),
     ]).then(([myRes, allRes, profRes]) => {
       setExistingBets((myRes.data as SpecialBet[]) || []);
-      setAllBets((allRes.data as AllBetsRow[]) || []);
+      setAllBets(((allRes as { data: AllBetsRow[] | null }).data as AllBetsRow[]) || []);
       setAllProfiles((profRes.data as ProfileRow[]) || []);
       setLoading(false);
     });
@@ -921,12 +922,13 @@ function SeasonPredictionsView() {
 
   async function refreshBets() {
     if (!profile) return;
+    const deadline = new Date() >= PREDICTIONS_DEADLINE;
     const [myRes, allRes] = await Promise.all([
       supabase.from('special_bets').select('*').eq('player_id', profile.id),
-      supabase.from('special_bets').select('player_id, type, prediction, status'),
+      deadline ? supabase.from('special_bets').select('player_id, type, prediction, status') : Promise.resolve({ data: [] }),
     ]);
     setExistingBets((myRes.data as SpecialBet[]) || []);
-    setAllBets((allRes.data as AllBetsRow[]) || []);
+    setAllBets(((allRes as { data: AllBetsRow[] | null }).data as AllBetsRow[]) || []);
   }
 
   function showMsg(key: string, text: string) {
