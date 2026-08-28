@@ -856,18 +856,24 @@ function PredictionCard({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: '1.25rem' }}>{icon}</span>
         <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</span>
+        {existing && !isOpen && (
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: statusColor, marginRight: 'auto' }}>{statusLabel}</span>
+        )}
+        {existing && isOpen && (
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginRight: 'auto' }}>ניתן לעדכן עד הסגירה</span>
+        )}
       </div>
-      {existing ? (
-        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{existing.label}</span>
-          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: statusColor }}>{statusLabel}</span>
-        </div>
-      ) : isOpen ? (
-        children
-      ) : (
-        <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          🔒 לא הוגש ניחוש
-        </div>
+      {isOpen ? children : (
+        existing ? (
+          <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{existing.label}</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: statusColor }}>{statusLabel}</span>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            🔒 לא הוגש ניחוש
+          </div>
+        )
       )}
       {msg && (
         <div style={{
@@ -913,7 +919,16 @@ function SeasonPredictionsView() {
       deadline ? supabase.from('special_bets').select('player_id, type, prediction, status') : Promise.resolve({ data: [] }),
       supabase.from('profiles').select('id, display_name'),
     ]).then(([myRes, allRes, profRes]) => {
-      setExistingBets((myRes.data as SpecialBet[]) || []);
+      const bets = (myRes.data as SpecialBet[]) || [];
+      setExistingBets(bets);
+      // pre-fill form fields with existing selections
+      const w = bets.find(b => b.type === 'winner');
+      const s = bets.find(b => b.type === 'top_scorer');
+      const r = bets.filter(b => b.type === 'relegated');
+      if (w) setWinnerPick(w.prediction);
+      if (s) setScorerPick(s.prediction);
+      if (r[0]) setRelegated1(r[0].prediction);
+      if (r[1]) setRelegated2(r[1].prediction);
       setAllBets(((allRes as { data: AllBetsRow[] | null }).data as AllBetsRow[]) || []);
       setAllProfiles((profRes.data as ProfileRow[]) || []);
       setLoading(false);
@@ -939,6 +954,8 @@ function SeasonPredictionsView() {
   async function submitSingle(type: SpecialBet['type'], prediction: string) {
     if (!profile || !prediction) return;
     setSubmitting(type);
+    // delete existing, then insert fresh (handles both first-time and edit)
+    await supabase.from('special_bets').delete().eq('player_id', profile.id).eq('type', type);
     const { error } = await supabase.from('special_bets').insert({
       player_id: profile.id, type, prediction, status: 'pending',
     });
@@ -950,6 +967,8 @@ function SeasonPredictionsView() {
   async function submitRelegated() {
     if (!profile || !relegated1 || !relegated2 || relegated1 === relegated2) return;
     setSubmitting('relegated');
+    // delete all existing relegated bets, then insert 2 new ones
+    await supabase.from('special_bets').delete().eq('player_id', profile.id).eq('type', 'relegated');
     const { error } = await supabase.from('special_bets').insert([
       { player_id: profile.id, type: 'relegated', prediction: relegated1, status: 'pending' },
       { player_id: profile.id, type: 'relegated', prediction: relegated2, status: 'pending' },
@@ -1010,7 +1029,7 @@ function SeasonPredictionsView() {
           disabled={!winnerPick || submitting === 'winner'}
           onClick={() => submitSingle('winner', winnerPick)}
         >
-          {submitting === 'winner' ? 'שומר...' : 'שמור ניחוש'}
+          {submitting === 'winner' ? 'שומר...' : winnerBet ? 'עדכן ניחוש' : 'שמור ניחוש'}
         </button>
       </PredictionCard>
 
@@ -1043,7 +1062,7 @@ function SeasonPredictionsView() {
             disabled={!relegated1 || !relegated2 || relegated1 === relegated2 || submitting === 'relegated'}
             onClick={submitRelegated}
           >
-            {submitting === 'relegated' ? 'שומר...' : 'שמור ניחוש'}
+            {submitting === 'relegated' ? 'שומר...' : relegatedBets.length > 0 ? 'עדכן ניחוש' : 'שמור ניחוש'}
           </button>
         </div>
       </PredictionCard>
@@ -1069,7 +1088,7 @@ function SeasonPredictionsView() {
           disabled={!scorerPick.trim() || submitting === 'top_scorer'}
           onClick={() => submitSingle('top_scorer', scorerPick.trim())}
         >
-          {submitting === 'top_scorer' ? 'שומר...' : 'שמור ניחוש'}
+          {submitting === 'top_scorer' ? 'שומר...' : scorerBet ? 'עדכן ניחוש' : 'שמור ניחוש'}
         </button>
       </PredictionCard>
 
