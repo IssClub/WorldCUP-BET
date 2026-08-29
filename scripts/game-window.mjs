@@ -84,9 +84,11 @@ const settleEnd   = ceilToHour(lastKickoff + 8 * 60 * 60 * 1000);
 const oddsStart = firstKickoff - 3 * 60 * 60 * 1000;
 const oddsEnd   = firstKickoff + 15 * 60 * 1000;
 
-// Pre-game: first_kickoff - 2h → first_kickoff + 15min
+// Pre-game: first_kickoff - 2h → last_kickoff + 45min
+// החלון מכסה את כל המשחקים ביום, כך ש-pre-game.mjs יכול להמר אוטומטית
+// גם על משחקים שהתחילו אחרי החלון הראשון.
 const pregameStart = firstKickoff - 2 * 60 * 60 * 1000;
-const pregameEnd   = firstKickoff + 15 * 60 * 1000;
+const pregameEnd   = lastKickoff  + 45 * 60 * 1000;
 
 const inSettleWindow  = nowMs >= settleStart  && nowMs <= settleEnd;
 const inOddsWindow    = nowMs >= oddsStart    && nowMs <= oddsEnd;

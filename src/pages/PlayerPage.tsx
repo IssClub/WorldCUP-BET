@@ -62,7 +62,7 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
     try {
       const res = await fetch(
         `https://webws.365scores.com/web/games/?appTypeId=5&langId=2&timezoneName=Asia%2FJerusalem&userCountryId=6&competitions=42&startDate=${today}&endDate=${today}`,
-        { headers: { Accept: 'application/json', Referer: 'https://www.365scores.com/' } }
+        { headers: { Accept: 'application/json' } }
       );
       const data = await res.json();
       const map = new Map<string, LiveScore>();
