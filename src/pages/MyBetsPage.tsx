@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Bet, SpecialBet } from '../lib/supabase';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
-import { Trash2, Trophy, Star, BellRing, BellOff } from 'lucide-react';
+import { Trash2, Trophy, Star, BellRing, BellOff, ChevronDown, ChevronUp } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
@@ -28,6 +28,7 @@ export default function MyBetsPage() {
   const [bets, setBets] = useState<Bet[]>([]);
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
   const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -78,7 +79,14 @@ export default function MyBetsPage() {
     }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
     const sched = schedRes.data ?? [];
-    setRoundMap(new Map(sched.map(r => [r.id, r.round_num ?? 0])));
+    const rm = new Map(sched.map(r => [r.id, r.round_num ?? 0]));
+    setRoundMap(rm);
+
+    // פתח את המחזור האחרון כברירת מחדל
+    const rounds = new Set(rm.values());
+    const maxRound = Math.max(...rounds);
+    setOpenRounds(new Set([maxRound]));
+
     setLoading(false);
   }
 
@@ -99,6 +107,15 @@ export default function MyBetsPage() {
     await loadBets();
     setCancelling(null);
   }
+
+  const toggleRound = (round: number) => {
+    setOpenRounds(prev => {
+      const next = new Set(prev);
+      if (next.has(round)) next.delete(round);
+      else next.add(round);
+      return next;
+    });
+  };
 
   // ביטול אפשרי רק עד 5 דקות לפני kickoff (עקבי עם סגירת ההימורים)
   const canCancel = (bet: Bet) =>
@@ -267,18 +284,37 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
             return (
               <div className="flex flex-col gap-4">
-                {sortedRounds.map(round => (
+                {sortedRounds.map(round => {
+                  const isOpen = openRounds.has(round);
+                  const roundBets = byRound.get(round)!;
+                  const roundWins = roundBets.filter(b => b.status === 'won').length;
+                  const roundLosses = roundBets.filter(b => b.status === 'lost').length;
+                  return (
                   <div key={round}>
-                    <div style={{
-                      fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
-                      textTransform: 'uppercase', letterSpacing: 1,
-                      padding: '4px 0 8px', borderBottom: '1px solid var(--border)',
-                      marginBottom: 10,
-                    }}>
-                      מחזור {round || '?'}
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      {byRound.get(round)!.map(bet => {
+                    <button
+                      onClick={() => toggleRound(round)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        background: 'none', border: 'none', borderBottom: '1px solid var(--border)',
+                        padding: '6px 2px 8px', marginBottom: isOpen ? 10 : 0, cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1 }}>
+                        מחזור {round || '?'}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {roundBets.some(b => b.status !== 'pending') && (
+                          <span>
+                            <span style={{ color: 'var(--green)' }}>✓{roundWins}</span>
+                            {' '}
+                            <span style={{ color: '#f87171' }}>✗{roundLosses}</span>
+                          </span>
+                        )}
+                        {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    </button>
+                    {isOpen && <div className="flex flex-col gap-3">
+                      {roundBets.map(bet => {
                         const statusColor = bet.status === 'won' ? 'var(--green)' : bet.status === 'lost' ? '#f87171' : 'var(--gold)';
                         const statusLabel = bet.status === 'won' ? 'זכייה ✓' : bet.status === 'lost' ? 'הפסד ✗' : 'ממתין';
                         const cancellable = canCancel(bet);
@@ -348,9 +384,10 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
                           </div>
                         );
                       })}
-                    </div>
+                    </div>}
                   </div>
-                ))}
+                );
+                })}
               </div>
             );
           })()
