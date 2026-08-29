@@ -90,9 +90,22 @@ const oddsEnd   = firstKickoff + 15 * 60 * 1000;
 const pregameStart = firstKickoff - 2 * 60 * 60 * 1000;
 const pregameEnd   = lastKickoff  + 45 * 60 * 1000;
 
-const inSettleWindow  = nowMs >= settleStart  && nowMs <= settleEnd;
-const inOddsWindow    = nowMs >= oddsStart    && nowMs <= oddsEnd;
-const inPregameWindow = nowMs >= pregameStart && nowMs <= pregameEnd;
+const inSettleWindow = nowMs >= settleStart && nowMs <= settleEnd;
+const inOddsWindow   = nowMs >= oddsStart   && nowMs <= oddsEnd;
+
+// בדוק אם יש משחקים שהתחילו ב-12 שעות האחרונות ועדיין לא הסתיימו —
+// במקרה כזה pre-game.mjs צריך לרוץ כדי לשים הימורים אוטומטיים.
+const autoLookback = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+const { count: activeStarted } = await supabase
+  .from('league_schedule')
+  .select('id', { count: 'exact', head: true })
+  .eq('completed', false)
+  .eq('postponed', false)
+  .gte('kickoff_at', autoLookback.toISOString())
+  .lte('kickoff_at', now.toISOString());
+const hasStartedGames = (activeStarted ?? 0) > 0;
+
+const inPregameWindow = (nowMs >= pregameStart && nowMs <= pregameEnd) || hasStartedGames;
 
 // ── דיווח ─────────────────────────────────────────────────
 const fmt = ms => new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
