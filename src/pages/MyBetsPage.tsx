@@ -82,10 +82,11 @@ export default function MyBetsPage() {
     const rm = new Map(sched.map(r => [r.id, r.round_num ?? 0]));
     setRoundMap(rm);
 
-    // פתח את המחזור האחרון כברירת מחדל
-    const rounds = new Set(rm.values());
-    const maxRound = Math.max(...rounds);
-    setOpenRounds(new Set([maxRound]));
+    // פתח את המחזור האחרון שיש לו הימורים — מבוסס על ההימורים עצמם
+    const betsData = (betsRes.data as Bet[]) || [];
+    const betRounds = betsData.map(b => rm.get(b.external_game_id) ?? 0);
+    const maxBetRound = betRounds.length > 0 ? Math.max(...betRounds) : 0;
+    setOpenRounds(new Set([maxBetRound]));
 
     setLoading(false);
   }

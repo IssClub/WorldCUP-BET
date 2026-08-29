@@ -160,20 +160,20 @@ for (const row of incoming) {
   const current = existingMap.get(key);
 
   if (current) {
-    if (!current.completed) {
-      const update = {
-        kickoff_at:  row.kickoff_at,
-        round_num:   row.round_num,
-        external_id: row.external_id,   // עדכן גם external_id ל-365scores
-        updated_at:  row.updated_at,
-      };
-      if (row.completed && row.home_score !== null && row.away_score !== null) {
-        update.home_score = row.home_score;
-        update.away_score = row.away_score;
-        update.completed  = true;
-      }
-      toUpdate.push({ dbId: current.id, home: row.home_team, away: row.away_team, ...update });
+    // תמיד עדכן kickoff_at, round_num, external_id — גם למשחקים שהוגמרו
+    const update = {
+      kickoff_at:  row.kickoff_at,
+      round_num:   row.round_num,
+      external_id: row.external_id,
+      updated_at:  row.updated_at,
+    };
+    // עדכן תוצאות רק אם לא הוגמרו עדיין בDB
+    if (!current.completed && row.completed && row.home_score !== null && row.away_score !== null) {
+      update.home_score = row.home_score;
+      update.away_score = row.away_score;
+      update.completed  = true;
     }
+    toUpdate.push({ dbId: current.id, home: row.home_team, away: row.away_team, ...update });
   } else {
     toUpsert.push(row);
   }

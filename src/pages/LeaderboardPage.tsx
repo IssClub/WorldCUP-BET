@@ -53,9 +53,30 @@ export default function LeaderboardPage() {
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
   const [roundSummary, setRoundSummary] = useState<RoundSummary | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+
+  const handleExpand = (playerId: string | null, playerBets?: Bet[]) => {
+    setExpanded(playerId);
+    if (playerId && playerBets) {
+      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) ?? 0);
+      const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
+      setOpenRounds(new Set([maxRound]));
+    } else {
+      setOpenRounds(new Set());
+    }
+  };
+
+  const toggleRound = (round: number) => {
+    setOpenRounds(prev => {
+      const next = new Set(prev);
+      if (next.has(round)) next.delete(round);
+      else next.add(round);
+      return next;
+    });
+  };
 
   useEffect(() => {
     load();
@@ -210,7 +231,7 @@ export default function LeaderboardPage() {
 
                 {/* Player row */}
                 <div
-                  onClick={() => hasHistory && setExpanded(isOpen ? null : p.id)}
+                  onClick={() => hasHistory && handleExpand(isOpen ? null : p.id, startedBets)}
                   style={{
                     display: 'flex', alignItems: 'center',
                     padding: '11px 14px',
@@ -283,16 +304,16 @@ export default function LeaderboardPage() {
                   </div>
                 </div>
 
-                {/* Expanded bet history — grouped by round */}
+                {/* Expanded bet history — grouped by round with accordion */}
                 {isOpen && hasHistory && (() => {
-                  // קבץ לפי מחזור
                   const byRound = new Map<number, Bet[]>();
                   for (const bet of startedBets) {
                     const r = roundMap.get(bet.external_game_id) ?? 0;
                     if (!byRound.has(r)) byRound.set(r, []);
                     byRound.get(r)!.push(bet);
                   }
-                  const sortedRounds = [...byRound.keys()].sort((a, b) => a - b);
+                  const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
+                  const earned = startedBets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
 
                   return (
                     <div style={{
@@ -303,22 +324,42 @@ export default function LeaderboardPage() {
                       flexDirection: 'column',
                       gap: 5,
                     }}>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 2, paddingRight: 2 }}>
-                        היסטוריית הימורים
+                      {/* Summary: earned vs bank */}
+                      <div style={{ display: 'flex', gap: 10, fontSize: '0.63rem', color: 'var(--text-muted)', marginBottom: 2 }}>
+                        <span>רווח מהימורים: <strong style={{ color: 'var(--green)' }}>+{earned} נק׳</strong></span>
+                        <span>·</span>
+                        <span>בנק: <strong style={{ color: 'var(--text)' }}>{p.bank.toLocaleString()} נק׳</strong></span>
                       </div>
-                      {sortedRounds.map(round => (
+
+                      {sortedRounds.map(round => {
+                        const isRoundOpen = openRounds.has(round);
+                        const roundBets = byRound.get(round) ?? [];
+                        const rWins = roundBets.filter(b => b.status === 'won').length;
+                        const rLosses = roundBets.filter(b => b.status === 'lost').length;
+                        return (
                         <div key={round}>
-                          {/* Round header */}
-                          <div style={{
-                            fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)',
-                            letterSpacing: 0.5, padding: '4px 2px 2px',
-                            borderBottom: '1px solid rgba(255,255,255,0.06)',
-                            marginBottom: 4,
-                          }}>
-                            מחזור {round || '?'}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {(byRound.get(round) ?? []).map(bet => {
+                          {/* Round header — clickable accordion */}
+                          <button
+                            onClick={e => { e.stopPropagation(); toggleRound(round); }}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              background: 'none', border: 'none',
+                              borderBottom: '1px solid rgba(255,255,255,0.06)',
+                              padding: '4px 2px', marginBottom: isRoundOpen ? 4 : 0,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
+                              מחזור {round || '?'}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                              <span style={{ color: 'var(--green)' }}>✓{rWins}</span>
+                              <span style={{ color: '#f87171' }}>✗{rLosses}</span>
+                              {isRoundOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                            </span>
+                          </button>
+                          {isRoundOpen && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {roundBets.map(bet => {
                             const isPending = bet.status === 'pending';
                             const won = bet.status === 'won';
                             const exact = isExactHit(bet);
@@ -390,9 +431,10 @@ export default function LeaderboardPage() {
                               </div>
                             );
                           })}
-                          </div>
+                          </div>}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}
