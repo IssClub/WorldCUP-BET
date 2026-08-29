@@ -103,6 +103,10 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
           !g.completed && Math.abs(new Date(g.kickoff_at).getTime() - t365) <= 30 * 60_000
         );
         if (!local) continue;
+        // בדוק אם הקבוצות הפוכות — אם כן, הפוך את הניקוד
+        const inverted = local.home_team === enAway && local.away_team === enHome;
+        const score365Home = g365.homeCompetitor?.score ?? 0;
+        const score365Away = g365.awayCompetitor?.score ?? 0;
         const sg = g365.statusGroup;
         // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=הפסקה, 5=סופי
         const minute =
@@ -110,8 +114,8 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
           sg === 5 ? 'סופי'  :
           g365.gameTimeDisplay ? g365.gameTimeDisplay : 'חי';
         map.set(local.id, {
-          homeScore: g365.homeCompetitor?.score ?? 0,
-          awayScore: g365.awayCompetitor?.score ?? 0,
+          homeScore: inverted ? score365Away : score365Home,
+          awayScore: inverted ? score365Home : score365Away,
           minute,
           statusGroup: sg,
         });
