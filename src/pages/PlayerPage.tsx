@@ -108,10 +108,10 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
         const score365Home = g365.homeCompetitor?.score ?? 0;
         const score365Away = g365.awayCompetitor?.score ?? 0;
         const sg = g365.statusGroup;
-        // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=הפסקה, 5=סופי
+        // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=סופי, 5=הפסקה
         const minute =
-          sg === 4 ? 'הפסקה' :
-          sg === 5 ? 'סופי'  :
+          sg === 4 ? 'סופי'   :
+          sg === 5 ? 'הפסקה' :
           g365.gameTimeDisplay ? g365.gameTimeDisplay : 'חי';
         map.set(local.id, {
           homeScore: inverted ? score365Away : score365Home,
@@ -257,7 +257,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
                   {isLiveNow && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />}
                   <span style={{ fontSize: 11, color: isLiveNow ? '#ef4444' : 'var(--text-muted)', fontWeight: 700 }}>{liveScore.minute}</span>
                 </div>
-                <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
+                <div dir="ltr" style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
                   {liveScore.awayScore} : {liveScore.homeScore}
                 </div>
               </>
@@ -312,7 +312,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
                   {isLiveNow && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.2s infinite' }} />}
                   <span style={{ fontSize: 11, color: isLiveNow ? '#ef4444' : 'var(--text-muted)', fontWeight: 700 }}>{liveScore.minute}</span>
                 </div>
-                <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
+                <div dir="ltr" style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, letterSpacing: 2, color: 'var(--text)', lineHeight: 1 }}>
                   {liveScore.awayScore} : {liveScore.homeScore}
                 </div>
               </>
