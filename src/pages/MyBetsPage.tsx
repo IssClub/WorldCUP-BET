@@ -27,6 +27,7 @@ export default function MyBetsPage() {
   const { profile, refresh } = useAuth();
   const [bets, setBets] = useState<Bet[]>([]);
   const [specialBets, setSpecialBets] = useState<SpecialBet[]>([]);
+  const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -65,9 +66,10 @@ export default function MyBetsPage() {
     if (!profile) return;
     setLoading(true);
     setLoadError('');
-    const [betsRes, specialRes] = await Promise.all([
+    const [betsRes, specialRes, schedRes] = await Promise.all([
       supabase.from('bets').select('*').eq('player_id', profile.id).order('kickoff_at', { ascending: false }),
       supabase.from('special_bets').select('*').eq('player_id', profile.id),
+      supabase.from('league_schedule').select('id, round_num'),
     ]);
     if (betsRes.error) {
       setLoadError('שגיאה בטעינת ההימורים — נסה שוב');
@@ -75,6 +77,8 @@ export default function MyBetsPage() {
       setBets((betsRes.data as Bet[]) || []);
     }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
+    const sched = schedRes.data ?? [];
+    setRoundMap(new Map(sched.map(r => [r.id, r.round_num ?? 0])));
     setLoading(false);
   }
 
@@ -251,78 +255,105 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
             <div className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>עבור להימורים כדי להתחיל</div>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {bets.map(bet => {
-              const statusColor = bet.status === 'won' ? 'var(--green)' : bet.status === 'lost' ? '#f87171' : 'var(--gold)';
-              const statusLabel = bet.status === 'won' ? 'זכייה ✓' : bet.status === 'lost' ? 'הפסד ✗' : 'ממתין';
-              const cancellable = canCancel(bet);
+          (() => {
+            // קבץ הימורים לפי מחזור (round_num), מסודר מהאחרון לראשון
+            const byRound = new Map<number, Bet[]>();
+            for (const bet of bets) {
+              const r = roundMap.get(bet.external_game_id) ?? 0;
+              if (!byRound.has(r)) byRound.set(r, []);
+              byRound.get(r)!.push(bet);
+            }
+            const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
 
-              return (
-                <div key={bet.id} className="mb-card">
-                  {/* Header row */}
-                  <div className="mb-card-top">
-                    <div className="mb-game">
-                      <Flag team={bet.home_team} />
-                      <span className="mb-team">{teamHe(bet.home_team)}</span>
-                      <span className="mb-vs">vs</span>
-                      <span className="mb-team">{teamHe(bet.away_team)}</span>
-                      <Flag team={bet.away_team} />
+            return (
+              <div className="flex flex-col gap-4">
+                {sortedRounds.map(round => (
+                  <div key={round}>
+                    <div style={{
+                      fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: 1,
+                      padding: '4px 0 8px', borderBottom: '1px solid var(--border)',
+                      marginBottom: 10,
+                    }}>
+                      מחזור {round || '?'}
                     </div>
-                    <span className="mb-status" style={{ color: statusColor }}>{statusLabel}</span>
+                    <div className="flex flex-col gap-3">
+                      {byRound.get(round)!.map(bet => {
+                        const statusColor = bet.status === 'won' ? 'var(--green)' : bet.status === 'lost' ? '#f87171' : 'var(--gold)';
+                        const statusLabel = bet.status === 'won' ? 'זכייה ✓' : bet.status === 'lost' ? 'הפסד ✗' : 'ממתין';
+                        const cancellable = canCancel(bet);
+
+                        return (
+                          <div key={bet.id} className="mb-card">
+                            {/* Header row */}
+                            <div className="mb-card-top">
+                              <div className="mb-game">
+                                <Flag team={bet.home_team} />
+                                <span className="mb-team">{teamHe(bet.home_team)}</span>
+                                <span className="mb-vs">vs</span>
+                                <span className="mb-team">{teamHe(bet.away_team)}</span>
+                                <Flag team={bet.away_team} />
+                              </div>
+                              <span className="mb-status" style={{ color: statusColor }}>{statusLabel}</span>
+                            </div>
+
+                            {/* Date */}
+                            <div className="mb-date">{fmtDate(bet.kickoff_at)} · {fmtTime(bet.kickoff_at)}</div>
+
+                            {/* Bet details */}
+                            <div className="mb-details">
+                              <div className="mb-pick">
+                                {bet.exact_home !== null
+                                  ? <span>⚡ ניחוש: <span dir="ltr">{bet.exact_home}:{bet.exact_away}</span></span>
+                                  : pickLabel(bet.pick, bet.home_team, bet.away_team)
+                                }
+                              </div>
+                              <div className="mb-nums">
+                                {bet.status === 'won' ? (
+                                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>+{bet.payout ?? 0} נק׳</span>
+                                ) : bet.status === 'lost' ? (
+                                  <span style={{ color: '#f87171', fontWeight: 700 }}>0 נק׳</span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                                    כיוון נכון: 3 נק׳ | 🎯 מדויק: 5 נק׳
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actual result — only for settled bets */}
+                            {(bet.status === 'won' || bet.status === 'lost') && bet.actual_home !== null && bet.actual_away !== null && (
+                              <div className="mb-actual">
+                                {(() => {
+                                  const aw = bet.actual_home > bet.actual_away ? 'home'
+                                    : bet.actual_away > bet.actual_home ? 'away' : 'draw';
+                                  const winnerName = aw === 'home' ? teamHe(bet.home_team)
+                                    : aw === 'away' ? teamHe(bet.away_team) : 'תיקו';
+                                  return <>🏁 תוצאה: <strong>{winnerName}</strong> <span dir="ltr">{bet.actual_home}:{bet.actual_away}</span></>;
+                                })()}
+                              </div>
+                            )}
+
+                            {/* Cancel */}
+                            {cancellable && (
+                              <button
+                                className="mb-cancel"
+                                onClick={() => cancelBet(bet)}
+                                disabled={cancelling === bet.id}
+                              >
+                                <Trash2 size={13} />
+                                {cancelling === bet.id ? 'מבטל...' : 'בטל הימור'}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-
-                  {/* Date */}
-                  <div className="mb-date">{fmtDate(bet.kickoff_at)} · {fmtTime(bet.kickoff_at)}</div>
-
-                  {/* Bet details */}
-                  <div className="mb-details">
-                    <div className="mb-pick">
-                      {bet.exact_home !== null
-                        ? `⚡ ניחוש: ${bet.exact_away}:${bet.exact_home}`
-                        : pickLabel(bet.pick, bet.home_team, bet.away_team)
-                      }
-                    </div>
-                    <div className="mb-nums">
-                      {bet.status === 'won' ? (
-                        <span style={{ color: 'var(--green)', fontWeight: 700 }}>+{bet.payout ?? 0} נק׳</span>
-                      ) : bet.status === 'lost' ? (
-                        <span style={{ color: '#f87171', fontWeight: 700 }}>0 נק׳</span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                          כיוון נכון: 3 נק׳ | 🎯 מדויק: 5 נק׳
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actual result — only for settled bets */}
-                  {(bet.status === 'won' || bet.status === 'lost') && bet.actual_home !== null && bet.actual_away !== null && (
-                    <div className="mb-actual">
-                      {(() => {
-                        const aw = bet.actual_home > bet.actual_away ? 'home'
-                          : bet.actual_away > bet.actual_home ? 'away' : 'draw';
-                        const winnerName = aw === 'home' ? teamHe(bet.home_team)
-                          : aw === 'away' ? teamHe(bet.away_team) : 'תיקו';
-                        return <>🏁 תוצאה: <strong>{winnerName}</strong> {bet.actual_away}:{bet.actual_home}</>;
-                      })()}
-                    </div>
-                  )}
-
-                  {/* Cancel */}
-                  {cancellable && (
-                    <button
-                      className="mb-cancel"
-                      onClick={() => cancelBet(bet)}
-                      disabled={cancelling === bet.id}
-                    >
-                      <Trash2 size={13} />
-                      {cancelling === bet.id ? 'מבטל...' : 'בטל הימור'}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                ))}
+              </div>
+            );
+          })()
         )}
       </div>
     </div>

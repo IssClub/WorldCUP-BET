@@ -358,14 +358,14 @@ export default function LeaderboardPage() {
                                         fontWeight: 700
                                       }}>{pickLabel}</span>
                                       {bet.exact_home !== null && (
-                                        <span style={{ color: exact ? 'var(--gold)' : 'inherit' }}>
-                                          {' '}{bet.exact_away}:{bet.exact_home}
+                                        <span style={{ color: exact ? 'var(--gold)' : 'inherit' }} dir="ltr">
+                                          {' '}{bet.exact_home}:{bet.exact_away}
                                         </span>
                                       )}
                                     </span>
                                     {bet.actual_home !== null && !isPending && (
                                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                        תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }}>{bet.actual_away}:{bet.actual_home}</span>
+                                        תוצאה: <span style={{ color: 'var(--text)', fontWeight: 700 }} dir="ltr">{bet.actual_home}:{bet.actual_away}</span>
                                       </span>
                                     )}
                                     {isPending && (
