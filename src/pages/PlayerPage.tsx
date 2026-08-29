@@ -45,6 +45,26 @@ interface LiveScore {
 const LIVE_POLL_MS = 45_000;
 const GAME_WINDOW_MS = 2.5 * 60 * 60 * 1000;
 
+// מיפוי שמות עברית (365scores) לאנגלית (DB) — כולל חלופות כתיב
+const HE_TO_EN: Record<string, string> = {
+  'עירוני קרית שמונה':  'Hapoel Ironi Kiryat Shmona',
+  'הפועל ירושלים':      'Hapoel Jerusalem',
+  'הפועל רמת גן':       'Hapoel Ramat Gan',
+  'מכבי פתח תקוה':      'Maccabi Petah Tikva',
+  'מכבי פתח תקווה':     'Maccabi Petah Tikva',
+  'עירוני טבריה':       'Ironi Tiberias',
+  'הפועל פתח תקוה':     'Hapoel Petah Tikva',
+  'הפועל פתח תקווה':    'Hapoel Petah Tikva',
+  'הפועל באר שבע':      "Hapoel Be'er Sheva",
+  'הפועל חיפה':         'Hapoel Haifa',
+  'הפועל תל אביב':      'Hapoel Tel-Aviv',
+  'בני סכנין':          'Bnei Sakhnin',
+  'בית"ר ירושלים':      'Beitar Jerusalem',
+  'מכבי נתניה':         'Maccabi Netanya',
+  'מכבי תל אביב':       'Maccabi Tel Aviv',
+  'מכבי חיפה':          'Maccabi Haifa',
+};
+
 function useLiveScores(games: Game[]): Map<string, LiveScore> {
   const [scores, setScores] = useState<Map<string, LiveScore>>(new Map());
   const timerRef = useRef<number | null>(null);
@@ -68,17 +88,27 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
       const map = new Map<string, LiveScore>();
       for (const g365 of (data.games ?? [])) {
         if ((g365.statusGroup ?? 1) < 2) continue; // עדיין לא התחיל
-        // התאמה לפי שעת קיקוף (±30 דקות)
         const t365 = new Date(g365.startTime).getTime();
-        const local = games.find(g =>
+        const enHome = HE_TO_EN[g365.homeCompetitor?.name] ?? g365.homeCompetitor?.name ?? '';
+        const enAway = HE_TO_EN[g365.awayCompetitor?.name] ?? g365.awayCompetitor?.name ?? '';
+        // התאמה ראשית: שם קבוצה + שעה (±60 דק')
+        let local = games.find(g =>
+          !g.completed &&
+          Math.abs(new Date(g.kickoff_at).getTime() - t365) <= 60 * 60_000 &&
+          ((g.home_team === enHome && g.away_team === enAway) ||
+           (g.home_team === enAway && g.away_team === enHome))
+        );
+        // fallback: שעה בלבד (±30 דק') אם ההתאמה לפי שם נכשלה
+        if (!local) local = games.find(g =>
           !g.completed && Math.abs(new Date(g.kickoff_at).getTime() - t365) <= 30 * 60_000
         );
         if (!local) continue;
         const sg = g365.statusGroup;
+        // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=הפסקה, 5=סופי
         const minute =
-          sg === 3 ? 'הפסקה' :
-          sg === 4 ? 'סופי' :
-          g365.gameTimeDisplay ? `${g365.gameTimeDisplay}′` : 'חי';
+          sg === 4 ? 'הפסקה' :
+          sg === 5 ? 'סופי'  :
+          g365.gameTimeDisplay ? g365.gameTimeDisplay : 'חי';
         map.set(local.id, {
           homeScore: g365.homeCompetitor?.score ?? 0,
           awayScore: g365.awayCompetitor?.score ?? 0,
@@ -211,7 +241,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 
   // ── Pending bet ──
   if (existingBet) {
-    const isLiveNow = liveScore && liveScore.statusGroup === 2;
+    const isLiveNow = liveScore && liveScore.statusGroup <= 3;
     const card = (
       <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -266,7 +296,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 
   // ── Game started, no bet ──
   if (isStarted) {
-    const isLiveNow = liveScore && liveScore.statusGroup === 2;
+    const isLiveNow = liveScore && liveScore.statusGroup <= 3;
     return (
       <div className="gc gc-locked" style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
