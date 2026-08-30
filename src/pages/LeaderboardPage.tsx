@@ -16,8 +16,10 @@ type PlayerStats = Profile & {
 };
 
 const TZ = 'Asia/Jerusalem';
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: TZ });
+const fmtDate = (iso: string) => {
+  const [, m, day] = new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ }).split('-');
+  return `${day}/${m}`;
+};
 
 // חישוב מחזור לפי תאריך — fallback כשאין round_num בDB
 const SEASON_START_MS = new Date('2026-08-22T00:00:00Z').getTime();

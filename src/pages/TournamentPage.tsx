@@ -112,8 +112,12 @@ const roundFromKickoff = (kickoff: string): number =>
   Math.max(1, Math.floor((new Date(kickoff).getTime() - SEASON_START_MS) / MS_PER_WEEK) + 1);
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-const fmtDayFull = (iso: string) =>
-  new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
+const fmtDayFull = (iso: string) => {
+  const d = new Date(iso);
+  const weekday = d.toLocaleDateString('he-IL', { weekday: 'long', timeZone: TZ });
+  const [y, m, day] = d.toLocaleDateString('en-CA', { timeZone: TZ }).split('-');
+  return `${weekday}, ${day}/${m}/${y.slice(2)}`;
+};
 const dayKey = (iso: string) =>
   new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
 
@@ -351,9 +355,10 @@ function LeagueScheduleView() {
 
   const fmtRoundDate = (rFix: LeagueFixture[]) => {
     const sorted = [...rFix].sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
-    return new Date(sorted[0].kickoff_at).toLocaleDateString('he-IL', {
-      weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ,
-    });
+    const d = new Date(sorted[0].kickoff_at);
+    const weekday = d.toLocaleDateString('he-IL', { weekday: 'long', timeZone: TZ });
+    const [y, m, day] = d.toLocaleDateString('en-CA', { timeZone: TZ }).split('-');
+    return `${weekday}, ${day}/${m}/${y.slice(2)}`;
   };
 
   if (loading) return <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>טוען...</div>;

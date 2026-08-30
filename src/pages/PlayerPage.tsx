@@ -150,8 +150,12 @@ const TZ = 'Asia/Jerusalem';
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ });
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-const fmtDateHe = (iso: string) =>
-  new Date(iso).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
+const fmtDateHe = (iso: string) => {
+  const d = new Date(iso);
+  const weekday = d.toLocaleDateString('he-IL', { weekday: 'long', timeZone: TZ });
+  const [y, m, day] = d.toLocaleDateString('en-CA', { timeZone: TZ }).split('-');
+  return `${weekday}, ${day}/${m}/${y.slice(2)}`;
+};
 
 // ── Score input (compact) ─────────────────────────────────
 const scoreInputStyle: React.CSSProperties = {
