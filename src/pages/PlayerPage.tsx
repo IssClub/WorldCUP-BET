@@ -225,7 +225,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
             {isCompleted
-              ? <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, letterSpacing: 2, color: 'var(--text)' }}>
+              ? <div dir="ltr" style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, letterSpacing: 2, color: 'var(--text)' }}>
                   {game.away_score} : {game.home_score}
                 </div>
               : <div className="gc-time">{fmtTime(game.kickoff_at)}</div>

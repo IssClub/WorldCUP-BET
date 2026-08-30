@@ -400,7 +400,7 @@ export default function LeaderboardPage() {
                                       }}>{pickLabel}</span>
                                       {bet.exact_home !== null && (
                                         <span style={{ color: exact ? 'var(--gold)' : 'inherit' }} dir="ltr">
-                                          {' '}{bet.pick === 'home' ? `${bet.exact_home}:${bet.exact_away}` : `${bet.exact_away}:${bet.exact_home}`}
+                                          {' '}{bet.exact_away}:{bet.exact_home}
                                         </span>
                                       )}
                                     </span>

@@ -341,7 +341,7 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
                             <div className="mb-details">
                               <div className="mb-pick">
                                 {bet.exact_home !== null
-                                  ? <span>⚡ ניחוש: <span dir="ltr">{bet.pick === 'away' ? `${bet.exact_away}:${bet.exact_home}` : `${bet.exact_home}:${bet.exact_away}`}</span></span>
+                                  ? <span>⚡ ניחוש: <span dir="ltr">{bet.exact_away}:{bet.exact_home}</span></span>
                                   : pickLabel(bet.pick, bet.home_team, bet.away_team)
                                 }
                               </div>
@@ -366,7 +366,7 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
                                     : bet.actual_away > bet.actual_home ? 'away' : 'draw';
                                   const winnerName = aw === 'home' ? teamHe(bet.home_team)
                                     : aw === 'away' ? teamHe(bet.away_team) : 'תיקו';
-                                  return <>🏁 תוצאה: <strong>{winnerName}</strong> <span dir="ltr">{aw === 'away' ? `${bet.actual_away}:${bet.actual_home}` : `${bet.actual_home}:${bet.actual_away}`}</span></>;
+                                  return <>🏁 תוצאה: <strong>{winnerName}</strong> <span dir="ltr">{bet.actual_away}:{bet.actual_home}</span></>;
                                 })()}
                               </div>
                             )}
