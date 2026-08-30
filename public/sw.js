@@ -25,10 +25,12 @@ self.addEventListener('notificationclick', event => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
         if (client.url.includes('WorldCUP-BET') && 'focus' in client) {
-          client.navigate(targetUrl);
+          // אפליקציה פתוחה — שלח הודעה ישירה במקום שינוי URL
+          client.postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
           return client.focus();
         }
       }
+      // אפליקציה סגורה — פתח עם URL param
       return clients.openWindow(targetUrl);
     })
   );

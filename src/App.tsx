@@ -554,16 +554,27 @@ function AppShell() {
     }
   }, [profile?.favorite_team]);
 
-  // Show tagline modal when landing with ?set-tagline=1
+  // Show tagline modal: URL param (app was closed) or SW message (app was open)
   useEffect(() => {
     if (!profile) return;
+
+    // מקרה 1: האפליקציה נפתחה עם ?set-tagline=1
     const params = new URLSearchParams(window.location.search);
     if (params.get('set-tagline') === '1') {
       setShowTaglineModal(true);
-      // Clean the URL param without reloading
-      const clean = window.location.pathname;
-      window.history.replaceState({}, '', clean);
+      window.history.replaceState({}, '', window.location.pathname);
     }
+
+    // מקרה 2: האפליקציה הייתה פתוחה — ה-SW שלח postMessage
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK' &&
+          typeof event.data?.url === 'string' &&
+          event.data.url.includes('set-tagline')) {
+        setShowTaglineModal(true);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handler);
+    return () => navigator.serviceWorker?.removeEventListener('message', handler);
   }, [profile?.id]);
 
   const handleTeamModalClose = useCallback(() => {
