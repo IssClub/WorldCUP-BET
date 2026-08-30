@@ -233,8 +233,8 @@ async function main() {
       // שלח התראה לשחקן אנושי (לא לקוף)
       if (!isMonkey) {
         await sendPush(player.id, {
-          title: '🤖 הימור אוטומטי!',
-          body: `הימרנו ${AUTO_BET_AMOUNT} נק׳ על ${pickHe} (${oddsValue.toFixed(2)}×) — ${he(game.home_team)} נגד ${he(game.away_team)}`,
+          title: 'שכחת להמר, אבל הבוט כאן בשבילך!',
+          body: `ההימור שנשלח: ${he(game.home_team)} — ${he(game.away_team)} ${score.away}:${score.home} — בהצלחה 💪🏼`,
           url: '/WorldCUP-BET/',
         });
       }
