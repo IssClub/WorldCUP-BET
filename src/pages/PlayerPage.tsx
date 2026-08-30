@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Settings, Bet } from '../lib/supabase';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
 import { teamHe } from '../lib/teamNames';
-import { CheckCircle2, Lock } from 'lucide-react';
+import { CheckCircle2, Lock, Trash2 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 
 // ── Types ─────────────────────────────────────────────────
@@ -249,27 +249,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
     const isLiveNow = liveScore && liveScore.statusGroup <= 3;
     const canCancelHere = !isStarted && onCancelBet != null;
     const card = (
-      <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined, position: 'relative' }}>
-        {canCancelHere && (
-          <button
-            onClick={e => { e.stopPropagation(); onCancelBet!(); }}
-            title="בטל הימור"
-            style={{
-              position: 'absolute', top: 7, left: 7,
-              width: 22, height: 22,
-              background: 'rgba(239,68,68,0.12)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#f87171',
-              fontSize: 11,
-              lineHeight: 1,
-              padding: 0,
-              zIndex: 1,
-            }}
-          >✕</button>
-        )}
+      <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
@@ -296,6 +276,24 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           </div>
           {teamSide('away')}
         </div>
+        {canCancelHere && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+            <button
+              onClick={e => { e.stopPropagation(); onCancelBet!(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', borderRadius: 8,
+                border: '1px dashed rgba(248,113,113,0.45)',
+                background: 'rgba(248,113,113,0.07)',
+                color: '#f87171', fontSize: '0.75rem',
+                cursor: 'pointer',
+              }}
+            >
+              <Trash2 size={12} />
+              בטל הימור
+            </button>
+          </div>
+        )}
       </div>
     );
     if (canExpand) return <div onClick={onExpand} style={{ cursor: 'pointer' }}>{card}{expandPanel}</div>;
