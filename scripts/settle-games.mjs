@@ -506,9 +506,11 @@ async function maybeSendRoundSummary(settledExternalIds) {
       });
     }
 
-    // פוש מיוחד למוביל הטבלה הכוללת — כדי שיכתוב ציטוט
+    // פוש מיוחד למוביל הטבלה הכוללת — נקה את כל הטגליינים ושלח רק למוביל החדש
     const overallLeader = (allProfiles ?? []).sort((a, b) => (b.bank ?? 0) - (a.bank ?? 0))[0];
     if (overallLeader) {
+      // אפס טגליין לכולם — רק המוביל הנוכחי יכתוב חדש
+      await supabase.from('profiles').update({ tagline: null }).neq('id', '00000000-0000-0000-0000-000000000000');
       await sendPush(overallLeader.id, {
         title: 'כל הכבוד, אתה מוביל! 🏆',
         body: `סיימת את מחזור ${roundNum} במקום הראשון! זה הזמן לכתוב לכל הלוזרים מה אתה חושב 🏆`,
