@@ -20,12 +20,16 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const targetUrl = event.notification.data?.url || '/WorldCUP-BET/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
-        if (client.url.includes('WorldCUP-BET') && 'focus' in client) return client.focus();
+        if (client.url.includes('WorldCUP-BET') && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
       }
-      return clients.openWindow('/WorldCUP-BET/');
+      return clients.openWindow(targetUrl);
     })
   );
 });
