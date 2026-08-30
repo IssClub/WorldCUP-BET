@@ -207,7 +207,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             borderBottom: i < publicBets.length - 1 ? '1px solid var(--border)' : 'none',
           }}>
             <span style={{ fontSize: 13, color: 'var(--text)' }}>{pb.display_name}</span>
-            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue', cursive", letterSpacing: 1 }}>
+            <span dir="ltr" style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue', cursive", letterSpacing: 1 }}>
               {pb.exact_away ?? '?'}:{pb.exact_home ?? '?'}
             </span>
           </div>
@@ -230,7 +230,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
                 </div>
               : <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
             }
-            <div style={{ fontSize: 13, color: won ? 'var(--green)' : '#f87171', fontWeight: 700, marginTop: 2 }}>
+            <div dir="ltr" style={{ fontSize: 13, color: won ? 'var(--green)' : '#f87171', fontWeight: 700, marginTop: 2 }}>
               {won ? '✓' : '✗'} {existingBet.exact_away}:{existingBet.exact_home} → {won ? `+${existingBet.payout ?? 0}` : '0'} נק׳
             </div>
             {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
@@ -264,7 +264,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
             ) : (
               <div className="gc-time">{fmtTime(game.kickoff_at)}</div>
             )}
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginTop: 3 }}>
+            <div dir="ltr" style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginTop: 3 }}>
               ⚡ {existingBet.exact_away}:{existingBet.exact_home}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
