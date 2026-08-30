@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
@@ -106,6 +106,10 @@ function Flag({ team, size = 28 }: { team: string; size?: number }) {
 
 // ── Time utils ────────────────────────────────────────────
 const TZ = 'Asia/Jerusalem';
+const SEASON_START_MS = new Date('2026-08-22T00:00:00Z').getTime();
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+const roundFromKickoff = (kickoff: string): number =>
+  Math.max(1, Math.floor((new Date(kickoff).getTime() - SEASON_START_MS) / MS_PER_WEEK) + 1);
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const fmtDayFull = (iso: string) =>
@@ -290,13 +294,11 @@ function ScheduleView({ games, groups, scoreMap }: {
   );
 }
 
-// ── League Schedule view — מחוזר, auto-scroll, כפתור צף ──
+// ── League Schedule view ──────────────────────────────────
 function LeagueScheduleView() {
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showJump, setShowJump] = useState(false);
-  const roundRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  const observerRef = useRef<IntersectionObserver | null>(null);
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     supabase.from('league_schedule').select('*').order('kickoff_at')
@@ -314,18 +316,23 @@ function LeagueScheduleView() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  // קבוצה לפי מחזור
   const byRound = useMemo(() => {
     const map = new Map<number, LeagueFixture[]>();
     for (const f of fixtures) {
-      const r = f.round_num ?? 0;
+      const r = f.round_num || roundFromKickoff(f.kickoff_at);
       if (!map.has(r)) map.set(r, []);
       map.get(r)!.push(f);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a - b);
   }, [fixtures]);
 
-  // המחזור הנוכחי — ראשון עם משחק שלא הסתיים, או האחרון אם הכל נגמר
+  // פתח את כל המחזורים כברירת מחדל
+  useEffect(() => {
+    if (byRound.length > 0) {
+      setOpenRounds(new Set(byRound.map(([r]) => r)));
+    }
+  }, [byRound.length]);
+
   const currentRound = useMemo(() => {
     const now = new Date();
     for (const [r, rFix] of byRound) {
@@ -334,28 +341,12 @@ function LeagueScheduleView() {
     return byRound[byRound.length - 1]?.[0] ?? 1;
   }, [byRound]);
 
-  // scroll למחזור הנוכחי אחרי טעינה
-  useEffect(() => {
-    if (loading || byRound.length === 0) return;
-    const el = roundRefs.current.get(currentRound);
-    if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-  }, [loading, currentRound, byRound.length]);
-
-  // IntersectionObserver על המחזור הנוכחי — מציג כפתור "חזרה" כשהוא מחוץ למסך
-  const setCurrentRoundRef = useCallback((el: HTMLDivElement | null) => {
-    if (observerRef.current) observerRef.current.disconnect();
-    if (!el) return;
-    roundRefs.current.set(currentRound, el);
-    observerRef.current = new IntersectionObserver(
-      ([entry]) => setShowJump(!entry.isIntersecting),
-      { threshold: 0.05 }
-    );
-    observerRef.current.observe(el);
-  }, [currentRound]);
-
-  const scrollToCurrent = () => {
-    const el = roundRefs.current.get(currentRound);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const toggleRound = (r: number) => {
+    setOpenRounds(prev => {
+      const next = new Set(prev);
+      if (next.has(r)) next.delete(r); else next.add(r);
+      return next;
+    });
   };
 
   const fmtRoundDate = (rFix: LeagueFixture[]) => {
@@ -378,76 +369,68 @@ function LeagueScheduleView() {
   );
 
   return (
-    <div className="flex flex-col gap-6" style={{ position: 'relative' }}>
+    <div className="flex flex-col gap-3">
       {byRound.map(([round, rFix]) => {
         const isCurrent = round === currentRound;
+        const isOpen = openRounds.has(round);
         return (
-          <div
-            key={round}
-            ref={isCurrent ? setCurrentRoundRef : el => { if (el) roundRefs.current.set(round, el); }}
-          >
-            <div className="sch-day-hdr" style={isCurrent ? { color: 'var(--accent)' } : {}}>
-              <span style={{ fontWeight: 700 }}>מחזור {round}</span>
-              <span style={{ marginRight: 8, fontSize: '0.8rem', opacity: 0.75 }}>
-                — {fmtRoundDate(rFix)}
-              </span>
-              {isCurrent && (
-                <span style={{
-                  marginRight: 8, fontSize: '0.65rem', background: 'var(--accent)',
-                  color: '#fff', borderRadius: 10, padding: '1px 7px',
-                }}>נוכחי</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              {rFix.map(f => (
-                <div key={f.id} className="sch-row">
-                  <div className="sch-row-top">
-                    <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
-                  </div>
-                  <div className="sch-match">
-                    <div className="sch-home">
-                      <Flag team={f.home_team} size={28} />
-                      <span className="sch-tname">{teamHe(f.home_team)}</span>
+          <div key={round}>
+            <button
+              onClick={() => toggleRound(round)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isCurrent ? 'var(--accent)' : 'var(--text)' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>מחזור {round}</span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>— {fmtRoundDate(rFix)}</span>
+                {isCurrent && (
+                  <span style={{
+                    fontSize: '0.65rem', background: 'var(--accent)',
+                    color: '#fff', borderRadius: 10, padding: '1px 7px',
+                  }}>נוכחי</span>
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
+            </button>
+            {isOpen && (
+              <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+                {rFix.map(f => (
+                  <div key={f.id} className="sch-row">
+                    <div className="sch-row-top">
+                      <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
                     </div>
-                    {f.completed && f.home_score !== null ? (
-                      <div className="sch-score">
-                        <div className="sch-score-nums">
-                          <span className="sch-score-num">{f.home_score}</span>
-                          <span className="sch-score-sep">:</span>
-                          <span className="sch-score-num">{f.away_score}</span>
-                        </div>
-                        <span className="sch-score-ft">סיים</span>
+                    <div className="sch-match">
+                      <div className="sch-home">
+                        <Flag team={f.home_team} size={28} />
+                        <span className="sch-tname">{teamHe(f.home_team)}</span>
                       </div>
-                    ) : (
-                      <span className="sch-vs">VS</span>
-                    )}
-                    <div className="sch-away">
-                      <span className="sch-tname">{teamHe(f.away_team)}</span>
-                      <Flag team={f.away_team} size={28} />
+                      {f.completed && f.home_score !== null ? (
+                        <div className="sch-score">
+                          <div className="sch-score-nums">
+                            <span className="sch-score-num">{f.home_score}</span>
+                            <span className="sch-score-sep">:</span>
+                            <span className="sch-score-num">{f.away_score}</span>
+                          </div>
+                          <span className="sch-score-ft">סיים</span>
+                        </div>
+                      ) : (
+                        <span className="sch-vs">VS</span>
+                      )}
+                      <div className="sch-away">
+                        <span className="sch-tname">{teamHe(f.away_team)}</span>
+                        <Flag team={f.away_team} size={28} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
-
-      {/* כפתור צף — חזרה למחזור הנוכחי */}
-      {showJump && (
-        <button
-          onClick={scrollToCurrent}
-          style={{
-            position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 20,
-            padding: '8px 18px', fontWeight: 700, fontSize: '0.85rem',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.35)', cursor: 'pointer', zIndex: 100,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          📍 מחזור {currentRound} — נוכחי
-        </button>
-      )}
     </div>
   );
 }
