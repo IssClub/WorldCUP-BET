@@ -420,11 +420,115 @@ function ResetPasswordPage() {
   );
 }
 
+// ── TaglineModal ─────────────────────────────────────────────────────────────
+
+function TaglineModal({ profileId, onClose }: { profileId: string; onClose: () => void }) {
+  const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!text.trim()) return;
+    setSaving(true);
+    await supabase.from('profiles').update({ tagline: text.trim() }).eq('id', profileId);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 600,
+        background: 'rgba(0,0,0,0.82)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px',
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--card)',
+          borderRadius: 20,
+          padding: '28px 20px 20px',
+          width: '100%',
+          maxWidth: 400,
+          border: '1px solid rgba(255,214,0,0.35)',
+          boxShadow: '0 0 40px rgba(255,214,0,0.12)',
+          textAlign: 'right',
+          position: 'relative',
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute', top: 12, left: 12,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-muted)', padding: 4, fontSize: '1.1rem',
+          }}
+        >
+          <X size={18} />
+        </button>
+
+        <div style={{ fontSize: '3rem', textAlign: 'center', marginBottom: 10 }}>👑</div>
+        <h3 style={{ margin: '0 0 4px', fontSize: '1.25rem', fontWeight: 900, color: 'var(--gold)', textAlign: 'center' }}>
+          מוביל המחזור!
+        </h3>
+        <p style={{ margin: '0 0 18px', fontSize: '0.84rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+          כתוב משהו שיופיע בטבלת הדירוג
+        </p>
+
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          maxLength={120}
+          dir="rtl"
+          rows={3}
+          placeholder="למשל: אין עליי 🔥"
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'var(--surface2)',
+            border: '1.5px solid rgba(255,214,0,0.3)',
+            color: 'var(--text)',
+            fontSize: '0.95rem',
+            resize: 'none',
+            boxSizing: 'border-box',
+            outline: 'none',
+            marginBottom: 14,
+          }}
+          autoFocus
+        />
+
+        <button
+          onClick={save}
+          disabled={!text.trim() || saving}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: 12,
+            background: text.trim() ? 'var(--gold)' : 'var(--border)',
+            color: text.trim() ? '#000' : 'var(--text-muted)',
+            border: 'none',
+            fontWeight: 900,
+            fontSize: '0.95rem',
+            cursor: text.trim() ? 'pointer' : 'default',
+            transition: 'background 0.2s',
+          }}
+        >
+          {saving ? 'שומר...' : 'שמור והפתיע את כולם 🏆'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   const { user, profile, loading, refresh } = useAuth();
   const [tab, setTab] = useState<Tab>('bets');
   const [isRecovery, setIsRecovery] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
+  const [showTaglineModal, setShowTaglineModal] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -449,6 +553,18 @@ function AppShell() {
       applyTeamTheme(profile.favorite_team);
     }
   }, [profile?.favorite_team]);
+
+  // Show tagline modal when landing with ?set-tagline=1
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('set-tagline') === '1') {
+      setShowTaglineModal(true);
+      // Clean the URL param without reloading
+      const clean = window.location.pathname;
+      window.history.replaceState({}, '', clean);
+    }
+  }, [profile?.id]);
 
   const handleTeamModalClose = useCallback(() => {
     sessionStorage.setItem('skipTeamModal', '1');
@@ -482,6 +598,9 @@ function AppShell() {
     <AppModalProvider value={{ openTeamModal: () => setShowTeamModal(true) }}>
     <div className="pitch-bg" style={{ minHeight: '100dvh' }}>
       {profile && <PushModal userId={profile.id} />}
+      {profile && showTaglineModal && (
+        <TaglineModal profileId={profile.id} onClose={() => { setShowTaglineModal(false); refresh(); }} />
+      )}
       {profile && showTeamModal && (
         <FavoriteTeamModal
           profile={profile}

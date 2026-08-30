@@ -224,6 +224,29 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
+          {/* Tagline banner — shown inside the card, above the #1 player row */}
+          {players[0]?.tagline && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 14px',
+              background: 'rgba(255,214,0,0.07)',
+              borderBottom: '1px solid rgba(255,214,0,0.2)',
+            }}>
+              <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>👑</span>
+              <span style={{
+                fontStyle: 'italic',
+                color: 'var(--gold)',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                lineHeight: 1.4,
+              }}>
+                "{players[0].tagline}"
+              </span>
+            </div>
+          )}
+
           {/* Rows */}
           {players.map((p, i) => {
             const isMe = p.id === me?.id;

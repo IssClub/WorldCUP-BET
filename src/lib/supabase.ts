@@ -14,6 +14,7 @@ export type Profile = {
   favorite_team: string | null;
   last_seen_at: string | null;
   login_count: number | null;
+  tagline: string | null;
 };
 
 export type Invite = {

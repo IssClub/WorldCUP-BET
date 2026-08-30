@@ -506,6 +506,17 @@ async function maybeSendRoundSummary(settledExternalIds) {
       });
     }
 
+    // פוש מיוחד למוביל הטבלה הכוללת — כדי שיכתוב ציטוט
+    const overallLeader = (allProfiles ?? []).sort((a, b) => (b.bank ?? 0) - (a.bank ?? 0))[0];
+    if (overallLeader) {
+      await sendPush(overallLeader.id, {
+        title: 'כל הכבוד, אתה מוביל! 🏆',
+        body: `סיימת את מחזור ${roundNum} במקום הראשון! זה הזמן לכתוב לכל הלוזרים מה אתה חושב 🏆`,
+        url: '/WorldCUP-BET/?set-tagline=1',
+      });
+      console.log(`Tagline push sent to overall leader: ${overallLeader.display_name}`);
+    }
+
     console.log(`Round ${roundNum} summary sent. King: ${kingName} (${kingStats?.pts} pts)`);
   }
 }
