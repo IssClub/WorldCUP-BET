@@ -682,7 +682,7 @@ function LeagueStandingsView() {
                 <td>{r.d}</td>
                 <td>{r.l}</td>
                 <td style={{ color: r.gf - r.ga > 0 ? 'var(--accent)' : r.gf - r.ga < 0 ? '#e74c3c' : 'var(--text-muted)' }}>
-                  {r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}
+                  <span dir="ltr">{r.gf - r.ga > 0 ? `+${r.gf - r.ga}` : `${r.gf - r.ga}`}</span>
                 </td>
                 <td className="trn-td-pts">{r.pts}</td>
               </tr>

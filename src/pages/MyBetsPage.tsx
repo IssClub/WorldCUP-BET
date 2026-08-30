@@ -8,6 +8,11 @@ import { Trash2, Trophy, Star, BellRing, BellOff, ChevronDown, ChevronUp } from 
 import AppHeader from '../components/AppHeader';
 import { registerPush, unregisterPush, pushSupported } from '../lib/push';
 
+const SEASON_START_MS = new Date('2026-08-22T00:00:00Z').getTime();
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+const roundFromKickoff = (kickoff: string): number =>
+  Math.max(1, Math.floor((new Date(kickoff).getTime() - SEASON_START_MS) / MS_PER_WEEK) + 1);
+
 function Flag({ team }: { team: string }) {
   const badge = LEAGUE_BADGES[team];
   if (badge) return <img src={badge} alt={team} width={26} height={26} style={{ borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />;
@@ -84,8 +89,8 @@ export default function MyBetsPage() {
 
     // פתח את המחזור האחרון שיש לו הימורים — מבוסס על ההימורים עצמם
     const betsData = (betsRes.data as Bet[]) || [];
-    const betRounds = betsData.map(b => rm.get(b.external_game_id) ?? 0);
-    const maxBetRound = betRounds.length > 0 ? Math.max(...betRounds) : 0;
+    const betRounds = betsData.map(b => rm.get(b.external_game_id) || roundFromKickoff(b.kickoff_at));
+    const maxBetRound = betRounds.length > 0 ? Math.max(...betRounds) : 1;
     setOpenRounds(new Set([maxBetRound]));
 
     setLoading(false);
@@ -277,7 +282,7 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
             // קבץ הימורים לפי מחזור (round_num), מסודר מהאחרון לראשון
             const byRound = new Map<number, Bet[]>();
             for (const bet of bets) {
-              const r = roundMap.get(bet.external_game_id) ?? 0;
+              const r = roundMap.get(bet.external_game_id) || roundFromKickoff(bet.kickoff_at);
               if (!byRound.has(r)) byRound.set(r, []);
               byRound.get(r)!.push(bet);
             }

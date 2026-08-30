@@ -19,6 +19,12 @@ const TZ = 'Asia/Jerusalem';
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: TZ });
 
+// חישוב מחזור לפי תאריך — fallback כשאין round_num בDB
+const SEASON_START_MS = new Date('2026-08-22T00:00:00Z').getTime();
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+const roundFromKickoff = (kickoff: string): number =>
+  Math.max(1, Math.floor((new Date(kickoff).getTime() - SEASON_START_MS) / MS_PER_WEEK) + 1);
+
 function Flag({ team, size = 18 }: { team: string; size?: number }) {
   const badge = LEAGUE_BADGES[team];
   if (badge) return <img src={badge} alt={team} width={size} height={size} style={{ borderRadius: 3, objectFit: 'contain', flexShrink: 0 }} />;
@@ -61,7 +67,7 @@ export default function LeaderboardPage() {
   const handleExpand = (playerId: string | null, playerBets?: Bet[]) => {
     setExpanded(playerId);
     if (playerId && playerBets) {
-      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) ?? 0);
+      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) || roundFromKickoff(b.kickoff_at));
       const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
       setOpenRounds(new Set([maxRound]));
     } else {
@@ -308,7 +314,7 @@ export default function LeaderboardPage() {
                 {isOpen && hasHistory && (() => {
                   const byRound = new Map<number, Bet[]>();
                   for (const bet of startedBets) {
-                    const r = roundMap.get(bet.external_game_id) ?? 0;
+                    const r = roundMap.get(bet.external_game_id) || roundFromKickoff(bet.kickoff_at);
                     if (!byRound.has(r)) byRound.set(r, []);
                     byRound.get(r)!.push(bet);
                   }
@@ -324,13 +330,6 @@ export default function LeaderboardPage() {
                       flexDirection: 'column',
                       gap: 5,
                     }}>
-                      {/* Summary: earned vs bank */}
-                      <div style={{ display: 'flex', gap: 10, fontSize: '0.63rem', color: 'var(--text-muted)', marginBottom: 2 }}>
-                        <span>רווח מהימורים: <strong style={{ color: 'var(--green)' }}>+{earned} נק׳</strong></span>
-                        <span>·</span>
-                        <span>בנק: <strong style={{ color: 'var(--text)' }}>{p.bank.toLocaleString()} נק׳</strong></span>
-                      </div>
-
                       {sortedRounds.map(round => {
                         const isRoundOpen = openRounds.has(round);
                         const roundBets = byRound.get(round) ?? [];
