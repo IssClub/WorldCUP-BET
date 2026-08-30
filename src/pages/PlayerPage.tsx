@@ -164,7 +164,7 @@ const scoreInputStyle: React.CSSProperties = {
 
 // ── GameCard ──────────────────────────────────────────────
 function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onChange,
-  homeRef, awayRef, onHomeComplete, onAwayComplete, expanded, onExpand, publicBets, liveScore }: {
+  homeRef, awayRef, onHomeComplete, onAwayComplete, expanded, onExpand, publicBets, liveScore, onCancelBet }: {
   game: Game;
   resultPts: number;
   exactPts: number;
@@ -180,6 +180,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   onExpand?: () => void;
   publicBets?: PublicBet[] | null;
   liveScore?: LiveScore | null;
+  onCancelBet?: () => void;
 }) {
   const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
   const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
@@ -246,8 +247,29 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   // ── Pending bet ──
   if (existingBet) {
     const isLiveNow = liveScore && liveScore.statusGroup <= 3;
+    const canCancelHere = !isStarted && onCancelBet != null;
     const card = (
-      <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined }}>
+      <div className="gc gc-done" style={{ padding: '12px 14px', borderRadius: expanded ? '14px 14px 0 0' : undefined, position: 'relative' }}>
+        {canCancelHere && (
+          <button
+            onClick={e => { e.stopPropagation(); onCancelBet!(); }}
+            title="בטל הימור"
+            style={{
+              position: 'absolute', top: 7, left: 7,
+              width: 22, height: 22,
+              background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#f87171',
+              fontSize: 11,
+              lineHeight: 1,
+              padding: 0,
+              zIndex: 1,
+            }}
+          >✕</button>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
           <div style={{ textAlign: 'center', padding: '0 6px', minWidth: 90 }}>
@@ -474,6 +496,17 @@ export default function PlayerPage() {
       && !existingBets.find(e => e.external_game_id === g.id);
   }), [games, postponedPrev, bets, existingBets]);
 
+  async function cancelBet(bet: Bet) {
+    if (!profile) return;
+    const { error: delErr } = await supabase.from('bets').delete().eq('id', bet.id);
+    if (delErr) { alert('שגיאה בביטול: ' + delErr.message); return; }
+    if (settings?.use_bank) {
+      await supabase.from('profiles').update({ bank: profile.bank + bet.amount }).eq('id', profile.id);
+      await refresh();
+    }
+    setExistingBets(prev => prev.filter(b => b.id !== bet.id));
+  }
+
   async function submitBets() {
     if (!profile || readyBets.length === 0) return;
     setSubmitting(true);
@@ -605,6 +638,7 @@ export default function PlayerPage() {
                     onExpand={() => toggleGameBets(game.id)}
                     publicBets={gameBets[game.id] ?? null}
                     liveScore={liveScores.get(game.id) ?? null}
+                    onCancelBet={() => { const eb = existingBets.find(b => b.external_game_id === game.id); if (eb) cancelBet(eb); }}
                   />
                 ))}
               </div>
@@ -671,6 +705,7 @@ export default function PlayerPage() {
                                 expanded={false}
                                 onExpand={undefined}
                                 publicBets={null}
+                                onCancelBet={() => { const eb = existingBets.find(b => b.external_game_id === game.id); if (eb) cancelBet(eb); }}
                               />
                             </div>
                           ))}
