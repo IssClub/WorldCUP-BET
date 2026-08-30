@@ -273,27 +273,25 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
               <span style={{ color: 'var(--green)' }}>✓</span> {resultPts} | 🎯 {exactPts} נק׳
             </div>
             {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
+            {canCancelHere && (
+              <button
+                onClick={e => { e.stopPropagation(); onCancelBet!(); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  marginTop: 5, padding: '3px 8px', borderRadius: 6,
+                  border: '1px dashed rgba(248,113,113,0.4)',
+                  background: 'rgba(248,113,113,0.07)',
+                  color: '#f87171', fontSize: '0.68rem',
+                  cursor: 'pointer',
+                }}
+              >
+                <Trash2 size={10} />
+                בטל
+              </button>
+            )}
           </div>
           {teamSide('away')}
         </div>
-        {canCancelHere && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-            <button
-              onClick={e => { e.stopPropagation(); onCancelBet!(); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '5px 10px', borderRadius: 8,
-                border: '1px dashed rgba(248,113,113,0.45)',
-                background: 'rgba(248,113,113,0.07)',
-                color: '#f87171', fontSize: '0.75rem',
-                cursor: 'pointer',
-              }}
-            >
-              <Trash2 size={12} />
-              בטל הימור
-            </button>
-          </div>
-        )}
       </div>
     );
     if (canExpand) return <div onClick={onExpand} style={{ cursor: 'pointer' }}>{card}{expandPanel}</div>;
