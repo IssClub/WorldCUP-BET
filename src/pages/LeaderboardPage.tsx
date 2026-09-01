@@ -130,20 +130,28 @@ export default function LeaderboardPage() {
     }
 
     if (lastRoundNum > 0) {
-      const idSet = new Set(lastRoundIds);
-      const roundBets = bets.filter(b => idSet.has(b.external_game_id) && (b.status === 'won' || b.status === 'lost'));
+      const { data: roundBetsData } = await supabase.rpc('get_round_bets', { game_ids: lastRoundIds });
+      const roundBets = (roundBetsData ?? []) as Array<{
+        player_id: string; external_game_id: string; status: string;
+        payout: number | null; exact_home: number | null; exact_away: number | null;
+        actual_home: number | null; actual_away: number | null;
+      }>;
       const statMap: Record<string, { wins: number; losses: number; exact: number; pts: number }> = {};
       for (const bet of roundBets) {
         if (!statMap[bet.player_id]) statMap[bet.player_id] = { wins: 0, losses: 0, exact: 0, pts: 0 };
         const s = statMap[bet.player_id];
-        if (bet.status === 'won') { s.wins++; s.pts += bet.payout ?? 0; if (isExactHit(bet)) s.exact++; }
-        else s.losses++;
+        if (bet.status === 'won') {
+          s.wins++; s.pts += bet.payout ?? 0;
+          if (bet.exact_home !== null && bet.exact_home === bet.actual_home &&
+              bet.exact_away !== null && bet.exact_away === bet.actual_away) s.exact++;
+        } else {
+          s.losses++;
+        }
       }
       const summaryPlayers: RoundSummaryPlayer[] = profiles
         .filter(p => statMap[p.id])
         .map(p => ({ id: p.id, display_name: p.display_name, favorite_team: p.favorite_team ?? null, ...statMap[p.id] }))
         .sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.exact - a.exact);
-      console.log('[Summary] round', lastRoundNum, 'roundBets:', roundBets.length, 'players:', summaryPlayers.length, 'lastRoundIds:', lastRoundIds.length, 'sample bet ext_id:', bets[0]?.external_game_id, 'sample sched id:', sched[0]?.id);
       setRoundSummary(summaryPlayers.length > 0 ? { roundNum: lastRoundNum, players: summaryPlayers } : null);
     } else {
       setRoundSummary(null);
