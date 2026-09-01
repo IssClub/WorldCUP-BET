@@ -181,7 +181,15 @@ async function main() {
     // שחקנים שצריכים הימור אוטומטי
     const needsBet = activePlayers.filter(p => !bettorIds.has(p.id));
 
-    if (needsBet.length === 0) continue;
+    if (needsBet.length === 0) {
+      // כולם כבר המרו — סמן משחק כ"טופל" כדי שהגייט לא ימשיך לבדוק אותו
+      if (!isLeague) continue; // רק בליגה (league_schedule)
+      await supabase.from('league_schedule')
+        .update({ pre_game_done: true })
+        .eq('id', game.external_game_id);
+      console.log(`All bets placed for ${game.home_team} vs ${game.away_team} — marked pre_game_done`);
+      continue;
+    }
 
     console.log(`Auto-bet: ${game.home_team} vs ${game.away_team} — ${needsBet.length} players`);
 
@@ -238,6 +246,14 @@ async function main() {
           url: '/WorldCUP-BET/',
         });
       }
+    }
+
+    // כל ההימורים הוצבו — סמן משחק כ"טופל"
+    if (isLeague) {
+      await supabase.from('league_schedule')
+        .update({ pre_game_done: true })
+        .eq('id', game.external_game_id);
+      console.log(`pre_game_done=true for ${game.home_team} vs ${game.away_team}`);
     }
   }
 
