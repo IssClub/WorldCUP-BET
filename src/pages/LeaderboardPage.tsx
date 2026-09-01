@@ -237,15 +237,20 @@ export default function LeaderboardPage() {
               borderBottom: '1px solid rgba(255,214,0,0.2)',
             }}>
               <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>👑</span>
-              <span style={{
-                fontStyle: 'italic',
-                color: 'var(--gold)',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                lineHeight: 1.4,
-              }}>
-                "{players[0].tagline}"
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  ומה יש למוביל להגיד?
+                </span>
+                <span style={{
+                  fontStyle: 'italic',
+                  color: 'var(--gold)',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  lineHeight: 1.4,
+                }}>
+                  {players[0].tagline}
+                </span>
+              </div>
             </div>
           )}
 
