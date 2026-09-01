@@ -143,7 +143,7 @@ export default function LeaderboardPage() {
         .filter(p => statMap[p.id])
         .map(p => ({ id: p.id, display_name: p.display_name, favorite_team: p.favorite_team ?? null, ...statMap[p.id] }))
         .sort((a, b) => b.pts - a.pts || b.wins - a.wins || b.exact - a.exact);
-      setRoundSummary({ roundNum: lastRoundNum, players: summaryPlayers });
+      setRoundSummary(summaryPlayers.length > 0 ? { roundNum: lastRoundNum, players: summaryPlayers } : null);
     } else {
       setRoundSummary(null);
     }
