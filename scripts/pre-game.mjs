@@ -69,10 +69,10 @@ async function sendPush(playerId, payload) {
 async function main() {
   const now = Date.now();
 
-  // חלון תזכורת: 15–45 דקות לפני kickoff
-  // חלון רחב כי GitHub Actions יכול להתעכב עד 20 דקות
-  const reminderFrom = new Date(now + 15 * 60 * 1000).toISOString();
-  const reminderTo   = new Date(now + 45 * 60 * 1000).toISOString();
+  // חלון תזכורת: 25–85 דקות לפני kickoff
+  // חלון רחב (60 דק') כי GitHub Actions יכול להתעכב 20-30 דקות
+  const reminderFrom = new Date(now + 25 * 60 * 1000).toISOString();
+  const reminderTo   = new Date(now + 85 * 60 * 1000).toISOString();
 
   // חלון הימור-אוטומטי: 12 שעות אחורה עד 25 דקות קדימה
   // אחורה רחב מאוד כי GitHub Actions בפועל רץ כל ~1.5-2 שעות (לא כל 5 דק' כמו ב-cron),
@@ -155,7 +155,7 @@ async function main() {
 
     for (const player of nonBettors) {
       await sendPush(player.id, {
-        title: '⏰ 15 דקות למשחק!',
+        title: '⏰ ~שעה למשחק!',
         body: `${he(game.home_team)} נגד ${he(game.away_team)} — מהר, תהמר, לפני שייסגר 😉`,
         url: '/WorldCUP-BET/',
       });

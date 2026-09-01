@@ -1,10 +1,10 @@
 name: Pre-game reminders and auto-bets
 
 on:
-  # כל 30 דקות 12:00-21:00 UTC (15:00-00:00 ישראל) — מכסה 2h לפני כל משחק אפשרי
+  # כל 15 דקות 11:00-23:00 UTC (14:00-02:00 ישראל) — מכסה 2h+ לפני ואחרי כל משחק
   # game-window מסנן ריצות שאינן בחלון pre-game האמיתי
   schedule:
-    - cron: '*/30 12-21 * * *'
+    - cron: '*/15 11-23 * * *'
 
   workflow_dispatch:
 
