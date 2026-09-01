@@ -2,7 +2,7 @@ name: Pre-game reminders and auto-bets
 
 on:
   # כל 5 דקות 11:00-23:00 UTC (14:00-02:00 ישראל)
-  # תדירות גבוהה מאפשרת חלון תזכורת צר (12-18 דק' לפני) = "בדיוק 15 דק' לפני"
+  # רוב הריצות ייצאו מיד (curl בלבד) — npm ci רץ רק ליד קיקאוף
   schedule:
     - cron: '*/5 11-23 * * *'
 
@@ -16,16 +16,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # שלב 0: בדיקה מהירה (curl בלבד, ללא npm) — יש משחק בחלון הרלוונטי?
+      # חלון: 12 שעות אחורה (הימור אוטומטי) עד 25 דקות קדימה (תזכורת)
+      # אם לא — יציאה מיידית ללא עלות. אם כן — ממשיכים.
+      - name: Quick gate — any game near kickoff?
+        id: gate
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          SINCE=$(date -u -d '-12 hours' +%Y-%m-%dT%H:%M:%SZ)
+          UNTIL=$(date -u -d '+25 minutes' +%Y-%m-%dT%H:%M:%SZ)
+          COUNT=$(curl -sf \
+            "${SUPABASE_URL}/rest/v1/league_schedule?select=id&kickoff_at=gte.${SINCE}&kickoff_at=lte.${UNTIL}&completed=eq.false&postponed=eq.false&limit=1" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            | jq 'length' 2>/dev/null || echo 0)
+          if [[ "${COUNT:-0}" -gt 0 ]]; then
+            echo "HAS_GAMES=true"  >> $GITHUB_OUTPUT
+            echo "✅ Game in window — proceeding (kickoff_at in [${SINCE}, ${UNTIL}])"
+          else
+            echo "HAS_GAMES=false" >> $GITHUB_OUTPUT
+            echo "⏭ No games in window — skipping (checkout + curl only)"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.gate.outputs.HAS_GAMES == 'true'
         with:
           node-version: '22'
           cache: npm
 
       - run: npm ci
+        if: steps.gate.outputs.HAS_GAMES == 'true'
 
       # שלב 1: בדוק אם אנחנו בחלון pre-game
       - name: Check game window
         id: window
+        if: steps.gate.outputs.HAS_GAMES == 'true'
         run: node scripts/game-window.mjs
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
@@ -33,7 +60,7 @@ jobs:
 
       # שלב 2: תזכורות + הימור אוטומטי — רק אם בחלון pre-game
       - name: Pre-game reminders and auto-bets
-        if: steps.window.outputs.IN_PREGAME_WINDOW == 'true'
+        if: steps.gate.outputs.HAS_GAMES == 'true' && steps.window.outputs.IN_PREGAME_WINDOW == 'true'
         run: node scripts/pre-game.mjs
         env:
           SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
