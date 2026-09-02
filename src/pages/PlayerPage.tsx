@@ -323,7 +323,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
   // ── Game started, no bet ──
   if (isStarted) {
     const isLiveNow = liveScore && liveScore.statusGroup <= 3;
-    return (
+    const card = (
       <div className="gc gc-locked" style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {teamSide('home')}
@@ -348,8 +348,11 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
           </div>
           {teamSide('away')}
         </div>
+        {canExpand && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, textAlign: 'center' }}>{expanded ? '▲ סגור' : '▼ ניחושי כולם'}</div>}
       </div>
     );
+    if (canExpand) return <div onClick={onExpand} style={{ cursor: 'pointer' }}>{card}{expandPanel}</div>;
+    return card;
   }
 
   // ── Open for betting ──
