@@ -161,11 +161,13 @@ for (const row of incoming) {
 
   if (current) {
     // תמיד עדכן kickoff_at, round_num, external_id — גם למשחקים שהוגמרו
+    // postponed=false: אם 365scores נותן kickoff תקין, המשחק כבר לא נדחה
     const update = {
       kickoff_at:  row.kickoff_at,
       round_num:   row.round_num,
       external_id: row.external_id,
       updated_at:  row.updated_at,
+      postponed:   false,
     };
     // עדכן תוצאות רק אם לא הוגמרו עדיין בDB
     if (!current.completed && row.completed && row.home_score !== null && row.away_score !== null) {
