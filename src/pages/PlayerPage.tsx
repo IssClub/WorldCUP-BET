@@ -188,7 +188,7 @@ function GameCard({ game, resultPts, exactPts, bet, existingBet, isStarted, onCh
 }) {
   const hasScore = bet.exactHome !== '' && bet.exactAway !== '';
   const isCompleted = game.completed && game.home_score !== null && game.away_score !== null;
-  const canExpand = isStarted && existingBet != null && onExpand != null;
+  const canExpand = isStarted && onExpand != null;
 
   // shared outer wrapper
   const teamSide = (side: 'home' | 'away') => (
