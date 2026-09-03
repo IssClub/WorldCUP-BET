@@ -23,13 +23,15 @@ export default function AdminPage() {
   const [savingScorer, setSavingScorer] = useState(false);
 
   // Bet correction tab
-  const [fixPlayerId, setFixPlayerId] = useState('');
-  const [fixPlayerBets, setFixPlayerBets] = useState<Bet[]>([]);
-  const [fixBetId, setFixBetId] = useState('');
-  const [fixNewPick, setFixNewPick] = useState<'home' | 'draw' | 'away' | ''>('');
-  const [fixNewExactHome, setFixNewExactHome] = useState('');
-  const [fixNewExactAway, setFixNewExactAway] = useState('');
-  const [applyingFix, setApplyingFix] = useState(false);
+  type FixGame = { id: string; home_team: string; away_team: string; kickoff_at: string; home_score: number; away_score: number };
+  const [fixGames, setFixGames] = useState<FixGame[]>([]);
+  const [fixGameId, setFixGameId] = useState('');
+  const [fixGameBets, setFixGameBets] = useState<Bet[]>([]);
+  const [fixEditPlayerId, setFixEditPlayerId] = useState('');
+  const [fixEditPick, setFixEditPick] = useState<'home' | 'draw' | 'away' | ''>('');
+  const [fixEditExactHome, setFixEditExactHome] = useState('');
+  const [fixEditExactAway, setFixEditExactAway] = useState('');
+  const [fixApplying, setFixApplying] = useState(false);
   const [fixTabMsg, setFixTabMsg] = useState('');
 
   // Flip bets
@@ -157,6 +159,7 @@ export default function AdminPage() {
     loadScorers();
     loadPendingGames();
     loadSpecialBets();
+    loadFixGames();
   }, [loadInvites, loadPlayers, loadSettings, loadScorers, loadSpecialBets]);
 
   async function upsertScorer() {
@@ -202,68 +205,90 @@ export default function AdminPage() {
     await loadPendingGames();
   }
 
-  async function loadFixPlayerBets(playerId: string) {
-    setFixPlayerId(playerId);
-    setFixBetId('');
-    setFixNewPick('');
-    setFixNewExactHome('');
-    setFixNewExactAway('');
-    setFixTabMsg('');
-    if (!playerId) { setFixPlayerBets([]); return; }
+  async function loadFixGames() {
     const { data } = await supabase
-      .from('bets').select('*')
-      .eq('player_id', playerId)
-      .in('status', ['won', 'lost'])
+      .from('league_schedule')
+      .select('id, home_team, away_team, kickoff_at, home_score, away_score')
+      .eq('completed', true)
       .order('kickoff_at', { ascending: false });
-    setFixPlayerBets((data as Bet[]) || []);
+    setFixGames((data as FixGame[]) || []);
+  }
+
+  async function loadFixGameBets(gameId: string) {
+    setFixGameId(gameId);
+    setFixEditPlayerId('');
+    setFixTabMsg('');
+    if (!gameId) { setFixGameBets([]); return; }
+    const { data } = await supabase.from('bets').select('*').eq('external_game_id', gameId);
+    setFixGameBets((data as Bet[]) || []);
   }
 
   async function applyBetFix() {
-    if (!fixBetId || !fixNewPick) return;
-    const bet = fixPlayerBets.find(b => b.id === fixBetId);
-    if (!bet) return;
-    const h = bet.actual_home, a = bet.actual_away;
-    if (h === null || a === null) { setFixTabMsg('❌ אין תוצאה למשחק הזה'); return; }
+    if (!fixGameId || !fixEditPlayerId || !fixEditPick) return;
+    const game = fixGames.find(g => g.id === fixGameId);
+    if (!game) return;
+    const h = game.home_score, a = game.away_score;
 
     const resultPts = settings?.result_points ?? 3;
     const exactPts  = settings?.exact_score_points ?? 5;
     const winner    = h > a ? 'home' : a > h ? 'away' : 'draw';
-    const newWon    = fixNewPick === winner;
-    const newEH = fixNewExactHome !== '' ? parseInt(fixNewExactHome) : null;
-    const newEA = fixNewExactAway !== '' ? parseInt(fixNewExactAway) : null;
+    const newWon    = fixEditPick === winner;
+    const newEH     = fixEditExactHome !== '' ? parseInt(fixEditExactHome) : null;
+    const newEA     = fixEditExactAway !== '' ? parseInt(fixEditExactAway) : null;
     const isExact   = newWon && newEH === h && newEA === a;
     const newPayout = isExact ? exactPts : newWon ? resultPts : 0;
-    const oldPayout = bet.payout ?? 0;
-    const delta     = newPayout - oldPayout;
 
+    const existingBet = fixGameBets.find(b => b.player_id === fixEditPlayerId);
+    const oldPayout   = existingBet?.payout ?? 0;
+    const delta       = newPayout - oldPayout;
+
+    const player  = players.find(p => p.id === fixEditPlayerId);
+    const pickHe  = fixEditPick === 'home' ? 'בית' : fixEditPick === 'draw' ? 'תיקו' : 'חוץ';
     const summary =
-      `שינוי: ${bet.home_team} vs ${bet.away_team}\n` +
-      `תוצאה: ${h}:${a}\n` +
-      `ניחוש ישן: ${bet.pick} → חדש: ${fixNewPick}\n` +
-      `נקודות ישנות: ${oldPayout} → חדשות: ${newPayout}\n` +
+      `שחקן: ${player?.display_name}\n` +
+      `${teamHe(game.home_team)} ${h}:${a} ${teamHe(game.away_team)}\n` +
+      `ניחוש: ${pickHe} · ${newPayout} נק׳\n` +
       `שינוי בנק: ${delta >= 0 ? '+' : ''}${delta}`;
     if (!confirm(summary + '\n\nלהמשיך?')) return;
 
-    setApplyingFix(true);
+    setFixApplying(true);
     setFixTabMsg('');
 
-    await supabase.from('bets').update({
-      pick: fixNewPick,
-      exact_home: newEH,
-      exact_away: newEA,
-      status: newWon ? 'won' : 'lost',
-      payout: newPayout,
-    }).eq('id', bet.id);
-
-    if (delta !== 0) {
-      const { data: prof } = await supabase.from('profiles').select('bank').eq('id', bet.player_id).single();
-      if (prof) await supabase.from('profiles').update({ bank: prof.bank + delta }).eq('id', bet.player_id);
+    if (existingBet) {
+      await supabase.from('bets').update({
+        pick: fixEditPick, exact_home: newEH, exact_away: newEA,
+        status: newWon ? 'won' : 'lost', payout: newPayout,
+      }).eq('id', existingBet.id);
+    } else {
+      await supabase.from('bets').insert({
+        player_id: fixEditPlayerId,
+        external_game_id: game.id,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        kickoff_at: game.kickoff_at,
+        pick: fixEditPick,
+        exact_home: newEH,
+        exact_away: newEA,
+        status: newWon ? 'won' : 'lost',
+        payout: newPayout,
+        actual_home: h,
+        actual_away: a,
+      });
     }
 
-    await loadFixPlayerBets(fixPlayerId);
+    if (delta !== 0) {
+      const { data: prof } = await supabase.from('profiles').select('bank').eq('id', fixEditPlayerId).single();
+      if (prof) await supabase.from('profiles').update({ bank: prof.bank + delta }).eq('id', fixEditPlayerId);
+    }
+
+    await loadFixGameBets(fixGameId);
     await loadPlayers();
-    setApplyingFix(false);
+    setFixApplying(false);
     setFixTabMsg(`✓ תוקן! שינוי בנק: ${delta >= 0 ? '+' : ''}${delta} נק׳`);
+    setFixEditPlayerId('');
+    setFixEditPick('');
+    setFixEditExactHome('');
+    setFixEditExactAway('');
   }
 
   async function settleGame(game: GameGroup) {
@@ -1176,108 +1201,42 @@ export default function AdminPage() {
 
         {tab === 'fix' && (
           <div className="fade-in">
-            <h2 className="font-bold text-lg mb-4">תיקון הימור — אחורה</h2>
+            <h2 className="font-bold text-lg mb-4">תיקון הימורים</h2>
 
-            {/* בחר שחקן */}
+            {/* בחר משחק */}
             <div className="card p-4 mb-4">
-              <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>שחקן</label>
+              <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>משחק</label>
               <select
                 className="input w-full"
-                value={fixPlayerId}
-                onChange={e => loadFixPlayerBets(e.target.value)}
+                value={fixGameId}
+                onChange={e => loadFixGameBets(e.target.value)}
               >
-                <option value="">— בחר שחקן —</option>
-                {players.map(p => (
-                  <option key={p.id} value={p.id}>{p.display_name}</option>
-                ))}
+                <option value="">— בחר משחק —</option>
+                {fixGames.map(g => {
+                  const d = new Date(g.kickoff_at).toLocaleDateString('he-IL', {day:'numeric',month:'numeric',timeZone:'Asia/Jerusalem'});
+                  return (
+                    <option key={g.id} value={g.id}>
+                      {d} · {teamHe(g.home_team)} {g.home_score}:{g.away_score} {teamHe(g.away_team)}
+                    </option>
+                  );
+                })}
               </select>
+              {fixGames.length === 0 && (
+                <div className="text-xs mt-2" style={{color:'var(--text-muted)'}}>אין משחקים שהסתיימו עדיין</div>
+              )}
             </div>
 
-            {/* רשימת הימורים שנסגרו */}
-            {fixPlayerId && (
-              <div className="card p-4 mb-4">
-                <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>משחק לתיקון</label>
-                {fixPlayerBets.length === 0 ? (
-                  <div className="text-sm" style={{color:'var(--text-muted)'}}>אין הימורים שנסגרו לשחקן זה</div>
-                ) : (
-                  <select
-                    className="input w-full"
-                    value={fixBetId}
-                    onChange={e => {
-                      setFixBetId(e.target.value);
-                      const b = fixPlayerBets.find(x => x.id === e.target.value);
-                      if (b) {
-                        setFixNewPick(b.pick as 'home' | 'draw' | 'away');
-                        setFixNewExactHome(b.exact_home !== null ? String(b.exact_home) : '');
-                        setFixNewExactAway(b.exact_away !== null ? String(b.exact_away) : '');
-                      }
-                    }}
-                  >
-                    <option value="">— בחר משחק —</option>
-                    {fixPlayerBets.map(b => {
-                      const d = new Date(b.kickoff_at).toLocaleDateString('he-IL', {day:'numeric',month:'numeric',timeZone:'Asia/Jerusalem'});
-                      return (
-                        <option key={b.id} value={b.id}>
-                          {d} · {b.home_team} {b.actual_home}:{b.actual_away} {b.away_team} — {b.pick} ({b.payout ?? 0} נק׳)
-                        </option>
-                      );
-                    })}
-                  </select>
-                )}
-              </div>
-            )}
+            {/* רשימת שחקנים + הימוריהם */}
+            {fixGameId && (() => {
+              const game = fixGames.find(g => g.id === fixGameId);
+              if (!game) return null;
+              const h = game.home_score, a = game.away_score;
+              const winner = h > a ? 'home' : a > h ? 'away' : 'draw';
+              const resultPts = settings?.result_points ?? 3;
+              const exactPts  = settings?.exact_score_points ?? 5;
 
-            {/* טופס תיקון */}
-            {fixBetId && (() => {
-              const bet = fixPlayerBets.find(b => b.id === fixBetId);
-              if (!bet) return null;
               return (
-                <div className="card p-4 mb-4">
-                  <div className="text-sm mb-4" style={{color:'var(--text-muted)'}}>
-                    תוצאה אמיתית: <strong style={{color:'var(--text)'}}>{bet.home_team} {bet.actual_home}:{bet.actual_away} {bet.away_team}</strong>
-                  </div>
-
-                  <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>ניחוש חדש</label>
-                  <div className="flex gap-2 mb-4">
-                    {(['home','draw','away'] as const).map(pick => (
-                      <button
-                        key={pick}
-                        onClick={() => setFixNewPick(pick)}
-                        style={{
-                          flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-                          background: fixNewPick === pick ? 'var(--green)' : 'var(--surface2)',
-                          color: fixNewPick === pick ? '#000' : 'var(--text)',
-                          border: '1px solid var(--border)',
-                        }}
-                      >
-                        {pick === 'home' ? 'בית' : pick === 'draw' ? 'תיקו' : 'חוץ'}
-                      </button>
-                    ))}
-                  </div>
-
-                  <label className="block text-sm font-medium mb-2" style={{color:'var(--text-muted)'}}>תוצאה מדויקת (אופציונלי)</label>
-                  <div className="flex gap-2 items-center mb-4">
-                    <input
-                      className="input" style={{width: 60, textAlign:'center'}}
-                      placeholder="בית" value={fixNewExactHome}
-                      onChange={e => setFixNewExactHome(e.target.value)}
-                      type="number" min={0}
-                    />
-                    <span style={{color:'var(--text-muted)'}}>:</span>
-                    <input
-                      className="input" style={{width: 60, textAlign:'center'}}
-                      placeholder="חוץ" value={fixNewExactAway}
-                      onChange={e => setFixNewExactAway(e.target.value)}
-                      type="number" min={0}
-                    />
-                    <button
-                      onClick={() => { setFixNewExactHome(''); setFixNewExactAway(''); }}
-                      style={{fontSize:'0.75rem',color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer'}}
-                    >
-                      נקה
-                    </button>
-                  </div>
-
+                <>
                   {fixTabMsg && (
                     <div className="text-sm px-3 py-2 rounded-lg mb-3" style={{
                       background: fixTabMsg.startsWith('✓') ? 'rgba(0,200,83,0.1)' : 'rgba(248,113,113,0.1)',
@@ -1288,14 +1247,114 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  <button
-                    className="btn-primary w-full"
-                    disabled={!fixNewPick || applyingFix}
-                    onClick={applyBetFix}
-                  >
-                    {applyingFix ? 'מעדכן...' : 'החל תיקון ועדכן בנק'}
-                  </button>
-                </div>
+                  <div className="flex flex-col gap-3">
+                    {players.map(p => {
+                      const bet = fixGameBets.find(b => b.player_id === p.id);
+                      const isEditing = fixEditPlayerId === p.id;
+                      const pickHe = (pick: string) => pick === 'home' ? 'בית' : pick === 'draw' ? 'תיקו' : 'חוץ';
+                      const betWon = bet && bet.pick === winner;
+
+                      return (
+                        <div key={p.id} className="card p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold">{p.display_name}</span>
+                            {bet ? (
+                              <span style={{
+                                fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                                background: betWon ? 'rgba(0,200,83,0.12)' : 'rgba(248,113,113,0.12)',
+                                color: betWon ? 'var(--green)' : '#f87171',
+                              }}>
+                                {pickHe(bet.pick)} · {bet.payout ?? 0} נק׳
+                              </span>
+                            ) : (
+                              <span style={{fontSize:12,color:'var(--text-muted)',padding:'2px 8px',borderRadius:6,background:'var(--surface2)'}}>
+                                לא הימר
+                              </span>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (isEditing) {
+                                  setFixEditPlayerId('');
+                                } else {
+                                  setFixEditPlayerId(p.id);
+                                  setFixEditPick(bet ? bet.pick as 'home'|'draw'|'away' : '');
+                                  setFixEditExactHome(bet?.exact_home != null ? String(bet.exact_home) : '');
+                                  setFixEditExactAway(bet?.exact_away != null ? String(bet.exact_away) : '');
+                                }
+                              }}
+                              style={{
+                                fontSize:'0.75rem', padding:'4px 10px', borderRadius:6, cursor:'pointer',
+                                background: isEditing ? 'var(--surface2)' : 'rgba(99,179,237,0.12)',
+                                border: `1px solid ${isEditing ? 'var(--border)' : 'rgba(99,179,237,0.4)'}`,
+                                color: isEditing ? 'var(--text-muted)' : '#63b3ed',
+                              }}
+                            >
+                              {isEditing ? 'סגור' : 'ערוך'}
+                            </button>
+                          </div>
+
+                          {isEditing && (
+                            <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginTop:4}}>
+                              <div className="flex gap-2 mb-3">
+                                {(['home','draw','away'] as const).map(pick => (
+                                  <button
+                                    key={pick}
+                                    onClick={() => setFixEditPick(pick)}
+                                    style={{
+                                      flex:1, padding:'7px 0', borderRadius:8, fontWeight:700,
+                                      fontSize:'0.82rem', cursor:'pointer',
+                                      background: fixEditPick === pick ? 'var(--green)' : 'var(--surface2)',
+                                      color: fixEditPick === pick ? '#000' : 'var(--text)',
+                                      border: '1px solid var(--border)',
+                                    }}
+                                  >
+                                    {pickHe(pick)}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 items-center mb-3">
+                                <input
+                                  className="input" style={{width:56,textAlign:'center'}}
+                                  placeholder="בית" value={fixEditExactHome}
+                                  onChange={e => setFixEditExactHome(e.target.value)}
+                                  type="number" min={0}
+                                />
+                                <span style={{color:'var(--text-muted)'}}>:</span>
+                                <input
+                                  className="input" style={{width:56,textAlign:'center'}}
+                                  placeholder="חוץ" value={fixEditExactAway}
+                                  onChange={e => setFixEditExactAway(e.target.value)}
+                                  type="number" min={0}
+                                />
+                                <button
+                                  onClick={() => { setFixEditExactHome(''); setFixEditExactAway(''); }}
+                                  style={{fontSize:'0.72rem',color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer'}}
+                                >נקה</button>
+                                <span style={{fontSize:11,color:'var(--text-muted)',marginRight:'auto'}}>
+                                  {fixEditPick ? (() => {
+                                    const w = fixEditPick === winner;
+                                    const eh = fixEditExactHome !== '' ? parseInt(fixEditExactHome) : null;
+                                    const ea = fixEditExactAway !== '' ? parseInt(fixEditExactAway) : null;
+                                    const exact = w && eh === h && ea === a;
+                                    return `→ ${exact ? exactPts : w ? resultPts : 0} נק׳`;
+                                  })() : ''}
+                                </span>
+                              </div>
+                              <button
+                                className="btn-primary w-full"
+                                style={{fontSize:'0.83rem'}}
+                                disabled={!fixEditPick || fixApplying}
+                                onClick={applyBetFix}
+                              >
+                                {fixApplying ? 'מעדכן...' : bet ? 'תקן הימור ועדכן בנק' : 'הכנס הימור ועדכן בנק'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               );
             })()}
           </div>
