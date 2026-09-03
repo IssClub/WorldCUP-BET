@@ -84,12 +84,12 @@ export default function MyBetsPage() {
     }
     setSpecialBets((specialRes.data as SpecialBet[]) || []);
     const sched = schedRes.data ?? [];
-    const rm = new Map(sched.map(r => [r.id, r.round_num ?? 0]));
+    const rm = new Map(sched.map(r => [r.id, r.round_num]));
     setRoundMap(rm);
 
     // פתח את המחזור האחרון שיש לו הימורים — מבוסס על ההימורים עצמם
     const betsData = (betsRes.data as Bet[]) || [];
-    const betRounds = betsData.map(b => rm.get(b.external_game_id) || roundFromKickoff(b.kickoff_at));
+    const betRounds = betsData.map(b => rm.get(b.external_game_id) ?? roundFromKickoff(b.kickoff_at));
     const maxBetRound = betRounds.length > 0 ? Math.max(...betRounds) : 1;
     setOpenRounds(new Set([maxBetRound]));
 
@@ -282,7 +282,7 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
             // קבץ הימורים לפי מחזור (round_num), מסודר מהאחרון לראשון
             const byRound = new Map<number, Bet[]>();
             for (const bet of bets) {
-              const r = roundMap.get(bet.external_game_id) || roundFromKickoff(bet.kickoff_at);
+              const r = roundMap.get(bet.external_game_id) ?? roundFromKickoff(bet.kickoff_at);
               if (!byRound.has(r)) byRound.set(r, []);
               byRound.get(r)!.push(bet);
             }

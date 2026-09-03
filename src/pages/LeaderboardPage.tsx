@@ -69,7 +69,7 @@ export default function LeaderboardPage() {
   const handleExpand = (playerId: string | null, playerBets?: Bet[]) => {
     setExpanded(playerId);
     if (playerId && playerBets) {
-      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) || roundFromKickoff(b.kickoff_at));
+      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) ?? roundFromKickoff(b.kickoff_at));
       const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
       setOpenRounds(new Set([maxRound]));
     } else {
@@ -107,7 +107,7 @@ export default function LeaderboardPage() {
     const bets: Bet[] = (betsRes.data || []) as Bet[];
     const sched = schedRes.data ?? [];
 
-    const newRoundMap = new Map(sched.map(r => [r.id, r.round_num ?? 0]));
+    const newRoundMap = new Map(sched.map(r => [r.id, r.round_num]));
     setRoundMap(newRoundMap);
 
     // ── מחזור אחרון שהושלם לחלוטין ──

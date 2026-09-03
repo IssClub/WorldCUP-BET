@@ -255,12 +255,13 @@ export default function AdminPage() {
     setFixTabMsg('');
 
     if (existingBet) {
-      await supabase.from('bets').update({
+      const { error: updErr } = await supabase.from('bets').update({
         pick: fixEditPick, exact_home: newEH, exact_away: newEA,
         status: newWon ? 'won' : 'lost', payout: newPayout,
       }).eq('id', existingBet.id);
+      if (updErr) { setFixApplying(false); setFixTabMsg(`❌ שגיאה: ${updErr.message}`); return; }
     } else {
-      await supabase.from('bets').insert({
+      const { error: insErr } = await supabase.from('bets').insert({
         player_id: fixEditPlayerId,
         external_game_id: game.id,
         home_team: game.home_team,
@@ -273,7 +274,10 @@ export default function AdminPage() {
         payout: newPayout,
         actual_home: h,
         actual_away: a,
+        amount: settings?.auto_bet_amount ?? 1,
+        odds_value: 1,
       });
+      if (insErr) { setFixApplying(false); setFixTabMsg(`❌ שגיאה: ${insErr.message}`); return; }
     }
 
     if (delta !== 0) {
