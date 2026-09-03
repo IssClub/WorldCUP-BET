@@ -353,7 +353,7 @@ export default function LeaderboardPage() {
                 {isOpen && hasHistory && (() => {
                   const byRound = new Map<number, Bet[]>();
                   for (const bet of startedBets) {
-                    const r = roundMap.get(bet.external_game_id) || roundFromKickoff(bet.kickoff_at);
+                    const r = roundMap.get(bet.external_game_id) ?? roundFromKickoff(bet.kickoff_at);
                     if (!byRound.has(r)) byRound.set(r, []);
                     byRound.get(r)!.push(bet);
                   }
