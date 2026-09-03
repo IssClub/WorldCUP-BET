@@ -28,7 +28,7 @@ jobs:
           SINCE=$(date -u -d '-12 hours' +%Y-%m-%dT%H:%M:%SZ)
           UNTIL=$(date -u -d '+25 minutes' +%Y-%m-%dT%H:%M:%SZ)
           COUNT=$(curl -sf \
-            "${SUPABASE_URL}/rest/v1/league_schedule?select=id&kickoff_at=gte.${SINCE}&kickoff_at=lte.${UNTIL}&completed=eq.false&postponed=eq.false&pre_game_done=eq.false&limit=1" \
+            "${SUPABASE_URL}/rest/v1/league_schedule?select=id&kickoff_at=gte.${SINCE}&kickoff_at=lte.${UNTIL}&completed=eq.false&pre_game_done=eq.false&limit=1" \
             -H "apikey: ${SUPABASE_SERVICE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
             | jq 'length' 2>/dev/null || echo 0)

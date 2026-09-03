@@ -100,7 +100,7 @@ async function main() {
     if (isLeague) {
       const { data: rows } = await supabase
         .from('league_schedule').select('id, home_team, away_team, kickoff_at')
-        .eq('completed', false).eq('postponed', false)
+        .eq('completed', false)
         .gt('kickoff_at', from).lt('kickoff_at', to);
       return (rows ?? []).map(g => ({
         external_game_id: g.id, // UUID — תואם ל-bets.external_game_id בליגה
