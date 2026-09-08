@@ -156,8 +156,16 @@ const toUpdate = [];
 const toUpsert = [];
 
 for (const row of incoming) {
-  const key     = `${normalize(row.home_team)}|${normalize(row.away_team)}`;
-  const current = existingMap.get(key);
+  const key   = `${normalize(row.home_team)}|${normalize(row.away_team)}`;
+  let current = existingMap.get(key);
+  let flipped = false;
+
+  if (!current) {
+    // 365scores לפעמים מחזיר ביתי/אורח בסדר הפוך — נסה גם כיוון שני
+    const flippedKey = `${normalize(row.away_team)}|${normalize(row.home_team)}`;
+    current = existingMap.get(flippedKey);
+    if (current) flipped = true;
+  }
 
   if (current) {
     // תמיד עדכן kickoff_at, round_num, external_id — גם למשחקים שהוגמרו
@@ -170,9 +178,10 @@ for (const row of incoming) {
       postponed:   false,
     };
     // עדכן תוצאות רק אם לא הוגמרו עדיין בDB
+    // אם 365scores החזיר הפוך — הפוך את הניקוד כדי להתאים לסדר ה-DB
     if (!current.completed && row.completed && row.home_score !== null && row.away_score !== null) {
-      update.home_score = row.home_score;
-      update.away_score = row.away_score;
+      update.home_score = flipped ? row.away_score : row.home_score;
+      update.away_score = flipped ? row.home_score : row.away_score;
       update.completed  = true;
     }
     toUpdate.push({ dbId: current.id, home: row.home_team, away: row.away_team, ...update });
