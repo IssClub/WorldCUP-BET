@@ -1,0 +1,37 @@
+name: Re-settle all games (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run = הצג בלבד | apply = בצע תיקון'
+        required: true
+        default: 'dry-run'
+        type: choice
+        options:
+          - dry-run
+          - apply
+
+jobs:
+  re-settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Re-settle (${{ github.event.inputs.mode }})
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "apply" ]; then
+            node scripts/re-settle-all.mjs --apply
+          else
+            node scripts/re-settle-all.mjs
+          fi
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
