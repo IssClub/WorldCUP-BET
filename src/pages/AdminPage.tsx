@@ -38,6 +38,13 @@ export default function AdminPage() {
   const [fixingBets, setFixingBets] = useState(false);
   const [fixMsg, setFixMsg] = useState('');
 
+  // Missing bets backfill
+  type MissingEntry = { game: FixGame; playerIds: string[] };
+  const [missingBetsPreview, setMissingBetsPreview] = useState<MissingEntry[] | null>(null);
+  const [missingBetsRunning, setMissingBetsRunning] = useState(false);
+  const [missingBetsApplying, setMissingBetsApplying] = useState(false);
+  const [missingBetsMsg, setMissingBetsMsg] = useState('');
+
   // Edit bank
   const [editingBank, setEditingBank] = useState<string | null>(null);
   const [editBankValue, setEditBankValue] = useState('');
@@ -531,6 +538,97 @@ export default function AdminPage() {
     await Promise.all([loadPlayers(), loadBetCounts()]);
     setFixingBets(false);
     setFixMsg(`✓ ${allBets.length} הימורים הופכו. ${Object.keys(bankDelta).length} בנקים עודכנו.`);
+  }
+
+  function rndPick() {
+    return (['home', 'draw', 'away'] as const)[Math.floor(Math.random() * 3)];
+  }
+
+  function rndExact(pick: 'home' | 'draw' | 'away') {
+    if (pick === 'draw') { const n = Math.floor(Math.random() * 4); return { home: n, away: n }; }
+    const winner = Math.floor(Math.random() * 4) + 1;
+    const loser  = Math.floor(Math.random() * winner);
+    return pick === 'home' ? { home: winner, away: loser } : { home: loser, away: winner };
+  }
+
+  async function scanMissingBets() {
+    setMissingBetsRunning(true);
+    setMissingBetsMsg('');
+    setMissingBetsPreview(null);
+
+    const { data: games } = await supabase
+      .from('league_schedule')
+      .select('id, home_team, away_team, kickoff_at, home_score, away_score')
+      .eq('completed', true)
+      .order('kickoff_at');
+
+    if (!games?.length) { setMissingBetsRunning(false); setMissingBetsMsg('אין משחקים שהסתיימו'); return; }
+
+    const { data: allBets } = await supabase
+      .from('bets').select('player_id, external_game_id')
+      .in('external_game_id', games.map(g => g.id));
+
+    const betSet = new Set((allBets ?? []).map(b => `${b.player_id}|${b.external_game_id}`));
+    const entries: { game: FixGame; playerIds: string[] }[] = [];
+
+    for (const game of games as FixGame[]) {
+      const missing = players.filter(p => !betSet.has(`${p.id}|${game.id}`));
+      if (missing.length) entries.push({ game, playerIds: missing.map(p => p.id) });
+    }
+
+    setMissingBetsPreview(entries);
+    setMissingBetsRunning(false);
+    if (!entries.length) setMissingBetsMsg('✓ כל השחקנים הימרו על כל המשחקים שהסתיימו!');
+  }
+
+  async function applyMissingBets() {
+    if (!missingBetsPreview) return;
+    setMissingBetsApplying(true);
+    setMissingBetsMsg('');
+
+    const resultPts = settings?.result_points ?? 3;
+    const exactPts  = settings?.exact_score_points ?? 5;
+    const amount    = settings?.auto_bet_amount ?? 1;
+    const bankDelta: Record<string, number> = {};
+    let inserted = 0;
+
+    for (const { game, playerIds } of missingBetsPreview) {
+      const h = game.home_score, a = game.away_score;
+      const actual = h > a ? 'home' : a > h ? 'away' : 'draw';
+
+      for (const pid of playerIds) {
+        const pick  = rndPick();
+        const exact = rndExact(pick);
+        const won   = pick === actual;
+        const isExact = won && exact.home === h && exact.away === a;
+        const payout  = isExact ? exactPts : won ? resultPts : 0;
+
+        const { error } = await supabase.from('bets').insert({
+          player_id: pid, external_game_id: game.id,
+          home_team: game.home_team, away_team: game.away_team, kickoff_at: game.kickoff_at,
+          pick, amount, odds_value: 1,
+          exact_home: exact.home, exact_away: exact.away,
+          actual_home: h, actual_away: a,
+          status: won ? 'won' : 'lost', payout,
+        });
+
+        if (!error) {
+          inserted++;
+          bankDelta[pid] = (bankDelta[pid] ?? 0) + payout;
+        }
+      }
+    }
+
+    for (const [pid, delta] of Object.entries(bankDelta)) {
+      if (!delta) continue;
+      const { data: p } = await supabase.from('profiles').select('bank').eq('id', pid).single();
+      if (p) await supabase.from('profiles').update({ bank: p.bank + delta }).eq('id', pid);
+    }
+
+    await Promise.all([loadPlayers(), loadBetCounts()]);
+    setMissingBetsPreview(null);
+    setMissingBetsApplying(false);
+    setMissingBetsMsg(`✓ הוכנסו ${inserted} הימורים. ${Object.keys(bankDelta).length} בנקים עודכנו.`);
   }
 
   async function saveSettings() {
@@ -1206,6 +1304,56 @@ export default function AdminPage() {
         {tab === 'fix' && (
           <div className="fade-in">
             <h2 className="font-bold text-lg mb-4">תיקון הימורים</h2>
+
+            {/* השלמת הימורים חסרים */}
+            <div className="card p-4 mb-4" style={{border: '1px solid rgba(167,139,250,0.35)', background: 'rgba(167,139,250,0.04)'}}>
+              <div className="font-semibold mb-1" style={{color: '#a78bfa'}}>🎲 השלם הימורים חסרים</div>
+              <div className="text-xs mb-3" style={{color: 'var(--text-muted)'}}>
+                מוצא שחקנים שלא הימרו על משחקים שכבר הסתיימו ומכניס להם הימור רנדומלי (כולל ניחוש תוצאה).
+              </div>
+              {missingBetsMsg && (
+                <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{
+                  background: missingBetsMsg.startsWith('✓') ? 'rgba(0,200,83,0.1)' : 'rgba(248,113,113,0.1)',
+                  color: missingBetsMsg.startsWith('✓') ? 'var(--green)' : '#f87171',
+                  border: `1px solid ${missingBetsMsg.startsWith('✓') ? 'rgba(0,200,83,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                }}>
+                  {missingBetsMsg}
+                </div>
+              )}
+              {missingBetsPreview && missingBetsPreview.length > 0 && (
+                <div className="mb-3 text-xs flex flex-col gap-1" style={{color:'var(--text-muted)'}}>
+                  {missingBetsPreview.map(({ game, playerIds }) => (
+                    <div key={game.id}>
+                      <span style={{color:'var(--text)'}}>
+                        {teamHe(game.home_team)} {game.home_score}:{game.away_score} {teamHe(game.away_team)}
+                      </span>
+                      {' — חסר ל: '}
+                      {playerIds.map(pid => players.find(p => p.id === pid)?.display_name).filter(Boolean).join(', ')}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={scanMissingBets}
+                  disabled={missingBetsRunning || missingBetsApplying}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                  style={{background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.5)', color: '#a78bfa', cursor: 'pointer'}}
+                >
+                  🔍 {missingBetsRunning ? 'סורק...' : 'סרוק הימורים חסרים'}
+                </button>
+                {missingBetsPreview && missingBetsPreview.length > 0 && (
+                  <button
+                    onClick={applyMissingBets}
+                    disabled={missingBetsApplying}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold"
+                    style={{background: 'rgba(0,200,83,0.15)', border: '1px solid rgba(0,200,83,0.5)', color: 'var(--green)', cursor: 'pointer'}}
+                  >
+                    ✅ {missingBetsApplying ? 'מכניס...' : `הכנס ${missingBetsPreview.reduce((s,e)=>s+e.playerIds.length,0)} הימורים`}
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* בחר משחק */}
             <div className="card p-4 mb-4">
