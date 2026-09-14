@@ -116,8 +116,8 @@ const incoming = allGames
       ? g.homeCompetitor.score : null;
     const awayScore = (g.awayCompetitor.score !== undefined && g.awayCompetitor.score >= 0)
       ? g.awayCompetitor.score : null;
-    // statusId=5 = FT (הסתיים). מונע סגירה על ניקוד אמצע משחק.
-    const completed = homeScore !== null && awayScore !== null && g.statusId === 5;
+    // statusGroup=4 = FT (הסתיים). מונע סגירה על ניקוד אמצע משחק.
+    const completed = homeScore !== null && awayScore !== null && g.statusGroup === 4;
 
     return {
       external_id: `365_${g.id}`,
