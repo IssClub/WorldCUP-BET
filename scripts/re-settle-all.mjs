@@ -73,6 +73,8 @@ async function main() {
 
   // מפה: norm(home)|norm(away) → row
   const dbMap = new Map((dbRows ?? []).map(r => [`${norm(r.home_team)}|${norm(r.away_team)}`, r]));
+  console.log(`DB: ${dbRows?.length ?? 0} שורות. דוגמה ל-5 מפתחות:`);
+  [...dbMap.keys()].slice(0, 5).forEach(k => console.log(`  "${k}"`));
 
   // שלוף מ-365scores
   const now   = new Date();
@@ -121,7 +123,11 @@ async function main() {
     }
 
     if (!dbRow) {
+      const k1 = `${norm(homeEn)}|${norm(awayEn)}`;
+      const k2 = `${norm(awayEn)}|${norm(homeEn)}`;
       console.log(`⚠️  לא נמצא בDB: ${homeHe} vs ${awayHe}`);
+      console.log(`   חיפוש: "${k1}"`);
+      console.log(`   הפוך:  "${k2}"`);
       continue;
     }
 
