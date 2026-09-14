@@ -495,9 +495,12 @@ body {
 /* ── Tournament v2 ───────────────────────────────────────── */
 .trn-toggle {
   display: flex; gap: 6px;
-  background: rgba(255,255,255,0.05);
+  background: var(--bg);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px; padding: 4px; margin-bottom: 14px;
+  position: sticky;
+  top: calc(env(safe-area-inset-top) + 56px);
+  z-index: 10;
 }
 .trn-tog-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
