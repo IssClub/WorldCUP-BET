@@ -302,7 +302,6 @@ function ScheduleView({ games, groups, scoreMap }: {
 function LeagueScheduleView() {
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const roundRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const scrolled = useRef(false);
 
@@ -332,14 +331,6 @@ function LeagueScheduleView() {
     return Array.from(map.entries()).sort(([a], [b]) => a - b);
   }, [fixtures]);
 
-  // פתח רק את המחזור האחרון שהסתיים — שאר המחזורים מקופלים
-  useEffect(() => {
-    if (byRound.length > 0) {
-      const toOpen = lastCompletedRound ?? byRound[0][0];
-      setOpenRounds(new Set([toOpen]));
-    }
-  }, [byRound.length, lastCompletedRound]);
-
   const currentRound = useMemo(() => {
     const now = new Date();
     for (const [r, rFix] of byRound) {
@@ -356,26 +347,26 @@ function LeagueScheduleView() {
     return last;
   }, [byRound]);
 
+  // גלול למחזור האחרון שהסתיים, מיושר לתחתית המסך
   useEffect(() => {
     if (scrolled.current || lastCompletedRound === null) return;
     const el = roundRefs.current[lastCompletedRound];
     if (!el) return;
     scrolled.current = true;
     setTimeout(() => {
-      const hdr = document.querySelector('.hdr') as HTMLElement | null;
-      const offset = (hdr?.offsetHeight ?? 60) + 8;
-      const top = el.getBoundingClientRect().top + window.scrollY - offset;
-      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      const hdr  = document.querySelector('.hdr')        as HTMLElement | null;
+      const bnav = document.querySelector('.bottom-nav') as HTMLElement | null;
+      const hdrH  = (hdr?.offsetHeight  ?? 60) + 4;
+      const bnavH = (bnav?.offsetHeight ?? 83) + 8;
+      const rect = el.getBoundingClientRect();
+      // bottom-align: גלול כך שתחתית המחזור תיישר לתחתית האזור השמיש
+      const bottomAligned = window.scrollY + rect.bottom - (window.innerHeight - bnavH);
+      // top-align: גלול כך שהכותרת של המחזור תהיה ממש מתחת ל-header
+      const topAligned    = window.scrollY + rect.top - hdrH;
+      // אם המחזור קצר מהגובה הזמין — מיישרים לתחתית; אחרת לראש
+      window.scrollTo({ top: Math.max(0, Math.max(topAligned, bottomAligned)), behavior: 'smooth' });
     }, 150);
   }, [lastCompletedRound]);
-
-  const toggleRound = (r: number) => {
-    setOpenRounds(prev => {
-      const next = new Set(prev);
-      if (next.has(r)) next.delete(r); else next.add(r);
-      return next;
-    });
-  };
 
   const fmtRoundDate = (rFix: LeagueFixture[]) => {
     const sorted = [...rFix].sort((a, b) => a.kickoff_at.localeCompare(b.kickoff_at));
@@ -401,62 +392,53 @@ function LeagueScheduleView() {
     <div className="flex flex-col gap-3">
       {byRound.map(([round, rFix]) => {
         const isCurrent = round === currentRound;
-        const isOpen = openRounds.has(round);
         return (
           <div key={round} ref={el => { roundRefs.current[round] = el; }}>
-            <button
-              onClick={() => toggleRound(round)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isCurrent ? 'var(--accent)' : 'var(--text)' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>מחזור {round}</span>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>— {fmtRoundDate(rFix)}</span>
-                {isCurrent && (
-                  <span style={{
-                    fontSize: '0.65rem', background: 'var(--accent)',
-                    color: '#fff', borderRadius: 10, padding: '1px 7px',
-                  }}>נוכחי</span>
-                )}
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
-            </button>
-            {isOpen && (
-              <div className="flex flex-col gap-1" style={{ marginTop: 6 }}>
-                {rFix.map(f => (
-                  <div key={f.id} className="sch-row">
-                    <div className="sch-row-top">
-                      <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 0', borderBottom: '1px solid var(--border)',
+              color: isCurrent ? 'var(--accent)' : 'var(--text)',
+            }}>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>מחזור {round}</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>— {fmtRoundDate(rFix)}</span>
+              {isCurrent && (
+                <span style={{
+                  fontSize: '0.65rem', background: 'var(--accent)',
+                  color: '#fff', borderRadius: 10, padding: '1px 7px',
+                }}>נוכחי</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1" style={{ marginTop: 6 }}>
+              {rFix.map(f => (
+                <div key={f.id} className="sch-row">
+                  <div className="sch-row-top">
+                    <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
+                  </div>
+                  <div className="sch-match">
+                    <div className="sch-home">
+                      <Flag team={f.home_team} size={22} />
+                      <span className="sch-tname">{teamHe(f.home_team)}</span>
                     </div>
-                    <div className="sch-match">
-                      <div className="sch-home">
-                        <Flag team={f.home_team} size={22} />
-                        <span className="sch-tname">{teamHe(f.home_team)}</span>
-                      </div>
-                      {f.completed && f.home_score !== null ? (
-                        <div className="sch-score">
-                          <div className="sch-score-nums">
-                            <span className="sch-score-num">{f.home_score}</span>
-                            <span className="sch-score-sep">:</span>
-                            <span className="sch-score-num">{f.away_score}</span>
-                          </div>
-                          <span className="sch-score-ft">סיים</span>
+                    {f.completed && f.home_score !== null ? (
+                      <div className="sch-score">
+                        <div className="sch-score-nums">
+                          <span className="sch-score-num">{f.home_score}</span>
+                          <span className="sch-score-sep">:</span>
+                          <span className="sch-score-num">{f.away_score}</span>
                         </div>
-                      ) : (
-                        <span className="sch-vs">VS</span>
-                      )}
-                      <div className="sch-away">
-                        <span className="sch-tname">{teamHe(f.away_team)}</span>
-                        <Flag team={f.away_team} size={22} />
+                        <span className="sch-score-ft">סיים</span>
                       </div>
+                    ) : (
+                      <span className="sch-vs">VS</span>
+                    )}
+                    <div className="sch-away">
+                      <span className="sch-tname">{teamHe(f.away_team)}</span>
+                      <Flag team={f.away_team} size={22} />
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}
