@@ -361,7 +361,9 @@ function LeagueScheduleView() {
     if (!el) return;
     scrolled.current = true;
     setTimeout(() => {
-      const top = el.getBoundingClientRect().top + window.scrollY - 70;
+      const hdr = document.querySelector('.hdr') as HTMLElement | null;
+      const offset = (hdr?.offsetHeight ?? 60) + 8;
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }, 150);
   }, [lastCompletedRound]);

@@ -586,7 +586,7 @@ function AppShell() {
 
   if (isRecovery) return <ResetPasswordPage />;
 
-  if (loading) return <div className="pitch-bg" style={{ minHeight: '100dvh' }} />;
+  if (loading) return null;
 
   if (!user) return <LoginPage />;
 
