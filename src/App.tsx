@@ -586,14 +586,7 @@ function AppShell() {
 
   if (isRecovery) return <ResetPasswordPage />;
 
-  if (loading) return (
-    <div className="pitch-bg flex items-center justify-center" style={{ minHeight: '100dvh' }}>
-      <div className="text-center">
-        <div className="text-5xl mb-4 animate-pulse">⚽</div>
-        <div className="bebas text-3xl" style={{ color: 'var(--green)' }}>טוען...</div>
-      </div>
-    </div>
-  );
+  if (loading) return <div className="pitch-bg" style={{ minHeight: '100dvh' }} />;
 
   if (!user) return <LoginPage />;
 

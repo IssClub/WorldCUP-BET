@@ -360,7 +360,10 @@ function LeagueScheduleView() {
     const el = roundRefs.current[lastCompletedRound];
     if (!el) return;
     scrolled.current = true;
-    setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    setTimeout(() => {
+      const top = el.getBoundingClientRect().top + window.scrollY - 70;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }, 150);
   }, [lastCompletedRound]);
 
   const toggleRound = (r: number) => {
