@@ -302,8 +302,27 @@ function ScheduleView({ games, groups, scoreMap }: {
 function LeagueScheduleView() {
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cardHeight, setCardHeight] = useState<number>(60);
   const roundRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const scrolled = useRef(false);
+
+  // חשב גובה כרטיסייה כך ש-7 משחקים + כותרת מחזור ימלאו בדיוק את השטח שמתחת לכרטיסייה הצפה
+  useEffect(() => {
+    function calc() {
+      const hdr    = document.querySelector('.hdr')        as HTMLElement | null;
+      const bnav   = document.querySelector('.bottom-nav') as HTMLElement | null;
+      const tabBar = document.querySelector('.trn-toggle') as HTMLElement | null;
+      const hdrH   = hdr?.offsetHeight    ?? 56;
+      const bnavH  = bnav?.offsetHeight   ?? 83;
+      const tabH   = tabBar?.offsetHeight ?? 48;
+      // גובה פנוי = מסך - header - tab-bar - bottom-nav - כותרת מחזור (~33px) - gaps (6×4) - marginTop (6px) - buffer (8px)
+      const available = window.innerHeight - hdrH - tabH - bnavH - 33 - 24 - 6 - 8;
+      setCardHeight(Math.max(48, Math.floor(available / 7)));
+    }
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
 
   useEffect(() => {
     supabase.from('league_schedule').select('*').order('kickoff_at')
@@ -347,24 +366,18 @@ function LeagueScheduleView() {
     return last;
   }, [byRound]);
 
-  // גלול למחזור האחרון שהסתיים, מיושר לתחתית המסך
+  // גלול למחזור האחרון שהסתיים — הכותרת מתחת לסרגל הצף
   useEffect(() => {
     if (scrolled.current || lastCompletedRound === null) return;
     const el = roundRefs.current[lastCompletedRound];
     if (!el) return;
     scrolled.current = true;
     setTimeout(() => {
-      const hdr  = document.querySelector('.hdr')        as HTMLElement | null;
-      const bnav = document.querySelector('.bottom-nav') as HTMLElement | null;
-      const hdrH  = (hdr?.offsetHeight  ?? 60) + 4;
-      const bnavH = (bnav?.offsetHeight ?? 83) + 8;
-      const rect = el.getBoundingClientRect();
-      // bottom-align: גלול כך שתחתית המחזור תיישר לתחתית האזור השמיש
-      const bottomAligned = window.scrollY + rect.bottom - (window.innerHeight - bnavH);
-      // top-align: גלול כך שהכותרת של המחזור תהיה ממש מתחת ל-header
-      const topAligned    = window.scrollY + rect.top - hdrH;
-      // אם המחזור קצר מהגובה הזמין — מיישרים לתחתית; אחרת לראש
-      window.scrollTo({ top: Math.max(0, Math.max(topAligned, bottomAligned)), behavior: 'smooth' });
+      const hdr    = document.querySelector('.hdr')        as HTMLElement | null;
+      const tabBar = document.querySelector('.trn-toggle') as HTMLElement | null;
+      const offset = (hdr?.offsetHeight ?? 56) + (tabBar?.offsetHeight ?? 48) + 4;
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }, 150);
   }, [lastCompletedRound]);
 
@@ -410,8 +423,9 @@ function LeagueScheduleView() {
             </div>
             <div className="flex flex-col gap-1" style={{ marginTop: 6 }}>
               {rFix.map(f => (
-                <div key={f.id} className="sch-row">
-                  <div className="sch-row-top">
+                <div key={f.id} className="sch-row"
+                  style={{ height: cardHeight, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 10px' }}>
+                  <div className="sch-row-top" style={{ marginBottom: 2 }}>
                     <span className="sch-time">{fmtDayFull(f.kickoff_at)} · {fmtTime(f.kickoff_at)}</span>
                   </div>
                   <div className="sch-match">
