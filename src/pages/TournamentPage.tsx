@@ -332,12 +332,13 @@ function LeagueScheduleView() {
     return Array.from(map.entries()).sort(([a], [b]) => a - b);
   }, [fixtures]);
 
-  // פתח את כל המחזורים כברירת מחדל
+  // פתח רק את המחזור האחרון שהסתיים — שאר המחזורים מקופלים
   useEffect(() => {
     if (byRound.length > 0) {
-      setOpenRounds(new Set(byRound.map(([r]) => r)));
+      const toOpen = lastCompletedRound ?? byRound[0][0];
+      setOpenRounds(new Set([toOpen]));
     }
-  }, [byRound.length]);
+  }, [byRound.length, lastCompletedRound]);
 
   const currentRound = useMemo(() => {
     const now = new Date();
