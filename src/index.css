@@ -690,11 +690,11 @@ body {
 .sch-row {
   background: rgba(19,40,64,0.75);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px; padding: 10px 12px;
+  border-radius: 10px; padding: 5px 10px;
   backdrop-filter: blur(8px);
 }
 .sch-row-top {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
 }
 .sch-badge {
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.5px;
@@ -703,7 +703,7 @@ body {
   flex-shrink: 0;
 }
 .sch-time {
-  font-family: 'Bebas Neue', cursive; font-size: 1rem; letter-spacing: 1px;
+  font-family: 'Bebas Neue', cursive; font-size: 0.82rem; letter-spacing: 0.5px;
   color: var(--text);
 }
 .sch-channel {
@@ -721,10 +721,10 @@ body {
   display: flex; flex-direction: row; align-items: baseline; gap: 2px;
 }
 .sch-score-num {
-  font-family: 'Bebas Neue', cursive; font-size: 1.5rem; line-height: 1; color: var(--text);
+  font-family: 'Bebas Neue', cursive; font-size: 1.15rem; line-height: 1; color: var(--text);
 }
 .sch-score-sep {
-  font-family: 'Bebas Neue', cursive; font-size: 1.3rem; color: var(--text-muted); line-height: 1;
+  font-family: 'Bebas Neue', cursive; font-size: 1rem; color: var(--text-muted); line-height: 1;
 }
 .sch-score-ft { font-size: 0.55rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; margin-top: 1px; }
 .sch-score-live {
@@ -756,7 +756,7 @@ body {
 }
 .sch-match {
   display: grid; grid-template-columns: 1fr auto 1fr;
-  align-items: center; gap: 8px; margin-top: 2px;
+  align-items: center; gap: 8px; margin-top: 0;
 }
 .sch-home {
   display: flex; align-items: center; gap: 6px;

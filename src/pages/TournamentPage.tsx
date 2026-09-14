@@ -424,7 +424,7 @@ function LeagueScheduleView() {
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isOpen ? '▲' : '▼'}</span>
             </button>
             {isOpen && (
-              <div className="flex flex-col gap-2" style={{ marginTop: 8 }}>
+              <div className="flex flex-col gap-1" style={{ marginTop: 6 }}>
                 {rFix.map(f => (
                   <div key={f.id} className="sch-row">
                     <div className="sch-row-top">
@@ -432,7 +432,7 @@ function LeagueScheduleView() {
                     </div>
                     <div className="sch-match">
                       <div className="sch-home">
-                        <Flag team={f.home_team} size={28} />
+                        <Flag team={f.home_team} size={22} />
                         <span className="sch-tname">{teamHe(f.home_team)}</span>
                       </div>
                       {f.completed && f.home_score !== null ? (
@@ -449,7 +449,7 @@ function LeagueScheduleView() {
                       )}
                       <div className="sch-away">
                         <span className="sch-tname">{teamHe(f.away_team)}</span>
-                        <Flag team={f.away_team} size={28} />
+                        <Flag team={f.away_team} size={22} />
                       </div>
                     </div>
                   </div>
