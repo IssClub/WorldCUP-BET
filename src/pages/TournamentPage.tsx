@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { teamHe } from '../lib/teamNames';
 import { supabase } from '../lib/supabase';
 import type { TopScorer, SpecialBet } from '../lib/supabase';
@@ -303,6 +303,8 @@ function LeagueScheduleView() {
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
+  const roundRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const scrolled = useRef(false);
 
   useEffect(() => {
     supabase.from('league_schedule').select('*').order('kickoff_at')
@@ -345,6 +347,22 @@ function LeagueScheduleView() {
     return byRound[byRound.length - 1]?.[0] ?? 1;
   }, [byRound]);
 
+  const lastCompletedRound = useMemo(() => {
+    let last: number | null = null;
+    for (const [r, rFix] of byRound) {
+      if (rFix.every(f => f.completed)) last = r;
+    }
+    return last;
+  }, [byRound]);
+
+  useEffect(() => {
+    if (scrolled.current || lastCompletedRound === null) return;
+    const el = roundRefs.current[lastCompletedRound];
+    if (!el) return;
+    scrolled.current = true;
+    setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, [lastCompletedRound]);
+
   const toggleRound = (r: number) => {
     setOpenRounds(prev => {
       const next = new Set(prev);
@@ -379,7 +397,7 @@ function LeagueScheduleView() {
         const isCurrent = round === currentRound;
         const isOpen = openRounds.has(round);
         return (
-          <div key={round}>
+          <div key={round} ref={el => { roundRefs.current[round] = el; }}>
             <button
               onClick={() => toggleRound(round)}
               style={{
