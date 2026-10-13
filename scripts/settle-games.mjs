@@ -147,6 +147,16 @@ const KING_PHRASES = [
 const randomPhrase = arr => arr[Math.floor(Math.random() * arr.length)];
 const randomKingPhrase = (name, pts) => KING_PHRASES[Math.floor(Math.random() * KING_PHRASES.length)](name, pts);
 
+// Queue a push for later delivery (processed by processPushQueue at 9:00 AM)
+async function queuePush(playerId, payload) {
+  await supabase.from('push_queue').insert({
+    player_id: playerId,
+    title: payload.title,
+    body: payload.body,
+    sent: false,
+  });
+}
+
 // Send push to a player (handles expired subscriptions)
 async function sendPush(playerId, payload) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
@@ -480,10 +490,9 @@ async function maybeSendRoundSummary(settledExternalIds) {
       else phrase = randomPhrase(ROUND_BAD);
 
       const exactStr = s.exact > 0 ? ` 🎯×${s.exact}` : '';
-      await sendPush(playerId, {
+      await queuePush(playerId, {
         title: `📊 מחזור ${roundNum} — ${s.won}/${total} נכון · +${s.pts} נק׳`,
         body: `${phrase}${exactStr}`,
-        url: '/WorldCUP-BET/',
       });
     }
 
@@ -492,17 +501,15 @@ async function maybeSendRoundSummary(settledExternalIds) {
       const kingBody = randomKingPhrase(kingName, kingStats.pts);
       for (const profile of (allProfiles ?? [])) {
         if (profile.id === kingId) continue; // המלך כבר קיבל את ה-glory בסיכום האישי
-        await sendPush(profile.id, {
+        await queuePush(profile.id, {
           title: `👑 מלך מחזור ${roundNum}`,
           body: kingBody,
-          url: '/WorldCUP-BET/',
         });
       }
       // למלך עצמו — הודעה מיוחדת
-      await sendPush(kingId, {
+      await queuePush(kingId, {
         title: `👑 אתה מלך מחזור ${roundNum}!`,
         body: `${kingStats.pts} נק׳ — יותר מכולם. ${randomPhrase(ROUND_GREAT)}`,
-        url: '/WorldCUP-BET/',
       });
     }
 
@@ -511,10 +518,9 @@ async function maybeSendRoundSummary(settledExternalIds) {
     if (overallLeader) {
       // אפס טגליין לכולם — רק המוביל הנוכחי יכתוב חדש
       await supabase.from('profiles').update({ tagline: null }).neq('id', '00000000-0000-0000-0000-000000000000');
-      await sendPush(overallLeader.id, {
+      await queuePush(overallLeader.id, {
         title: 'כל הכבוד, אתה מוביל! 🏆',
         body: `סיימת את מחזור ${roundNum} במקום הראשון! זה הזמן לכתוב לכל הלוזרים מה אתה חושב 🏆`,
-        url: '/WorldCUP-BET/?set-tagline=1',
       });
       console.log(`Tagline push sent to overall leader: ${overallLeader.display_name}`);
     }
@@ -629,10 +635,9 @@ async function maybeSendDailySummary(justSettled, bankMap = {}, activePlayers = 
         ? `${change.toLocaleString()} נק׳ היום`
         : 'ללא שינוי היום';
 
-    await sendPush(player.id, {
+    await queuePush(player.id, {
       title: `📊 סיכום יום · מקום ${rank} מתוך ${total}`,
       body: `${changeStr} | יתרה: ${bank.toLocaleString()} נק׳`,
-      url: '/WorldCUP-BET/',
     });
   }
 }
@@ -717,10 +722,9 @@ async function maybeSendDailySummaryFromDB() {
         ? `${change.toLocaleString()} נק׳ היום`
         : 'ללא שינוי היום';
 
-    await sendPush(player.id, {
+    await queuePush(player.id, {
       title: `📊 סיכום יום · מקום ${rank} מתוך ${total}`,
       body: `${changeStr} | יתרה: ${player.bank.toLocaleString()} נק׳`,
-      url: '/WorldCUP-BET/',
     });
   }
 }

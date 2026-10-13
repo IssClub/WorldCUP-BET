@@ -100,6 +100,11 @@ if (allGames.length === 0) {
 
 console.log(`Total: ${allGames.length} games from 365scores`);
 
+// ── ממפה roundNum של 365scores למספור רציף (ללא קפיצות של הפסקות בינלאומיות) ──
+const rawRounds = [...new Set(allGames.filter(g => g.roundNum).map(g => g.roundNum))].sort((a, b) => a - b);
+const roundMap  = Object.fromEntries(rawRounds.map((r, i) => [r, i + 1]));
+console.log('Round mapping:', rawRounds.map(r => `${r}→${roundMap[r]}`).join(', '));
+
 // ── בנה רשימת שורות מ-365scores ────────────────────────────
 const normalize = name =>
   name.toLowerCase().replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
@@ -127,7 +132,7 @@ const incoming = allGames
       home_score:  homeScore,
       away_score:  awayScore,
       completed,
-      round_num:   g.roundNum,
+      round_num:   roundMap[g.roundNum] ?? g.roundNum,
       updated_at:  new Date().toISOString(),
     };
   });
