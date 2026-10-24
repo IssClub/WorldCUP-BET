@@ -397,7 +397,7 @@ async function main() {
           ? `${randomPhrase(WIN_PHRASES)} +${payout.toLocaleString()} נק׳${rankText}`
           : `${randomPhrase(LOSS_PHRASES)} 0 נק׳${rankText}`;
       await sendPush(bet.player_id, {
-        title: `⚽ ${he(game.home_team)} ${homeScore}:${awayScore} ${he(game.away_team)}`,
+        title: `⚽ ${he(game.home_team)} ${awayScore}:${homeScore} ${he(game.away_team)}`,
         body,
         url: '/WorldCUP-BET/',
       });
