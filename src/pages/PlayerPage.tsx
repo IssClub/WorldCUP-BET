@@ -105,8 +105,8 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
         if (!local) continue;
         // בדוק אם הקבוצות הפוכות — אם כן, הפוך את הניקוד
         const inverted = local.home_team === enAway && local.away_team === enHome;
-        const score365Home = g365.homeCompetitor?.score ?? 0;
-        const score365Away = g365.awayCompetitor?.score ?? 0;
+        const score365Home = Math.max(0, g365.homeCompetitor?.score ?? 0);
+        const score365Away = Math.max(0, g365.awayCompetitor?.score ?? 0);
         const sg = g365.statusGroup;
         // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=סופי, 5=הפסקה
         const minute =

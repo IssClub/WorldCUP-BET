@@ -54,16 +54,25 @@ if (athletesStats && !Array.isArray(athletesStats)) {
   console.log('athletesStats keys:', Object.keys(athletesStats));
 }
 
-// נרמל לפי שני מבנים אפשריים: מערך ישיר, או אובייקט עם שדה items/list
+// נרמל לפי מבנים אפשריים: מערך ישיר, או אובייקט עם שדה tables/items/list
 const statsList = Array.isArray(athletesStats)
   ? athletesStats
-  : Array.isArray(athletesStats?.items) ? athletesStats.items
-  : Array.isArray(athletesStats?.list)  ? athletesStats.list
+  : Array.isArray(athletesStats?.tables) ? athletesStats.tables
+  : Array.isArray(athletesStats?.items)  ? athletesStats.items
+  : Array.isArray(athletesStats?.list)   ? athletesStats.list
   : [];
 
+// Debug: log statsList structure
+console.log('statsList length:', statsList.length);
+if (statsList.length > 0) {
+  console.log('statsList[0] keys:', Object.keys(statsList[0]));
+  console.log('statsList[0] name:', statsList[0]?.name, '| title:', statsList[0]?.title, '| type:', statsList[0]?.type);
+  console.log('All category names:', statsList.map(c => c.name ?? c.title ?? c.type).join(', '));
+}
+
 // מצא קטגוריות שערים ובישולים
-const goalsCategory   = statsList.find(cat => cat.name === 'שערים');
-const assistsCategory = statsList.find(cat => cat.name === 'בישולים');
+const goalsCategory   = statsList.find(cat => cat.name === 'שערים' || cat.title === 'שערים');
+const assistsCategory = statsList.find(cat => cat.name === 'בישולים' || cat.title === 'בישולים');
 
 if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.length === 0) {
   console.log('No goals data found — season may not have started yet.');
