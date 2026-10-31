@@ -45,13 +45,29 @@ if (!res.ok) {
 
 const data = await res.json();
 
+// Debug: log top-level structure
+console.log('Response keys:', Object.keys(data ?? {}));
+console.log('stats keys:', Object.keys(data?.stats ?? {}));
+const athletesStats = data?.stats?.athletesStats;
+console.log('athletesStats type:', Array.isArray(athletesStats) ? 'array' : typeof athletesStats);
+if (athletesStats && !Array.isArray(athletesStats)) {
+  console.log('athletesStats keys:', Object.keys(athletesStats));
+}
+
+// נרמל לפי שני מבנים אפשריים: מערך ישיר, או אובייקט עם שדה items/list
+const statsList = Array.isArray(athletesStats)
+  ? athletesStats
+  : Array.isArray(athletesStats?.items) ? athletesStats.items
+  : Array.isArray(athletesStats?.list)  ? athletesStats.list
+  : [];
+
 // מצא קטגוריות שערים ובישולים
-const goalsCategory   = data?.stats?.athletesStats?.find(cat => cat.name === 'שערים');
-const assistsCategory = data?.stats?.athletesStats?.find(cat => cat.name === 'בישולים');
+const goalsCategory   = statsList.find(cat => cat.name === 'שערים');
+const assistsCategory = statsList.find(cat => cat.name === 'בישולים');
 
 if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.length === 0) {
   console.log('No goals data found — season may not have started yet.');
-  console.log('Available categories:', data?.stats?.athletesStats?.map(c => c.name).join(', '));
+  console.log('Available categories:', statsList.map(c => c.name).join(', '));
   process.exit(0);
 }
 
