@@ -103,10 +103,14 @@ function useLiveScores(games: Game[]): Map<string, LiveScore> {
           !g.completed && Math.abs(new Date(g.kickoff_at).getTime() - t365) <= 30 * 60_000
         );
         if (!local) continue;
+        const rawHome = g365.homeCompetitor?.score;
+        const rawAway = g365.awayCompetitor?.score;
+        // אם שניהם -1 — המשחק עוד לא התחיל, לא מציגים לייב
+        if (rawHome === -1 && rawAway === -1) continue;
         // בדוק אם הקבוצות הפוכות — אם כן, הפוך את הניקוד
         const inverted = local.home_team === enAway && local.away_team === enHome;
-        const score365Home = Math.max(0, g365.homeCompetitor?.score ?? 0);
-        const score365Away = Math.max(0, g365.awayCompetitor?.score ?? 0);
+        const score365Home = Math.max(0, rawHome ?? 0);
+        const score365Away = Math.max(0, rawAway ?? 0);
         const sg = g365.statusGroup;
         // 365scores: 2=מחצית ראשונה, 3=מחצית שנייה, 4=סופי, 5=הפסקה
         const minute =
