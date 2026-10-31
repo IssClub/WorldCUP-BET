@@ -464,6 +464,7 @@ function LeagueScheduleView() {
 function TopScorersView() {
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teamFilter, setTeamFilter] = useState('');
 
   useEffect(() => {
     supabase.from('top_scorers').select('*').order('goals', { ascending: false })
@@ -480,11 +481,54 @@ function TopScorersView() {
     </div>
   );
 
+  const teams = [...new Set(scorers.map(s => s.team))].sort((a, b) =>
+    teamHe(a).localeCompare(teamHe(b), 'he')
+  );
+  const filtered = teamFilter ? scorers.filter(s => s.team === teamFilter) : scorers;
+
   return (
     <div className="trn-group-card">
       <div className="trn-standings-hdr">
         <span className="trn-group-letter">מלכי השערים</span>
       </div>
+
+      {/* Team filter chips */}
+      <div style={{
+        display: 'flex', gap: 6, padding: '8px 10px',
+        overflowX: 'auto', borderBottom: '1px solid var(--border)',
+        scrollbarWidth: 'none',
+      }}>
+        <button
+          onClick={() => setTeamFilter('')}
+          style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center',
+            padding: '4px 10px', borderRadius: 20, border: 'none',
+            background: !teamFilter ? 'var(--accent)' : 'var(--surface2)',
+            color: !teamFilter ? '#fff' : 'var(--text-muted)',
+            fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          הכל
+        </button>
+        {teams.map(team => (
+          <button
+            key={team}
+            onClick={() => setTeamFilter(team === teamFilter ? '' : team)}
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 8px', borderRadius: 20, border: 'none',
+              background: teamFilter === team ? 'var(--accent)' : 'var(--surface2)',
+              color: teamFilter === team ? '#fff' : 'var(--text)',
+              fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Flag team={team} size={16} />
+            {teamHe(team)}
+          </button>
+        ))}
+      </div>
+
       <table className="trn-table">
         <thead>
           <tr>
@@ -495,7 +539,7 @@ function TopScorersView() {
           </tr>
         </thead>
         <tbody>
-          {scorers.map((s, i) => (
+          {filtered.map((s, i) => (
             <tr key={s.id} className={i === 0 ? 'scorer-first' : ''}>
               <td className="trn-td-pos">{i + 1}</td>
               <td className="trn-td-team">
