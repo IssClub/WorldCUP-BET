@@ -67,7 +67,7 @@ if (assistsCategory) {
 }
 
 // בנה את הרשימה הסופית
-const rows = goalsCategory.rows.slice(0, 20).map(row => {
+const rows = goalsCategory.rows.slice(0, 100).map(row => {
   const goals   = Number(row.stats?.[0]?.value ?? 0);
   const assists = assistsMap.get(row.entity?.id) ?? 0;
 
