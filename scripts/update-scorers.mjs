@@ -114,9 +114,14 @@ rows.slice(0, 5).forEach((r, i) =>
   console.log(`  ${i + 1}. ${r.player_name} (${r.team}) — ${r.goals} שערים`)
 );
 
-const { error } = await supabase
-  .from('top_scorers')
-  .upsert(rows, { onConflict: 'id' });
+// מחיקת כל השורות הישנות לפני הכנסת הנתונים המעודכנים
+const { error: delErr } = await supabase.from('top_scorers').delete().neq('id', '__never__');
+if (delErr) {
+  console.error('Delete error:', delErr.message);
+  process.exit(1);
+}
+
+const { error } = await supabase.from('top_scorers').insert(rows);
 
 if (error) {
   console.error('Supabase error:', error.message);
