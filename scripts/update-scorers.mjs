@@ -1,6 +1,6 @@
 /**
  * update-scorers.mjs
- * מושך מלכי שערים של ליגת העל מ-365scores
+ * מושך מלכי שערים של ליגת העל מ-365scores — לכל הקבוצות
  * רץ פעם ביום אחרי המשחקים ומעדכן טבלת top_scorers בסופאבייס
  */
 import { createClient } from '@supabase/supabase-js';
@@ -23,104 +23,112 @@ if (sportKeys.includes('soccer_fifa_world_cup')) {
   process.exit(0);
 }
 
-const API_URL =
-  'https://webws.365scores.com/web/stats/' +
-  '?appTypeId=5&langId=2&timezoneName=Asia%2FJerusalem' +
-  '&userCountryId=6&competitions=42&competitors=&withSeasons=true';
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/json',
+  'Referer': 'https://www.365scores.com/he/football/league/premier-league-42/stats',
+};
 
-console.log('Fetching top scorers from 365scores...');
+function buildUrl(competitorId = '') {
+  return (
+    'https://webws.365scores.com/web/stats/' +
+    `?appTypeId=5&langId=2&timezoneName=Asia%2FJerusalem` +
+    `&userCountryId=6&competitions=42&competitors=${competitorId}&withSeasons=true`
+  );
+}
 
-const res = await fetch(API_URL, {
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'application/json',
-    'Referer': 'https://www.365scores.com/he/football/league/premier-league-42/stats',
-  },
-});
+function parseStats(data) {
+  const athletesStats = data?.stats?.athletesStats;
+  const statsList = Array.isArray(athletesStats)
+    ? athletesStats
+    : Array.isArray(athletesStats?.tables) ? athletesStats.tables
+    : Array.isArray(athletesStats?.items)  ? athletesStats.items
+    : Array.isArray(athletesStats?.list)   ? athletesStats.list
+    : [];
+  const goalsCategory   = statsList.find(c => c.name === 'שערים'   || c.title === 'שערים');
+  const assistsCategory = statsList.find(c => c.name === 'בישולים' || c.title === 'בישולים');
+  return { goalsCategory, assistsCategory, competitors: data.competitors ?? [] };
+}
 
-if (!res.ok) {
-  console.error('365scores error:', res.status, await res.text());
+// שלב 1: שלוף את רשימת הקבוצות מהקריאה הכללית
+console.log('Fetching team list from 365scores...');
+const overallRes = await fetch(buildUrl(), { headers: HEADERS });
+if (!overallRes.ok) {
+  console.error('365scores error:', overallRes.status);
   process.exit(1);
 }
+const overallData = await overallRes.json();
+const allCompetitors = overallData.competitors ?? [];
+console.log(`Found ${allCompetitors.length} teams`);
 
-const data = await res.json();
-
-// Debug: log top-level structure
-console.log('Response keys:', Object.keys(data ?? {}));
-console.log('stats keys:', Object.keys(data?.stats ?? {}));
-const athletesStats = data?.stats?.athletesStats;
-console.log('athletesStats type:', Array.isArray(athletesStats) ? 'array' : typeof athletesStats);
-if (athletesStats && !Array.isArray(athletesStats)) {
-  console.log('athletesStats keys:', Object.keys(athletesStats));
-}
-
-// נרמל לפי מבנים אפשריים: מערך ישיר, או אובייקט עם שדה tables/items/list
-const statsList = Array.isArray(athletesStats)
-  ? athletesStats
-  : Array.isArray(athletesStats?.tables) ? athletesStats.tables
-  : Array.isArray(athletesStats?.items)  ? athletesStats.items
-  : Array.isArray(athletesStats?.list)   ? athletesStats.list
-  : [];
-
-// Debug: log statsList structure
-console.log('statsList length:', statsList.length);
-if (statsList.length > 0) {
-  console.log('statsList[0] keys:', Object.keys(statsList[0]));
-  console.log('statsList[0] name:', statsList[0]?.name, '| title:', statsList[0]?.title, '| type:', statsList[0]?.type);
-  console.log('All category names:', statsList.map(c => c.name ?? c.title ?? c.type).join(', '));
-}
-
-// מצא קטגוריות שערים ובישולים
-const goalsCategory   = statsList.find(cat => cat.name === 'שערים' || cat.title === 'שערים');
-const assistsCategory = statsList.find(cat => cat.name === 'בישולים' || cat.title === 'בישולים');
-
-if (!goalsCategory || !Array.isArray(goalsCategory.rows) || goalsCategory.rows.length === 0) {
-  console.log('No goals data found — season may not have started yet.');
-  console.log('Available categories:', statsList.map(c => c.name).join(', '));
+if (allCompetitors.length === 0) {
+  console.log('No teams found — exiting.');
   process.exit(0);
 }
 
-// בנה map של בישולים לפי entity id
-const assistsMap = new Map();
-if (assistsCategory) {
-  for (const row of (assistsCategory.rows ?? [])) {
-    if (row.entity?.id !== undefined) {
-      const val = row.stats?.[0]?.value ?? 0;
-      assistsMap.set(row.entity.id, Number(val));
+// שלב 2: לכל קבוצה — שלוף שערים ובישולים
+const allGoals   = new Map(); // id → row data
+const allAssists = new Map(); // id → assists count
+
+for (const team of allCompetitors) {
+  process.stdout.write(`  Fetching ${team.name}... `);
+  try {
+    const res = await fetch(buildUrl(team.id), { headers: HEADERS });
+    if (!res.ok) { console.log(`HTTP ${res.status} — skip`); continue; }
+    const data = await res.json();
+    const { goalsCategory, assistsCategory, competitors } = parseStats(data);
+
+    // אסוף בישולים
+    for (const row of (assistsCategory?.rows ?? [])) {
+      if (row.entity?.id == null) continue;
+      const val = Number(row.stats?.[0]?.value ?? 0);
+      if (val > 0) allAssists.set(row.entity.id, val);
     }
+
+    // אסוף שערים
+    let count = 0;
+    for (const row of (goalsCategory?.rows ?? [])) {
+      if (row.entity?.id == null) continue;
+      const goals = Number(row.stats?.[0]?.value ?? 0);
+      if (goals === 0) continue;
+      const comp = competitors.find(c => c.id === row.entity?.competitorId);
+      allGoals.set(row.entity.id, {
+        id:          String(row.entity.id),
+        player_name: row.entity.name ?? '',
+        team:        comp?.name ?? team.name,
+        goals,
+        entity:      row.entity,
+      });
+      count++;
+    }
+    console.log(`${count} scorers`);
+  } catch (e) {
+    console.log(`error: ${e.message}`);
   }
+  // המתנה קצרה בין קריאות
+  await new Promise(r => setTimeout(r, 300));
 }
 
-// בנה את הרשימה הסופית
-const rows = goalsCategory.rows.slice(0, 100).map(row => {
-  const goals   = Number(row.stats?.[0]?.value ?? 0);
-  const assists = assistsMap.get(row.entity?.id) ?? 0;
+// שלב 3: בנה שורות סופיות עם בישולים
+const rows = [...allGoals.values()].map(p => ({
+  id:          p.id,
+  player_name: p.player_name,
+  team:        p.team,
+  goals:       p.goals,
+  assists:     allAssists.get(Number(p.id)) ?? 0,
+  updated_at:  new Date().toISOString(),
+})).sort((a, b) => b.goals - a.goals || b.assists - a.assists);
 
-  // שם הקבוצה — מגיע מ-competitors
-  const competitor = data.competitors?.find(c => c.id === row.entity?.competitorId);
-  const teamName   = competitor?.name ?? '';
-
-  return {
-    id:          String(row.entity?.id),
-    player_name: row.entity?.name ?? '',
-    team:        teamName,
-    goals,
-    assists,
-    updated_at:  new Date().toISOString(),
-  };
-});
-
+console.log(`\nTotal scorers: ${rows.length}`);
 rows.slice(0, 5).forEach((r, i) =>
-  console.log(`  ${i + 1}. ${r.player_name} (${r.team}) — ${r.goals} שערים`)
+  console.log(`  ${i + 1}. ${r.player_name} (${r.team}) — ${r.goals} שע' ${r.assists} בישולים`)
 );
 
-const { error } = await supabase
-  .from('top_scorers')
-  .upsert(rows, { onConflict: 'id' });
+// שלב 4: מחק ישן, הכנס חדש
+const { error: delErr } = await supabase.from('top_scorers').delete().neq('id', '__never__');
+if (delErr) { console.error('Delete error:', delErr.message); process.exit(1); }
 
-if (error) {
-  console.error('Supabase error:', error.message);
-  process.exit(1);
-}
+const { error } = await supabase.from('top_scorers').insert(rows);
+if (error) { console.error('Supabase error:', error.message); process.exit(1); }
 
 console.log(`✅ Updated ${rows.length} top scorers`);
