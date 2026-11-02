@@ -542,7 +542,7 @@ function TopScorersView() {
           {filtered.map((s, i) => (
             <tr key={s.id} className={i === 0 ? 'scorer-first' : ''}>
               <td className="trn-td-pos">{i + 1}</td>
-              <td className="trn-td-team">
+              <td className="trn-td-team" dir="rtl">
                 <Flag team={s.team} size={20} />
                 <div>
                   <div style={{ fontWeight: 600 }}>{s.player_name}</div>
