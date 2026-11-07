@@ -287,6 +287,8 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
               byRound.get(r)!.push(bet);
             }
             const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
+            // ממפה raw round_num → מספר רצוף (מונע קפיצות מהפסקה בינלאומית)
+            const seqMap = new Map([...byRound.keys()].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
 
             return (
               <div className="flex flex-col gap-4">
@@ -306,7 +308,7 @@ const totalBet = bets.reduce((s, b) => s + b.amount, 0);
                       }}
                     >
                       <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1 }}>
-                        מחזור {round || '?'}
+                        מחזור {seqMap.get(round) ?? round}
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                         {roundBets.some(b => b.status !== 'pending') && (
