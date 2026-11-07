@@ -194,7 +194,11 @@ export default function LeaderboardPage() {
 
   const MEDALS = ['🥇', '🥈', '🥉'];
   // ממפה raw round_num → מספר רצוף (מונע קפיצות מהפסקה בינלאומית)
-  const globalSeqMap = new Map([...new Set(roundMap.values())].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
+  const globalSeqMap = new Map(
+    [...new Set(roundMap.values())].filter((r): r is number => r !== null && r > 0)
+      .sort((a, b) => a - b)
+      .map((r, i) => [r, i + 1])
+  );
 
   return (
     <div className="pb-28" style={{ minHeight: '100dvh' }}>
@@ -360,7 +364,7 @@ export default function LeaderboardPage() {
                     byRound.get(r)!.push(bet);
                   }
                   const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
-                  const seqMap = new Map([...byRound.keys()].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
+                  // use global seqMap for consistent round numbers across all players
                   const earned = startedBets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
 
                   return (
@@ -391,7 +395,7 @@ export default function LeaderboardPage() {
                             }}
                           >
                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
-                              מחזור {seqMap.get(round) ?? round}
+                              מחזור {globalSeqMap.get(round) ?? round}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                               <span style={{ color: 'var(--green)' }}>✓{rWins}</span>
@@ -544,7 +548,7 @@ export default function LeaderboardPage() {
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--gold)', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 3 }}>
-                        מלך מחזור {roundSummary.roundNum}
+                        מלך מחזור {globalSeqMap.get(roundSummary.roundNum) ?? roundSummary.roundNum}
                       </div>
                       <div style={{ fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.1 }}>{king.display_name}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>

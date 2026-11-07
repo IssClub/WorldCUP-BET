@@ -417,6 +417,7 @@ export default function PlayerPage() {
   const [existingBets, setExistingBets] = useState<Bet[]>([]);
   const [bets, setBets] = useState<Record<string, BetState>>({});
   const [currentRound, setCurrentRound] = useState<number | null>(null);
+  const [allRoundNums, setAllRoundNums] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
@@ -458,6 +459,7 @@ export default function PlayerPage() {
       setGames(roundGames);
       setPostponedPrev(postponed);
       setCurrentRound(nextRound);
+      setAllRoundNums([...new Set(allGames.map(g => g.round_num ?? 0).filter(r => r > 0))].sort((a, b) => a - b));
     } catch {
       setError('שגיאה בטעינת המשחקים');
     } finally {
@@ -595,6 +597,8 @@ export default function PlayerPage() {
     </div>
   );
 
+  const seqMap = new Map(allRoundNums.map((r, i) => [r, i + 1]));
+
   return (
     <div className="pitch-bg pb-48" style={{ minHeight: '100dvh' }}>
 
@@ -606,7 +610,7 @@ export default function PlayerPage() {
         {currentRound !== null && (
           <div className="day-row" style={{ marginBottom: 4 }}>
             <span className="day-dot" />
-            <span className="day-title">מחזור {currentRound}</span>
+            <span className="day-title">מחזור {seqMap.get(currentRound) ?? currentRound}</span>
           </div>
         )}
 
@@ -672,7 +676,7 @@ export default function PlayerPage() {
                 <div key={round}>
                   <div className="day-row" style={{ opacity: 0.7 }}>
                     <span className="day-dot" />
-                    <span className="day-title">מחזור {round} (נדחה)</span>
+                    <span className="day-title">מחזור {seqMap.get(Number(round)) ?? round} (נדחה)</span>
                   </div>
                   {/* group by date within each postponed round */}
                   {(() => {
