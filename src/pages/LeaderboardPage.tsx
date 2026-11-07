@@ -364,7 +364,7 @@ export default function LeaderboardPage() {
                     byRound.get(r)!.push(bet);
                   }
                   const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
-                  // use global seqMap for consistent round numbers across all players
+                  const seqMap = new Map([...byRound.keys()].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
                   const earned = startedBets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
 
                   return (
@@ -395,7 +395,7 @@ export default function LeaderboardPage() {
                             }}
                           >
                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
-                              מחזור {globalSeqMap.get(round) ?? round}
+                              מחזור {seqMap.get(round) ?? round}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                               <span style={{ color: 'var(--green)' }}>✓{rWins}</span>
