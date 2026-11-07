@@ -63,13 +63,14 @@ export default function LeaderboardPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
   const [roundMap, setRoundMap] = useState<Map<string, number>>(new Map());
+  const [teamRoundMap, setTeamRoundMap] = useState<Map<string, number>>(new Map());
   const [roundSummary, setRoundSummary] = useState<RoundSummary | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
 
   const handleExpand = (playerId: string | null, playerBets?: Bet[]) => {
     setExpanded(playerId);
     if (playerId && playerBets) {
-      const rounds = playerBets.map(b => roundMap.get(b.external_game_id) ?? roundFromKickoff(b.kickoff_at));
+      const rounds = playerBets.map(b => teamRoundMap.get(`${b.home_team}|${b.away_team}`) ?? roundFromKickoff(b.kickoff_at));
       const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
       setOpenRounds(new Set([maxRound]));
     } else {
@@ -100,7 +101,7 @@ export default function LeaderboardPage() {
     const [profilesRes, betsRes, schedRes] = await Promise.all([
       supabase.from('profiles').select('*').order('bank', { ascending: false }),
       supabase.rpc('get_leaderboard_bets'),
-      supabase.from('league_schedule').select('id, round_num, completed'),
+      supabase.from('league_schedule').select('id, round_num, completed, home_team, away_team'),
     ]);
 
     const profiles: Profile[] = profilesRes.data || [];
@@ -109,6 +110,11 @@ export default function LeaderboardPage() {
 
     const newRoundMap = new Map(sched.map(r => [r.id, r.round_num]));
     setRoundMap(newRoundMap);
+    const newTeamRoundMap = new Map(
+      sched.filter(r => r.round_num != null)
+           .map(r => [`${r.home_team}|${r.away_team}`, r.round_num as number])
+    );
+    setTeamRoundMap(newTeamRoundMap);
 
     // ── מחזור אחרון שהושלם לחלוטין ──
     const byRoundNum = new Map<number, { total: number; done: number; ids: string[] }>();
@@ -195,9 +201,7 @@ export default function LeaderboardPage() {
   const MEDALS = ['🥇', '🥈', '🥉'];
   // ממפה raw round_num → מספר רצוף (מונע קפיצות מהפסקה בינלאומית)
   const globalSeqMap = new Map(
-    [...new Set(roundMap.values())].filter((r): r is number => r !== null && r > 0)
-      .sort((a, b) => a - b)
-      .map((r, i) => [r, i + 1])
+    [...new Set(teamRoundMap.values())].sort((a, b) => a - b).map((r, i) => [r, i + 1])
   );
 
   return (
@@ -359,12 +363,11 @@ export default function LeaderboardPage() {
                 {isOpen && hasHistory && (() => {
                   const byRound = new Map<number, Bet[]>();
                   for (const bet of startedBets) {
-                    const r = roundMap.get(bet.external_game_id) ?? roundFromKickoff(bet.kickoff_at);
+                    const r = teamRoundMap.get(`${bet.home_team}|${bet.away_team}`) ?? roundFromKickoff(bet.kickoff_at);
                     if (!byRound.has(r)) byRound.set(r, []);
                     byRound.get(r)!.push(bet);
                   }
                   const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
-                  const seqMap = new Map([...byRound.keys()].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
                   const earned = startedBets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
 
                   return (
@@ -395,7 +398,7 @@ export default function LeaderboardPage() {
                             }}
                           >
                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
-                              מחזור {seqMap.get(round) ?? round}
+                              מחזור {globalSeqMap.get(round) ?? round}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                               <span style={{ color: 'var(--green)' }}>✓{rWins}</span>
