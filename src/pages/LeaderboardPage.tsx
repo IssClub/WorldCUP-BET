@@ -193,6 +193,8 @@ export default function LeaderboardPage() {
   );
 
   const MEDALS = ['🥇', '🥈', '🥉'];
+  // ממפה raw round_num → מספר רצוף (מונע קפיצות מהפסקה בינלאומית)
+  const globalSeqMap = new Map([...new Set(roundMap.values())].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
 
   return (
     <div className="pb-28" style={{ minHeight: '100dvh' }}>
@@ -358,6 +360,7 @@ export default function LeaderboardPage() {
                     byRound.get(r)!.push(bet);
                   }
                   const sortedRounds = [...byRound.keys()].sort((a, b) => b - a);
+                  const seqMap = new Map([...byRound.keys()].sort((a, b) => a - b).map((r, i) => [r, i + 1]));
                   const earned = startedBets.filter(b => b.status === 'won').reduce((s, b) => s + (b.payout ?? 0), 0);
 
                   return (
@@ -388,7 +391,7 @@ export default function LeaderboardPage() {
                             }}
                           >
                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
-                              מחזור {round || '?'}
+                              מחזור {seqMap.get(round) ?? round}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', color: 'var(--text-muted)' }}>
                               <span style={{ color: 'var(--green)' }}>✓{rWins}</span>
@@ -502,7 +505,7 @@ export default function LeaderboardPage() {
                 <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>📊</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
-                    מחזור {roundSummary.roundNum} — סיכום
+                    מחזור {globalSeqMap.get(roundSummary.roundNum) ?? roundSummary.roundNum} — סיכום
                   </div>
                   {king && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
