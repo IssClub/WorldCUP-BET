@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import type { Profile, Bet } from '../lib/supabase';
-import { Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Crown, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import { teamHe } from '../lib/teamNames';
 import { LEAGUE_BADGES } from '../lib/leagueBadges';
+import { useAppModal } from '../contexts/AppModalContext';
 
 type PlayerStats = Profile & {
   wins: number;
@@ -58,6 +59,7 @@ type RoundSummary = { roundNum: number; players: RoundSummaryPlayer[] };
 
 export default function LeaderboardPage() {
   const { profile: me } = useAuth();
+  const { openTaglineModal } = useAppModal();
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -245,8 +247,8 @@ export default function LeaderboardPage() {
             </div>
           </div>
 
-          {/* Tagline banner — shown inside the card, above the #1 player row */}
-          {players[0]?.tagline && (
+          {/* Tagline banner */}
+          {(players[0]?.tagline || players[0]?.id === me?.id) && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -256,11 +258,11 @@ export default function LeaderboardPage() {
               borderBottom: '1px solid rgba(255,214,0,0.2)',
             }}>
               <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>👑</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  ומה יש למוביל להגיד?
+                  {players[0]?.tagline ? 'ומה יש למוביל להגיד?' : 'אתה מוביל — יש לך משהו להגיד?'}
                 </span>
-                <span style={{
+                {players[0]?.tagline && <span style={{
                   fontStyle: 'italic',
                   color: 'var(--gold)',
                   fontSize: '0.88rem',
@@ -268,8 +270,30 @@ export default function LeaderboardPage() {
                   lineHeight: 1.4,
                 }}>
                   {players[0].tagline}
-                </span>
+                </span>}
               </div>
+              {players[0]?.id === me?.id && (
+                <button
+                  onClick={openTaglineModal}
+                  style={{
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '5px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,214,0,0.4)',
+                    background: 'rgba(255,214,0,0.1)',
+                    color: 'var(--gold)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Pencil size={12} />
+                  {players[0]?.tagline ? 'ערוך' : 'כתוב'}
+                </button>
+              )}
             </div>
           )}
 

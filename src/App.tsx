@@ -599,7 +599,7 @@ function AppShell() {
   ];
 
   return (
-    <AppModalProvider value={{ openTeamModal: () => setShowTeamModal(true) }}>
+    <AppModalProvider value={{ openTeamModal: () => setShowTeamModal(true), openTaglineModal: () => setShowTaglineModal(true) }}>
     <div className="pitch-bg" style={{ minHeight: '100dvh' }}>
       {profile && <PushModal userId={profile.id} />}
       {profile && showTaglineModal && (
